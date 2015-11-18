@@ -1,5 +1,7 @@
 import numpy as np
 import numpy.linalg as lingal
+import matplotlib
+matplotlib.use('TKagg')
 import matplotlib.pyplot as plt
 import math
 import skimage as ski
@@ -18,7 +20,7 @@ tau=1
 g=10**-4
 cs=1/math.sqrt(3)
 timestep=1000 # time steps for the simulation
-timeplot=100 # plotimeing interval
+timeplot=1 # plotimeing interval
 
 # initializing variables
 rho=np.ones((lx,ly)) # initializing the rho
@@ -73,6 +75,7 @@ for time in range(timestep):
         f[j,:,:]=np.roll(np.roll(ff[j,:,:],cx[j],axis=0),cy[j],axis=1)
         
 	#this part is for the plotting and only takes a few plot instances over time
+    plt.figure()
     if not time%timeplot:
         #print the current time step of the simulation
         print "Time ",time," of ",timestep," completed" 
@@ -87,5 +90,5 @@ for time in range(timestep):
         colorbar = plt.colorbar(heatmap)
         colorbar.set_label(r'value of velocity')
         plt.gcf().set_size_inches(17, 7)
-        plt.savefig("images/Plot"+str(time)+".png")
-        
+        plt.draw()
+        plt.pause(0.01)
