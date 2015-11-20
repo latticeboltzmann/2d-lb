@@ -44,9 +44,9 @@ class Pipe_Flow(object):
         self.omega = 1./self.tau
 
         ## Initialize hydrodynamic variables
-        self.rho = None
-        self.u = None
-        self.v = None
+        self.rho = None # Density
+        self.u = None # Horizontal flow
+        self.v = None # Vertical flow
         self.init_hydro()
 
         # Intitialize the underlying probablistic fields
@@ -61,7 +61,7 @@ class Pipe_Flow(object):
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        u_applied=cs/100
+        u_applied=cs/10
         self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
         self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
 
