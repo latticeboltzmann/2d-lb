@@ -88,7 +88,7 @@ class Pipe_Flow(object):
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        u_applied=(self.input_velocity)*(self.dt/self.dr)
+        u_applied=self.input_velocity/(self.dr/self.dt)
         self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
         self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
 
@@ -198,7 +198,7 @@ class Pipe_Flow(object):
 
         self.f = feq.copy()
         # We now slightly perturb f
-        amplitude = .01
+        amplitude = .001
         perturb = (1. + amplitude*np.random.randn(nx, ny))
         self.f *= perturb
 
