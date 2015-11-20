@@ -1,8 +1,5 @@
 import numpy as np
-import matplotlib
-matplotlib.use('TKagg')
-import seaborn as sns
-sns.set_context('poster', font_scale=1.25)
+cimport numpy as np
 
 ##########################
 ##### D2Q9 parameters ####
@@ -100,58 +97,64 @@ class Pipe_Flow(object):
 
 
     def move_bcs(self):
-        f = self.f
-        lx = self.lx
-        ly = self.ly
+        """This is slow; cythonizing makes it fast."""
+        cdef float[:, :, :] f = self.f
+        cdef int lx = self.lx
+        cdef int ly = self.ly
+        cdef int i, j
 
-        # West inlet: periodic BC's
-        for j in range(1,ly):
-            f[1,0,j] = f[1,lx,j]
-            f[5,0,j] = f[5,lx,j]
-            f[8,0,j] = f[8,lx,j]
-        # EAST outlet
-        for j in range(1,ly):
-            f[3,lx,j] = f[3,0,j]
-            f[6,lx,j] = f[6,0,j]
-            f[7,lx,j] = f[7,0,j]
-        # NORTH solid
-        for i in range(1, lx): # Bounce back
-            f[4,i,ly] = f[2,i,ly-1]
-            f[8,i,ly] = f[6,i+1,ly-1]
-            f[7,i,ly] = f[5,i-1,ly-1]
-        # SOUTH solid
-        for i in range(1, lx):
-            f[2,i,0] = f[4,i,1]
-            f[6,i,0] = f[8,i-1,1]
-            f[5,i,0] = f[7,i+1,1]
+        with nogil:
+            # West inlet: periodic BC's
+            for j in range(1,ly):
+                f[1,0,j] = f[1,lx,j]
+                f[5,0,j] = f[5,lx,j]
+                f[8,0,j] = f[8,lx,j]
+            # EAST outlet
+            for j in range(1,ly):
+                f[3,lx,j] = f[3,0,j]
+                f[6,lx,j] = f[6,0,j]
+                f[7,lx,j] = f[7,0,j]
+            # NORTH solid
+            for i in range(1, lx): # Bounce back
+                f[4,i,ly] = f[2,i,ly-1]
+                f[8,i,ly] = f[6,i+1,ly-1]
+                f[7,i,ly] = f[5,i-1,ly-1]
+            # SOUTH solid
+            for i in range(1, lx):
+                f[2,i,0] = f[4,i,1]
+                f[6,i,0] = f[8,i-1,1]
+                f[5,i,0] = f[7,i+1,1]
 
-        # Corners bounce-back
-        f[8,0,ly] = f[6,1,ly-1]
-        f[5,0,0]  = f[7,1,1]
-        f[7,lx,ly] = f[5,lx-1,ly-1]
-        f[6,lx,0]  = f[8,lx-1,1]
+            # Corners bounce-back
+            f[8,0,ly] = f[6,1,ly-1]
+            f[5,0,0]  = f[7,1,1]
+            f[7,lx,ly] = f[5,lx-1,ly-1]
+            f[6,lx,0]  = f[8,lx-1,1]
 
     def move(self):
-        f = self.f
-        lx = self.lx
-        ly = self.ly
+        cdef float[:, :, :] f = self.f
+        cdef int lx = self.lx
+        cdef int ly = self.ly
 
-        for j in range(ly,0,-1): # Up, up-left
-            for i in range(0, lx):
-                f[2,i,j] = f[2,i,j-1]
-                f[6,i,j] = f[6,i+1,j-1]
-        for j in range(ly,0,-1): # Right, up-right
-            for i in range(lx,0,-1):
-                f[1,i,j] = f[1,i-1,j]
-                f[5,i,j] = f[5,i-1,j-1]
-        for j in range(0,ly): # Down, right-down
-            for i in range(lx,0,-1):
-                f[4,i,j] = f[4,i,j+1]
-                f[8,i,j] = f[8,i-1,j+1]
-        for j in range(0,ly): # Left, left-down
-            for i in range(0, lx):
-                f[3,i,j] = f[3,i+1,j]
-                f[7,i,j] = f[7,i+1,j+1]
+        cdef int i, j
+
+        with nogil:
+            for j in range(ly,0,-1): # Up, up-left
+                for i in range(0, lx):
+                    f[2,i,j] = f[2,i,j-1]
+                    f[6,i,j] = f[6,i+1,j-1]
+            for j in range(ly,0,-1): # Right, up-right
+                for i in range(lx,0,-1):
+                    f[1,i,j] = f[1,i-1,j]
+                    f[5,i,j] = f[5,i-1,j-1]
+            for j in range(0,ly): # Down, right-down
+                for i in range(lx,0,-1):
+                    f[4,i,j] = f[4,i,j+1]
+                    f[8,i,j] = f[8,i-1,j+1]
+            for j in range(0,ly): # Left, left-down
+                for i in range(0, lx):
+                    f[3,i,j] = f[3,i+1,j]
+                    f[7,i,j] = f[7,i+1,j+1]
 
     def init_pop(self):
         feq = self.feq
