@@ -29,7 +29,7 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, input_velocity=None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, input_velocity=None, deltaP=None):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -40,12 +40,18 @@ class Pipe_Flow(object):
         else: self.dt = dt
         if input_velocity is None: self.input_velocity = 1.
         else: self.input_velocity = input_velocity
+        if deltaP is None: self.deltaP = -1.0
+        else: self.deltaP = deltaP
 
         self.omega = omega
 
         ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
+
+        # Based on deltaP, set rho at the edges, as P = rho/3
+        self.inlet_rho = 1.0
+        self.outlet_rho = cs2*self.deltaP + self.inlet_rho # deltaP is negative!
 
 
         ## Initialize hydrodynamic variables
@@ -126,28 +132,39 @@ class Pipe_Flow(object):
         self.rho = np.sum(f, axis=0)
         inverse_rho = 1./self.rho
 
-        self.u = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
-        self.v = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+        u = self.u
+        v = self.v
+
+        u = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+        v = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+
+        # Deal with boundary conditions...have to specify pressure
+        self.rho[:, 0] = self.inlet_rho
+        self.rho[:, self.lx] = self.outlet_rho
+        u[:, 0] = -1 + (f[0, :, 0]+f[2, :, 0]+f[4, :, 0]+2*(f[1, :, 0]+f[5, :, 0]+f[8, :, 0]))/self.inlet_rho
+        u[:, self.lx] = -1 + (f[0, :, 0]+f[2, :, 0]+f[4, :, 0]+2*(f[1, :, 0]+f[5, :, 0]+f[8, :, 0]))/self.outlet_rho
 
 
     def move_bcs(self):
         """This is slow; cythonizing makes it fast."""
+
         cdef float[:, :, :] f = self.f
         cdef int lx = self.lx
         cdef int ly = self.ly
         cdef int i, j
 
+        farr = self.f
+        # EAST: constant pressure!
+        farr[3, :, lx.lx] = farr[1, :, lx] - (2./3.)*self.outlet_rho*self.u[:,lx]
+        farr[7, :, lx] = farr[5, :, lx] + .5*(farr[2, :, lx] - farr[4, :, lx]) -(1./6.)*self.outlet_rho*self.u[:, lx]
+        farr[6, :, lx] = farr[8, :, lx] - .5*(farr[2, :, lx] - farr[4, :, lx]) -(1./6.)*self.outlet_rho*self.u[:, lx]
+
+        # WEST: constant pressure!
+        farr[1, :, 0] = farr[3, :, 0] - (2./3.)*self.inlet_rho*self.u[:,0]
+        farr[5, :, 0] = farr[7, :, 0] + .5*(farr[2, :, lx] - farr[4, :, 0]) -(1./6.)*self.inlet_rho*self.u[:, 0]
+        farr[8, :, 0] = farr[6, :, 0] - .5*(farr[2, :, lx] - farr[4, :, 0]) -(1./6.)*self.inlet_rho*self.u[:, 0]
+
         with nogil:
-            # West inlet: periodic BC's
-            for j in range(1,ly):
-                f[1,0,j] = f[1,lx,j]
-                f[5,0,j] = f[5,lx,j]
-                f[8,0,j] = f[8,lx,j]
-            # EAST outlet
-            for j in range(1,ly):
-                f[3,lx,j] = f[3,0,j]
-                f[6,lx,j] = f[6,0,j]
-                f[7,lx,j] = f[7,0,j]
             # NORTH solid
             for i in range(1, lx): # Bounce back
                 f[4,i,ly] = f[2,i,ly-1]
