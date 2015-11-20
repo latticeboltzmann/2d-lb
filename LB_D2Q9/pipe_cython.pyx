@@ -1,5 +1,5 @@
 #cython: profile=False
-#cython: boundscheck=False
+#cython: boundscheck=True
 #cython: initializedcheck=False
 #cython: nonecheck=False
 #cython: wraparound=False
@@ -29,7 +29,7 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, input_velocity=None, deltaP=None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, deltaP=None):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -38,8 +38,6 @@ class Pipe_Flow(object):
         else: self.dr = dr
         if dt is None: self.dt = 1.
         else: self.dt = dt
-        if input_velocity is None: self.input_velocity = 1.
-        else: self.input_velocity = input_velocity
         if deltaP is None: self.deltaP = -1.0
         else: self.deltaP = deltaP
 
@@ -81,12 +79,12 @@ class Pipe_Flow(object):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
 
         # Get the reynolds number
-        U = self.input_velocity
-        L = self.ly*self.dr
-        self.Re = U*L/self.viscosity
+        #U = self.input_velocity
+        #L = self.ly*self.dr
+        #self.Re = U*L/self.viscosity
 
         # To get the mach number...
-        self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
+        #self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
 
 
     def init_hydro(self):
@@ -94,9 +92,13 @@ class Pipe_Flow(object):
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        u_applied=self.input_velocity/(self.dr/self.dt)
-        self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
-        self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
+        self.rho[0, :] = self.inlet_rho
+        self.rho[self.lx, :] = self.outlet_rho # Is there a shock in this case? We'll see...
+        for i in range(self.rho.shape[0]):
+            self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
+
+        self.u = .1*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        self.v = .1*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
 
 
     def update_feq(self):
@@ -104,6 +106,7 @@ class Pipe_Flow(object):
 
         u = self.u
         v = self.v
+        rho = self.rho
         feq = self.feq
 
         ul = u/cs2
@@ -116,15 +119,15 @@ class Pipe_Flow(object):
         u2 = usq/cssq
         v2 = vsq/cssq
 
-        feq[0, :, :] = w0*(1. - sumsq)
-        feq[1, :, :] = w1*(1. - sumsq  + u2 + ul)
-        feq[2, :, :] = w1*(1. - sumsq  + v2 + vl)
-        feq[3, :, :] = w1*(1. - sumsq  + u2 - ul)
-        feq[4, :, :] = w1*(1. - sumsq  + v2 - vl)
-        feq[5, :, :] = w2*(1. + sumsq2 + ul + vl + uv)
-        feq[6, :, :] = w2*(1. + sumsq2 - ul + vl - uv)
-        feq[7, :, :] = w2*(1. + sumsq2 - ul - vl + uv)
-        feq[8, :, :] = w2*(1. + sumsq2 + ul - vl - uv)
+        feq[0, :, :] = w0*rho*(1. - sumsq)
+        feq[1, :, :] = w1*rho*(1. - sumsq  + u2 + ul)
+        feq[2, :, :] = w1*rho*(1. - sumsq  + v2 + vl)
+        feq[3, :, :] = w1*rho*(1. - sumsq  + u2 - ul)
+        feq[4, :, :] = w1*rho*(1. - sumsq  + v2 - vl)
+        feq[5, :, :] = w2*rho*(1. + sumsq2 + ul + vl + uv)
+        feq[6, :, :] = w2*rho*(1. + sumsq2 - ul + vl - uv)
+        feq[7, :, :] = w2*rho*(1. + sumsq2 - ul - vl + uv)
+        feq[8, :, :] = w2*rho*(1. + sumsq2 + ul - vl - uv)
 
     def update_hydro(self):
         f = self.f
@@ -135,34 +138,38 @@ class Pipe_Flow(object):
         u = self.u
         v = self.v
 
+        print inverse_rho.max()
         u = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
         v = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
 
         # Deal with boundary conditions...have to specify pressure
-        self.rho[:, 0] = self.inlet_rho
-        self.rho[:, self.lx] = self.outlet_rho
-        u[:, 0] = -1 + (f[0, :, 0]+f[2, :, 0]+f[4, :, 0]+2*(f[1, :, 0]+f[5, :, 0]+f[8, :, 0]))/self.inlet_rho
-        u[:, self.lx] = -1 + (f[0, :, 0]+f[2, :, 0]+f[4, :, 0]+2*(f[1, :, 0]+f[5, :, 0]+f[8, :, 0]))/self.outlet_rho
+        lx = self.lx
+
+        self.rho[0, :] = self.inlet_rho
+        self.rho[lx, :] = self.outlet_rho
+        u[0, :] = -1 + (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[1, 0, :]+f[5, 0, :]+f[8, 0, :]))/self.inlet_rho
+        u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
 
 
     def move_bcs(self):
         """This is slow; cythonizing makes it fast."""
 
-        cdef float[:, :, :] f = self.f
         cdef int lx = self.lx
         cdef int ly = self.ly
         cdef int i, j
 
         farr = self.f
         # EAST: constant pressure!
-        farr[3, :, lx.lx] = farr[1, :, lx] - (2./3.)*self.outlet_rho*self.u[:,lx]
-        farr[7, :, lx] = farr[5, :, lx] + .5*(farr[2, :, lx] - farr[4, :, lx]) -(1./6.)*self.outlet_rho*self.u[:, lx]
-        farr[6, :, lx] = farr[8, :, lx] - .5*(farr[2, :, lx] - farr[4, :, lx]) -(1./6.)*self.outlet_rho*self.u[:, lx]
+        farr[3, lx, :] = farr[1, lx, :] - (2./3.)*self.outlet_rho*self.u[lx,:]
+        farr[7, lx, :] = farr[5, lx, :] + .5*(farr[2, lx, :] - farr[4, lx, :]) -(1./6.)*self.outlet_rho*self.u[lx, :]
+        farr[6, lx, :] = farr[8, lx, :] - .5*(farr[2, lx, :] - farr[4, lx, :]) -(1./6.)*self.outlet_rho*self.u[lx, :]
 
         # WEST: constant pressure!
-        farr[1, :, 0] = farr[3, :, 0] - (2./3.)*self.inlet_rho*self.u[:,0]
-        farr[5, :, 0] = farr[7, :, 0] + .5*(farr[2, :, lx] - farr[4, :, 0]) -(1./6.)*self.inlet_rho*self.u[:, 0]
-        farr[8, :, 0] = farr[6, :, 0] - .5*(farr[2, :, lx] - farr[4, :, 0]) -(1./6.)*self.inlet_rho*self.u[:, 0]
+        farr[1, 0, :] = farr[3, 0, :] - (2./3.)*self.inlet_rho*self.u[0, :]
+        farr[5, 0, :] = farr[7, 0, :] + .5*(farr[2, 0, :] - farr[4, 0, :]) -(1./6.)*self.inlet_rho*self.u[0, :]
+        farr[8, 0, :] = farr[6, 0, :] - .5*(farr[2, 0, :] - farr[4, 0, :]) -(1./6.)*self.inlet_rho*self.u[0, :]
+
+        cdef float[:, :, :] f = self.f
 
         with nogil:
             # NORTH solid
