@@ -1,3 +1,10 @@
+#cython: profile=False
+#cython: boundscheck=False
+#cython: initializedcheck=False
+#cython: nonecheck=False
+#cython: wraparound=False
+#cython: cdivision=True
+
 import numpy as np
 cimport numpy as np
 
@@ -43,8 +50,8 @@ class Pipe_Flow(object):
         self.init_hydro()
 
         # Intitialize the underlying probablistic fields
-        self.f=np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float) # initializing f
-        self.feq = np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float)
+        self.f=np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float32) # initializing f
+        self.feq = np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float32)
 
         self.update_feq()
         self.init_pop()
@@ -53,10 +60,10 @@ class Pipe_Flow(object):
         nx = self.nx
         ny = self.ny
 
-        self.rho = np.ones((nx, ny))
+        self.rho = np.ones((nx, ny), dtype=np.float32)
         u_applied=cs/100
-        self.u = u_applied*(np.ones((nx, ny)) + np.random.randn(nx, ny))
-        self.v = (u_applied/100.)*(np.ones((nx, ny)) + np.random.randn(nx, ny))
+        self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
+        self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
 
 
     def update_feq(self):
@@ -138,6 +145,7 @@ class Pipe_Flow(object):
 
         cdef int i, j
 
+        # This can't be parallelized without making a copy...order of loops is super important!
         with nogil:
             for j in range(ly,0,-1): # Up, up-left
                 for i in range(0, lx):
