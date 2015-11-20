@@ -29,7 +29,7 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, input_velocity=None):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -38,6 +38,8 @@ class Pipe_Flow(object):
         else: self.dr = dr
         if dt is None: self.dt = 1.
         else: self.dt = dt
+        if input_velocity is None: self.input_velocity = 1.
+        else: self.input_velocity = input_velocity
 
         self.omega = omega
 
@@ -73,7 +75,7 @@ class Pipe_Flow(object):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
 
         # Get the reynolds number
-        U = (self.dr/self.dt)*np.max(self.u)
+        U = self.input_velocity
         L = self.ly*self.dr
         self.Re = U*L/self.viscosity
 
@@ -86,7 +88,7 @@ class Pipe_Flow(object):
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        u_applied=cs/10
+        u_applied=(self.input_velocity)*(self.dt/self.dr)
         self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
         self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
 
