@@ -15,7 +15,6 @@ w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
             1./36.,1./36.,1./36.]) # weights for directions
 cx=np.array([0,1,0,-1,0,1,-1,-1,1]) # direction vector for the x direction
 cy=np.array([0,0,1,0,-1,1,1,-1,-1]) # direction vector for the y direction
-tau=1
 cs=1/np.sqrt(3)
 cs2 = cs**2
 cs22 = 2*cs2
@@ -30,18 +29,22 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, tau=1., lx=400, ly=400):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None):
         ### User input parameters
-        self.tau = tau
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
+
+        if dr is None: self.dr = 1.
+        else: self.dr = dr
+        if dt is None: self.dt = 1.
+        else: self.dt = dt
+
+        self.omega = omega
 
         ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
-        self.viscosity = cs2*(tau-0.5)
-        self.omega = 1./self.tau
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -55,6 +58,28 @@ class Pipe_Flow(object):
 
         self.update_feq()
         self.init_pop()
+
+        # Based on initial parameters, determine dimensionless numbers
+        self.viscosity = None
+        self.Re = None
+        self.Ma = None
+        self.set_dimensionless_nums()
+
+        print 'Viscosity:' , self.viscosity
+        print 'Re:' , self.Re
+        print 'Ma:' , self.Ma
+
+    def set_dimensionless_nums(self):
+        self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
+
+        # Get the reynolds number
+        U = (self.dr/self.dt)*np.max(self.u)
+        L = self.ly*self.dr
+        self.Re = U*L/self.viscosity
+
+        # To get the mach number...
+        self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
+
 
     def init_hydro(self):
         nx = self.nx
@@ -184,7 +209,7 @@ class Pipe_Flow(object):
 
     def run(self, num_iterations):
         for cur_iteration in range(num_iterations):
-            self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble
+            self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble.
             self.move() # Move all jumpers
             self.update_hydro() # Update the hydrodynamic variables
             self.update_feq() # Update the equilibrium fields
