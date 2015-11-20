@@ -23,10 +23,10 @@ w2 = 1./36.
 
 NUM_JUMPERS = 9
 
-class LB_Pipe_Flow(object):
+class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, tau=1., lx=400., ly=400.):
+    def __init__(self, tau=1., lx=400, ly=400):
         ### User input parameters
         self.tau = tau
         self.lx = lx # Grid not including boundary in x
@@ -40,11 +40,14 @@ class LB_Pipe_Flow(object):
         self.omega = 1./self.tau
 
         ## Initialize hydrodynamic variables
+        self.rho = None
+        self.u = None
+        self.v = None
         self.init_hydro()
 
         # Intitialize the underlying probablistic fields
-        self.f=np.zeros((NUM_JUMPERS, self.nx, self.ny)) # initializing f
-        self.feq = np.zeros((NUM_JUMPERS, self.nx, self.ny))
+        self.f=np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float) # initializing f
+        self.feq = np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float)
 
         self.update_feq()
         self.init_pop()
@@ -54,9 +57,9 @@ class LB_Pipe_Flow(object):
         ny = self.ny
 
         self.rho = np.ones((nx, ny))
-        self.u_applied=cs/100
-        self.u = self.u_applied*(np.ones((nx, ny)) + np.random.randn(nx, ny))
-        self.v = (self.u_applied/100.)*(np.ones((nx, ny)) + np.random.randn(nx, ny))
+        u_applied=cs/100
+        self.u = u_applied*(np.ones((nx, ny)) + np.random.randn(nx, ny))
+        self.v = (u_applied/100.)*(np.ones((nx, ny)) + np.random.randn(nx, ny))
 
 
     def update_feq(self):
@@ -151,16 +154,15 @@ class LB_Pipe_Flow(object):
                 f[7,i,j] = f[7,i+1,j+1]
 
     def init_pop(self):
-        f = self.f
         feq = self.feq
         nx = self.nx
         ny = self.ny
 
-        f = feq.copy()
+        self.f = feq.copy()
         # We now slightly perturb f
         amplitude = .01
         perturb = (1. + amplitude*np.random.randn(nx, ny))
-        f *= perturb
+        self.f *= perturb
 
     def collide_particles(self):
         f = self.f
