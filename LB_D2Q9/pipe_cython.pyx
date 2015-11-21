@@ -165,9 +165,9 @@ class Pipe_Flow(object):
         farr[6, lx, :] = farr[8, lx, :] - .5*(farr[2, lx, :] - farr[4, lx, :]) -(1./6.)*self.outlet_rho*self.u[lx, :]
 
         # WEST: constant pressure!
-        farr[1, 0, :] = farr[3, 0, :] - (2./3.)*self.inlet_rho*self.u[0, :]
-        farr[5, 0, :] = farr[7, 0, :] + .5*(farr[2, 0, :] - farr[4, 0, :]) -(1./6.)*self.inlet_rho*self.u[0, :]
-        farr[8, 0, :] = farr[6, 0, :] - .5*(farr[2, 0, :] - farr[4, 0, :]) -(1./6.)*self.inlet_rho*self.u[0, :]
+        farr[1, 0, :] = farr[3, 0, :] + (2./3.)*self.inlet_rho*self.u[0, :]
+        farr[5, 0, :] = farr[7, 0, :] - .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
+        farr[8, 0, :] = farr[6, 0, :] + .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
 
         cdef float[:, :, :] f = self.f
 
