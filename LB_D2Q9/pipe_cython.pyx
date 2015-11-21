@@ -1,5 +1,5 @@
 #cython: profile=False
-#cython: boundscheck=False
+#cython: boundscheck=True
 #cython: initializedcheck=False
 #cython: nonecheck=False
 #cython: wraparound=False
@@ -29,7 +29,7 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, input_velocity=None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, deltaP=None):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -38,8 +38,8 @@ class Pipe_Flow(object):
         else: self.dr = dr
         if dt is None: self.dt = 1.
         else: self.dt = dt
-        if input_velocity is None: self.input_velocity = 1.
-        else: self.input_velocity = input_velocity
+        if deltaP is None: self.deltaP = -1.0
+        else: self.deltaP = deltaP
 
         self.omega = omega
 
@@ -47,6 +47,9 @@ class Pipe_Flow(object):
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
+        # Based on deltaP, set rho at the edges, as P = rho/3
+        self.inlet_rho = 1.
+        self.outlet_rho = cs2*self.deltaP + self.inlet_rho # deltaP is negative!
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -75,12 +78,12 @@ class Pipe_Flow(object):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
 
         # Get the reynolds number
-        U = self.input_velocity
-        L = self.ly*self.dr
-        self.Re = U*L/self.viscosity
+        #U = self.input_velocity
+        #L = self.ly*self.dr
+        #self.Re = U*L/self.viscosity
 
         # To get the mach number...
-        self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
+        #self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
 
 
     def init_hydro(self):
@@ -88,9 +91,13 @@ class Pipe_Flow(object):
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        u_applied=self.input_velocity/(self.dr/self.dt)
-        self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
-        self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
+        self.rho[0, :] = self.inlet_rho
+        self.rho[self.lx, :] = self.outlet_rho # Is there a shock in this case? We'll see...
+        for i in range(self.rho.shape[0]):
+            self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
+
+        self.u = .01*np.random.randn(nx, ny) # Fluctuations in the fluid
+        self.v = .01*np.random.randn(nx, ny) # Fluctuations in the fluid
 
 
     def update_feq(self):
@@ -98,6 +105,7 @@ class Pipe_Flow(object):
 
         u = self.u
         v = self.v
+        rho = self.rho
         feq = self.feq
 
         ul = u/cs2
@@ -110,60 +118,104 @@ class Pipe_Flow(object):
         u2 = usq/cssq
         v2 = vsq/cssq
 
-        feq[0, :, :] = w0*(1. - sumsq)
-        feq[1, :, :] = w1*(1. - sumsq  + u2 + ul)
-        feq[2, :, :] = w1*(1. - sumsq  + v2 + vl)
-        feq[3, :, :] = w1*(1. - sumsq  + u2 - ul)
-        feq[4, :, :] = w1*(1. - sumsq  + v2 - vl)
-        feq[5, :, :] = w2*(1. + sumsq2 + ul + vl + uv)
-        feq[6, :, :] = w2*(1. + sumsq2 - ul + vl - uv)
-        feq[7, :, :] = w2*(1. + sumsq2 - ul - vl + uv)
-        feq[8, :, :] = w2*(1. + sumsq2 + ul - vl - uv)
+        feq[0, :, :] = w0*rho*(1. - sumsq)
+        feq[1, :, :] = w1*rho*(1. - sumsq  + u2 + ul)
+        feq[2, :, :] = w1*rho*(1. - sumsq  + v2 + vl)
+        feq[3, :, :] = w1*rho*(1. - sumsq  + u2 - ul)
+        feq[4, :, :] = w1*rho*(1. - sumsq  + v2 - vl)
+        feq[5, :, :] = w2*rho*(1. + sumsq2 + ul + vl + uv)
+        feq[6, :, :] = w2*rho*(1. + sumsq2 - ul + vl - uv)
+        feq[7, :, :] = w2*rho*(1. + sumsq2 - ul - vl + uv)
+        feq[8, :, :] = w2*rho*(1. + sumsq2 + ul - vl - uv)
 
     def update_hydro(self):
         f = self.f
 
-        self.rho = np.sum(f, axis=0)
+        rho = self.rho
+        rho[:, :] = np.sum(f, axis=0)
         inverse_rho = 1./self.rho
 
-        self.u = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
-        self.v = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+        u = self.u
+        v = self.v
+
+        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+
+        # Deal with boundary conditions...have to specify pressure
+        lx = self.lx
+
+        rho[0, :] = self.inlet_rho
+        rho[lx, :] = self.outlet_rho
+        # INLET
+        u[0, :] = 1 - (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[3, 0, :]+f[6, 0, :]+f[7, 0, :]))/self.inlet_rho
+
+        # OUTLET
+        u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
 
 
     def move_bcs(self):
         """This is slow; cythonizing makes it fast."""
-        cdef float[:, :, :] f = self.f
+
         cdef int lx = self.lx
         cdef int ly = self.ly
         cdef int i, j
 
+        farr = self.f
+
+        # INLET: constant pressure!
+        farr[1, 0, 1:ly] = farr[3, 0, 1:ly] + (2./3.)*self.inlet_rho*self.u[0, 1:ly]
+        farr[5, 0, 1:ly] = -.5*farr[2,0,1:ly]+.5*farr[4, 0, 1:ly]+farr[7, 0, 1:ly] + (1./6.)*self.u[0, 1:ly]*self.inlet_rho
+        farr[8, 0, 1:ly] = .5*farr[2,0,1:ly]-.5*farr[4, 0, 1:ly]+farr[6, 0, 1:ly] + (1./6.)*self.u[0, 1:ly]*self.inlet_rho
+
+        # OUTLET: constant pressure!
+        farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*self.outlet_rho*self.u[lx,1:ly]
+        farr[6, lx, 1:ly] = -.5*farr[2,lx,1:ly]+.5*farr[4,lx,1:ly]+farr[8,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
+        farr[7, lx, 1:ly] = .5*farr[2,lx,1:ly]-.5*farr[4,lx,1:ly]+farr[5,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
+
+        cdef float[:, :, :] f = self.f
+        cdef float inlet_rho = self.inlet_rho
+        cdef float outlet_rho = self.outlet_rho
+
         with nogil:
-            # West inlet: periodic BC's
-            for j in range(1,ly):
-                f[1,0,j] = f[1,lx,j]
-                f[5,0,j] = f[5,lx,j]
-                f[8,0,j] = f[8,lx,j]
-            # EAST outlet
-            for j in range(1,ly):
-                f[3,lx,j] = f[3,0,j]
-                f[6,lx,j] = f[6,0,j]
-                f[7,lx,j] = f[7,0,j]
             # NORTH solid
             for i in range(1, lx): # Bounce back
                 f[4,i,ly] = f[2,i,ly]
                 f[8,i,ly] = f[6,i,ly]
                 f[7,i,ly] = f[5,i,ly]
             # SOUTH solid
-            for i in range(1, lx): # Bounce back
+            for i in range(1, lx):
                 f[2,i,0] = f[4,i,0]
                 f[6,i,0] = f[8,i,0]
                 f[5,i,0] = f[7,i,0]
 
-            # Corners bounce-back
-            f[8,0,ly] = f[6,0,ly]
-            f[5,0,0]  = f[7,0,0]
-            f[7,lx,ly] = f[5,lx,ly]
-            f[6,lx,0]  = f[8,lx,0]
+            ### Corner nodes: Tricky & a huge pain ###
+            # BOTTOM INLET
+            f[1, 0, 0] = f[3, 0, 0]
+            f[2, 0, 0] = f[4, 0, 0]
+            f[5, 0, 0] = f[7, 0, 0]
+            f[6, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+inlet_rho)
+            f[8, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+inlet_rho)
+
+            # TOP INLET
+            f[1, 0, ly] = f[3, 0, ly]
+            f[4, 0, ly] = f[2, 0, ly]
+            f[8, 0, ly] = f[6, 0, ly]
+            f[5, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
+            f[7, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
+
+            # BOTTOM OUTLET
+            f[3, lx, 0] = f[1, lx, 0]
+            f[2, lx, 0] = f[4, lx, 0]
+            f[6, lx, 0] = f[8, lx, 0]
+            f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+            f[8, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+
+            # TOP OUTLET
+            f[3, lx, ly] = f[1, lx, ly]
+            f[4, lx, ly] = f[2, lx, ly]
+            f[7, lx, ly] = f[5, lx, ly]
+            f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+            f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
 
     def move(self):
         cdef float[:, :, :] f = self.f
@@ -198,7 +250,7 @@ class Pipe_Flow(object):
 
         self.f = feq.copy()
         # We now slightly perturb f
-        amplitude = .001
+        amplitude = .01
         perturb = (1. + amplitude*np.random.randn(nx, ny))
         self.f *= perturb
 
