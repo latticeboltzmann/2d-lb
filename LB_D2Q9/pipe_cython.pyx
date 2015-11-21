@@ -96,10 +96,8 @@ class Pipe_Flow(object):
         for i in range(self.rho.shape[0]):
             self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
 
-        #self.u = 0.1*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
-        self.u = np.zeros((nx, ny))
-        #self.v = 0.1*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
-        self.v = np.zeros((nx, ny))
+        self.u = (cs/10)*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        self.v = (cs/10)*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
 
 
     def update_feq(self):
@@ -187,14 +185,14 @@ class Pipe_Flow(object):
         with nogil:
             # NORTH solid
             for i in range(1, lx): # Bounce back
-                f[4,i,ly] = f[2,i,ly-1]
-                f[8,i,ly] = f[6,i+1,ly-1]
-                f[7,i,ly] = f[5,i-1,ly-1]
+                f[4,i,ly] = f[2,i,ly]
+                f[8,i,ly] = f[6,i,ly]
+                f[7,i,ly] = f[5,i,ly]
             # SOUTH solid
             for i in range(1, lx):
-                f[2,i,0] = f[4,i,1]
-                f[6,i,0] = f[8,i-1,1]
-                f[5,i,0] = f[7,i+1,1]
+                f[2,i,0] = f[4,i,0]
+                f[6,i,0] = f[8,i,0]
+                f[5,i,0] = f[7,i,0]
 
     def move(self):
         cdef float[:, :, :] f = self.f
