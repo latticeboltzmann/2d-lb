@@ -146,7 +146,7 @@ class Pipe_Flow(object):
 
         rho[0, :] = self.inlet_rho
         rho[lx, :] = self.outlet_rho
-        u[0, :] = -1 + (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[1, 0, :]+f[5, 0, :]+f[8, 0, :]))/self.inlet_rho
+        u[0, :] = 1 - (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[3, 0, :]+f[6, 0, :]+f[7, 0, :]))/self.inlet_rho
         u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
 
 
@@ -159,14 +159,14 @@ class Pipe_Flow(object):
 
         farr = self.f
         # EAST: constant pressure!
-        farr[3, lx, :] = farr[1, lx, :] - (2./3.)*self.outlet_rho*self.u[lx,:]
-        farr[7, lx, :] = farr[5, lx, :] + .5*(farr[2, lx, :] - farr[4, lx, :]) -(1./6.)*self.outlet_rho*self.u[lx, :]
-        farr[6, lx, :] = farr[8, lx, :] - .5*(farr[2, lx, :] - farr[4, lx, :]) -(1./6.)*self.outlet_rho*self.u[lx, :]
+        farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*self.outlet_rho*self.u[lx,1:ly]
+        farr[7, lx, 1:ly] = farr[5, lx, 1:ly] + .5*(farr[2, lx, 1:ly] - farr[4, lx, 1:ly]) -(1./6.)*self.outlet_rho*self.u[lx, 1:ly]
+        farr[6, lx, 1:ly] = farr[8, lx, 1:ly] - .5*(farr[2, lx, 1:ly] - farr[4, lx, 1:ly]) -(1./6.)*self.outlet_rho*self.u[lx, 1:ly]
 
         # WEST: constant pressure!
-        farr[1, 0, :] = farr[3, 0, :] + (2./3.)*self.inlet_rho*self.u[0, :]
-        farr[5, 0, :] = farr[7, 0, :] - .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
-        farr[8, 0, :] = farr[6, 0, :] + .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
+        farr[1, 0, 1:ly] = farr[3, 0, 1:ly] + (2./3.)*self.inlet_rho*self.u[0, 1:ly]
+        farr[5, 0, 1:ly] = farr[7, 0, 1:ly] - .5*(farr[2, 0, 1:ly] - farr[4, 0, 1:ly]) + (1./6.)*self.inlet_rho*self.u[0, 1:ly]
+        farr[8, 0, 1:ly] = farr[6, 0, 1:ly] + .5*(farr[2, 0, 1:ly] - farr[4, 0, 1:ly]) + (1./6.)*self.inlet_rho*self.u[0, 1:ly]
 
         # Corner nodes: Tricky & a huge pain
         # BOTTOM INLET
