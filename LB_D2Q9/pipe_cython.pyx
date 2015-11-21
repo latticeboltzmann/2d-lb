@@ -48,9 +48,8 @@ class Pipe_Flow(object):
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
         # Based on deltaP, set rho at the edges, as P = rho/3
-        self.inlet_rho = 1.0
+        self.inlet_rho = 1.
         self.outlet_rho = cs2*self.deltaP + self.inlet_rho # deltaP is negative!
-
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -97,8 +96,10 @@ class Pipe_Flow(object):
         for i in range(self.rho.shape[0]):
             self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
 
-        self.u = 0*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
-        self.v = 0*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        #self.u = 0.1*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        self.u = np.zeros((nx, ny))
+        #self.v = 0.1*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        self.v = np.zeros((nx, ny))
 
 
     def update_feq(self):
@@ -132,21 +133,21 @@ class Pipe_Flow(object):
     def update_hydro(self):
         f = self.f
 
-        self.rho = np.sum(f, axis=0)
+        rho = self.rho
+        rho[:, :] = np.sum(f, axis=0)
         inverse_rho = 1./self.rho
-        print np.max(inverse_rho)
 
         u = self.u
         v = self.v
 
-        u = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
-        v = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
 
         # Deal with boundary conditions...have to specify pressure
         lx = self.lx
 
-        self.rho[0, :] = self.inlet_rho
-        self.rho[lx, :] = self.outlet_rho
+        rho[0, :] = self.inlet_rho
+        rho[lx, :] = self.outlet_rho
         u[0, :] = -1 + (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[1, 0, :]+f[5, 0, :]+f[8, 0, :]))/self.inlet_rho
         u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
 
@@ -170,10 +171,15 @@ class Pipe_Flow(object):
         farr[8, 0, :] = farr[6, 0, :] + .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
 
         # Corner nodes: constant pressure
-        farr[8,0,ly] = farr[6,0, ly]
-        farr[5,0,0]  = farr[7,0,0]
-        farr[7,lx,ly] = farr[5,lx,ly]
-        farr[6,lx,0]  = farr[8,lx,0]
+        # Bottom left
+        #farr[5,0,0]  = farr[7,0,0]
+        #const = .5*(self.inlet_rho - (farr[0, 0, 0] + farr[1, 0, 0] + farr[2, 0, 0] + farr[3, 0, 0] + farr[4, 0, 0] + farr[5, 0, 0] + farr[7, 0, 0]))
+        #farr[6, 0, 0] = const
+        #farr[8, 0, 0] = const
+        #farr[8,0,ly] = farr[6,0, ly]
+
+        #farr[7,lx,ly] = farr[5,lx,ly]
+        #farr[6,lx,0]  = farr[8,lx,0]
 
 
         cdef float[:, :, :] f = self.f
@@ -223,7 +229,7 @@ class Pipe_Flow(object):
 
         self.f = feq.copy()
         # We now slightly perturb f
-        amplitude = .001
+        amplitude = .01
         perturb = (1. + amplitude*np.random.randn(nx, ny))
         self.f *= perturb
 
