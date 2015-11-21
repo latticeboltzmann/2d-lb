@@ -168,16 +168,34 @@ class Pipe_Flow(object):
         farr[5, 0, :] = farr[7, 0, :] - .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
         farr[8, 0, :] = farr[6, 0, :] + .5*(farr[2, 0, :] - farr[4, 0, :]) + (1./6.)*self.inlet_rho*self.u[0, :]
 
-        # Corner nodes: constant pressure
-        # Bottom left
-        #farr[5,0,0]  = farr[7,0,0]
-        #const = .5*(self.inlet_rho - (farr[0, 0, 0] + farr[1, 0, 0] + farr[2, 0, 0] + farr[3, 0, 0] + farr[4, 0, 0] + farr[5, 0, 0] + farr[7, 0, 0]))
-        #farr[6, 0, 0] = const
-        #farr[8, 0, 0] = const
-        #farr[8,0,ly] = farr[6,0, ly]
+        # Corner nodes: Tricky & a huge pain
+        # BOTTOM INLET
+        farr[1, 0, 0] = farr[3, 0, 0]
+        farr[2, 0, 0] = farr[4, 0, 0]
+        farr[5, 0, 0] = farr[7, 0, 0]
+        farr[6, 0, 0] = .5*(-2*farr[3,0,0]-2*farr[4,0,0]-2*farr[7,0,0]+self.inlet_rho)
+        farr[8, 0, 0] = .5*(-2*farr[3,0,0]-2*farr[4,0,0]-2*farr[7,0,0]+self.inlet_rho)
 
-        #farr[7,lx,ly] = farr[5,lx,ly]
-        #farr[6,lx,0]  = farr[8,lx,0]
+        # TOP INLET
+        farr[1, 0, ly] = farr[3, 0, ly]
+        farr[4, 0, ly] = farr[2, 0, ly]
+        farr[8, 0, ly] = farr[6, 0, ly]
+        farr[5, 0, ly] = .5*(-2*farr[2,0,ly]-2*farr[3,0,ly]-2*farr[6,0,ly]+self.inlet_rho)
+        farr[7, 0, ly] = .5*(-2*farr[2,0,ly]-2*farr[3,0,ly]-2*farr[6,0,ly]+self.inlet_rho)
+
+        # BOTTOM OUTLET
+        farr[3, lx, 0] = farr[1, lx, 0]
+        farr[2, lx, 0] = farr[4, lx, 0]
+        farr[6, lx, 0] = farr[8, lx, 0]
+        farr[5, lx, 0] = .5*(-2*farr[1,lx,0]-2*farr[4,lx,0]-2*farr[8,lx,0]+self.outlet_rho)
+        farr[8, lx, 0] = .5*(-2*farr[1,lx,0]-2*farr[4,lx,0]-2*farr[8,lx,0]+self.outlet_rho)
+
+        # TOP OUTLET
+        farr[3, lx, ly] = farr[1, lx, ly]
+        farr[4, lx, ly] = farr[2, lx, ly]
+        farr[7, lx, ly] = farr[5, lx, ly]
+        farr[6, lx, ly] = .5*(-2*farr[1,ly,ly]-2*farr[2,lx,ly]-2*farr[5,lx,ly]+self.outlet_rho)
+        farr[8, lx, ly] = .5*(-2*farr[1,ly,ly]-2*farr[2,lx,ly]-2*farr[5,lx,ly]+self.outlet_rho)
 
 
         cdef float[:, :, :] f = self.f
