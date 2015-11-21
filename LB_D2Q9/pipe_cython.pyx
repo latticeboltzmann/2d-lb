@@ -173,6 +173,9 @@ class Pipe_Flow(object):
         farr[7, lx, 1:ly] = .5*farr[2,lx,1:ly]-.5*farr[4,lx,1:ly]+farr[5,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
 
         cdef float[:, :, :] f = self.f
+        cdef float inlet_rho = self.inlet_rho
+        cdef float outlet_rho = self.outlet_rho
+
         with nogil:
             # NORTH solid
             for i in range(1, lx): # Bounce back
@@ -190,29 +193,29 @@ class Pipe_Flow(object):
             f[1, 0, 0] = f[3, 0, 0]
             f[2, 0, 0] = f[4, 0, 0]
             f[5, 0, 0] = f[7, 0, 0]
-            f[6, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+self.inlet_rho)
-            f[8, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+self.inlet_rho)
+            f[6, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+inlet_rho)
+            f[8, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+inlet_rho)
 
             # TOP INLET
             f[1, 0, ly] = f[3, 0, ly]
             f[4, 0, ly] = f[2, 0, ly]
             f[8, 0, ly] = f[6, 0, ly]
-            f[5, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+self.inlet_rho)
-            f[7, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+self.inlet_rho)
+            f[5, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
+            f[7, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
 
             # BOTTOM OUTLET
             f[3, lx, 0] = f[1, lx, 0]
             f[2, lx, 0] = f[4, lx, 0]
             f[6, lx, 0] = f[8, lx, 0]
-            f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+self.outlet_rho)
-            f[8, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+self.outlet_rho)
+            f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+            f[8, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
 
             # TOP OUTLET
             f[3, lx, ly] = f[1, lx, ly]
             f[4, lx, ly] = f[2, lx, ly]
             f[7, lx, ly] = f[5, lx, ly]
-            f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*[2,lx,ly]-2*f[5,lx,ly]+self.outlet_rho)
-            f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+self.outlet_rho)
+            f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+            f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
 
     def move(self):
         cdef float[:, :, :] f = self.f
