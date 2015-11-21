@@ -150,20 +150,20 @@ class Pipe_Flow(object):
                 f[7,lx,j] = f[7,0,j]
             # NORTH solid
             for i in range(1, lx): # Bounce back
-                f[4,i,ly] = f[2,i,ly-1]
-                f[8,i,ly] = f[6,i+1,ly-1]
-                f[7,i,ly] = f[5,i-1,ly-1]
+                f[4,i,ly] = f[2,i,ly]
+                f[8,i,ly] = f[6,i,ly]
+                f[7,i,ly] = f[5,i,ly]
             # SOUTH solid
-            for i in range(1, lx):
-                f[2,i,0] = f[4,i,1]
-                f[6,i,0] = f[8,i-1,1]
-                f[5,i,0] = f[7,i+1,1]
+            for i in range(1, lx): # Bounce back
+                f[2,i,0] = f[4,i,0]
+                f[6,i,0] = f[8,i,0]
+                f[5,i,0] = f[7,i,0]
 
             # Corners bounce-back
-            f[8,0,ly] = f[6,1,ly-1]
-            f[5,0,0]  = f[7,1,1]
-            f[7,lx,ly] = f[5,lx-1,ly-1]
-            f[6,lx,0]  = f[8,lx-1,1]
+            f[8,0,ly] = f[6,0,ly]
+            f[5,0,0]  = f[7,0,0]
+            f[7,lx,ly] = f[5,lx,ly]
+            f[6,lx,0]  = f[8,lx,0]
 
     def move(self):
         cdef float[:, :, :] f = self.f
