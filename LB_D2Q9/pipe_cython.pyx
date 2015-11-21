@@ -15,7 +15,6 @@ w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
             1./36.,1./36.,1./36.]) # weights for directions
 cx=np.array([0,1,0,-1,0,1,-1,-1,1]) # direction vector for the x direction
 cy=np.array([0,0,1,0,-1,1,1,-1,-1]) # direction vector for the y direction
-tau=1
 cs=1/np.sqrt(3)
 cs2 = cs**2
 cs22 = 2*cs2
@@ -30,18 +29,24 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, tau=1., lx=400, ly=400):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, input_velocity=None):
         ### User input parameters
-        self.tau = tau
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
+
+        if dr is None: self.dr = 1.
+        else: self.dr = dr
+        if dt is None: self.dt = 1.
+        else: self.dt = dt
+        if input_velocity is None: self.input_velocity = 1.
+        else: self.input_velocity = input_velocity
+
+        self.omega = omega
 
         ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
-        self.viscosity = cs2*(tau-0.5)
-        self.omega = 1./self.tau
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -56,12 +61,34 @@ class Pipe_Flow(object):
         self.update_feq()
         self.init_pop()
 
+        # Based on initial parameters, determine dimensionless numbers
+        self.viscosity = None
+        self.Re = None
+        self.Ma = None
+        self.set_dimensionless_nums()
+
+        print 'Viscosity:' , self.viscosity
+        print 'Re:' , self.Re
+        print 'Ma:' , self.Ma
+
+    def set_dimensionless_nums(self):
+        self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
+
+        # Get the reynolds number
+        U = self.input_velocity
+        L = self.ly*self.dr
+        self.Re = U*L/self.viscosity
+
+        # To get the mach number...
+        self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
+
+
     def init_hydro(self):
         nx = self.nx
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        u_applied=cs/10
+        u_applied=self.input_velocity/(self.dr/self.dt)
         self.u = u_applied*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
         self.v = (u_applied/100.)*(np.ones((nx, ny), dtype=np.float32) + np.random.randn(nx, ny))
 
@@ -123,20 +150,20 @@ class Pipe_Flow(object):
                 f[7,lx,j] = f[7,0,j]
             # NORTH solid
             for i in range(1, lx): # Bounce back
-                f[4,i,ly] = f[2,i,ly-1]
-                f[8,i,ly] = f[6,i+1,ly-1]
-                f[7,i,ly] = f[5,i-1,ly-1]
+                f[4,i,ly] = f[2,i,ly]
+                f[8,i,ly] = f[6,i,ly]
+                f[7,i,ly] = f[5,i,ly]
             # SOUTH solid
-            for i in range(1, lx):
-                f[2,i,0] = f[4,i,1]
-                f[6,i,0] = f[8,i-1,1]
-                f[5,i,0] = f[7,i+1,1]
+            for i in range(1, lx): # Bounce back
+                f[2,i,0] = f[4,i,0]
+                f[6,i,0] = f[8,i,0]
+                f[5,i,0] = f[7,i,0]
 
             # Corners bounce-back
-            f[8,0,ly] = f[6,1,ly-1]
-            f[5,0,0]  = f[7,1,1]
-            f[7,lx,ly] = f[5,lx-1,ly-1]
-            f[6,lx,0]  = f[8,lx-1,1]
+            f[8,0,ly] = f[6,0,ly]
+            f[5,0,0]  = f[7,0,0]
+            f[7,lx,ly] = f[5,lx,ly]
+            f[6,lx,0]  = f[8,lx,0]
 
     def move(self):
         cdef float[:, :, :] f = self.f
@@ -171,7 +198,7 @@ class Pipe_Flow(object):
 
         self.f = feq.copy()
         # We now slightly perturb f
-        amplitude = .01
+        amplitude = .001
         perturb = (1. + amplitude*np.random.randn(nx, ny))
         self.f *= perturb
 
@@ -184,7 +211,7 @@ class Pipe_Flow(object):
 
     def run(self, num_iterations):
         for cur_iteration in range(num_iterations):
-            self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble
+            self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble.
             self.move() # Move all jumpers
             self.update_hydro() # Update the hydrodynamic variables
             self.update_feq() # Update the equilibrium fields
