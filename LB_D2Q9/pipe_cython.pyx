@@ -96,8 +96,8 @@ class Pipe_Flow(object):
         for i in range(self.rho.shape[0]):
             self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
 
-        self.u = (cs/10)*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
-        self.v = (cs/10)*np.ones((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        self.u = (cs/10)*np.zeros((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
+        self.v = (cs/10)*np.zeros((nx, ny), dtype=np.float32) + .01*np.random.randn(nx, ny)
 
 
     def update_feq(self):
@@ -169,8 +169,8 @@ class Pipe_Flow(object):
 
         # OUTLET: constant pressure!
         farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*self.outlet_rho*self.u[lx,1:ly]
-        farr[6, lx, 1:ly] = -.5*farr[2,lx,1:ly]+.5*farr[4,lx,1:ly]+farr[8,lx,1:ly]-(1./6.)*self.u[0,lx,1:ly]*self.outlet_rho
-        farr[7, lx, 1:ly] = .5*farr[2,lx,1:ly]-.5*farr[4,lx,1:ly]+farr[5,lx,1:ly]-(1./6.)*self.u[0,lx,1:ly]*self.outlet_rho
+        farr[6, lx, 1:ly] = -.5*farr[2,lx,1:ly]+.5*farr[4,lx,1:ly]+farr[8,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
+        farr[7, lx, 1:ly] = .5*farr[2,lx,1:ly]-.5*farr[4,lx,1:ly]+farr[5,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
 
         # Corner nodes: Tricky & a huge pain
         # BOTTOM INLET
