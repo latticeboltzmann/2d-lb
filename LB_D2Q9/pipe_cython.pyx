@@ -29,7 +29,7 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, P_inlet=None, P_outlet=None, rho_fluid=None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, deltaP=None):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -38,12 +38,8 @@ class Pipe_Flow(object):
         else: self.dr = dr
         if dt is None: self.dt = 1.
         else: self.dt = dt
-        if P_inlet is None: self.P_inlet = 1.0
-        else: self.P_inlet = P_inlet
-        if P_outlet is None: self.P_outlet = 0.9
-        else: self.P_outlet = P_outlet
-        if rho_fluid is None: self.rho_fluid = 1.0
-        else: self.rho_fluid = rho_fluid
+        if deltaP is None: self.deltaP = -1.0
+        else: self.deltaP = deltaP
 
         self.omega = omega
 
@@ -51,18 +47,9 @@ class Pipe_Flow(object):
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
-        # Convert density to pressure...a little subtle. Rho has the same units of mass
-        # as the physical ones. Note that P = cs^2 \rho
-        mass_per_cube = self.rho_fluid*self.dr**3
-        # Inlet and outlet *must* be close to one...or else disaster.
-        self.inlet_rho = (1./cs2)*(self.P_inlet*self.dr*self.dt**2)/mass_per_cube
-        self.offset_factor = 1./self.inlet_rho
-        self.inlet_rho = 1.0
-        self.outlet_rho = (1./cs2)*(self.P_outlet*self.dr*self.dt**2)/mass_per_cube
-        self.outlet_rho *= self.offset_factor
-
-        print 'rho_inlet:' , self.inlet_rho
-        print 'rho_outlet:', self.outlet_rho
+        # Based on deltaP, set rho at the edges, as P = rho/3
+        self.inlet_rho = 1.
+        self.outlet_rho = cs2*self.deltaP + self.inlet_rho # deltaP is negative!
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
