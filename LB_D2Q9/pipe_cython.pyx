@@ -47,9 +47,9 @@ class Pipe_Flow(object):
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
-        # Based on deltaP, set rho at the edges, as P = rho/3
+        # Based on deltaP, set rho at the edges, as P = rho*cs^2, so rho=P/cs^2
         self.inlet_rho = 1.
-        self.outlet_rho = cs2*self.deltaP + self.inlet_rho # deltaP is negative!
+        self.outlet_rho = self.deltaP/cs2 + self.inlet_rho # deltaP is negative!
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
