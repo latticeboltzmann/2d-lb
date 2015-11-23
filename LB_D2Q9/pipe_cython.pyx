@@ -29,27 +29,24 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, deltaP=None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
 
-        if dr is None: self.dr = 1.
-        else: self.dr = dr
-        if dt is None: self.dt = 1.
-        else: self.dt = dt
-        if deltaP is None: self.deltaP = -1.0
-        else: self.deltaP = deltaP
-
         self.omega = omega
+
+        self.dr = dr
+        self.dt = dt
+        self.deltaP = deltaP
 
         ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
-        # Based on deltaP, set rho at the edges, as P = rho/3
+        # Based on deltaP, set rho at the edges, as P = rho*cs^2, so rho=P/cs^2
         self.inlet_rho = 1.
-        self.outlet_rho = cs2*self.deltaP + self.inlet_rho # deltaP is negative!
+        self.outlet_rho = self.deltaP/cs2 + self.inlet_rho # deltaP is negative!
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -68,22 +65,18 @@ class Pipe_Flow(object):
         self.viscosity = None
         self.Re = None
         self.Ma = None
-        self.set_dimensionless_nums()
+        self.update_dimensionless_nums()
 
-        print 'Viscosity:' , self.viscosity
-        print 'Re:' , self.Re
-        print 'Ma:' , self.Ma
-
-    def set_dimensionless_nums(self):
+    def update_dimensionless_nums(self):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
 
-        # Get the reynolds number
-        #U = self.input_velocity
-        #L = self.ly*self.dr
-        #self.Re = U*L/self.viscosity
+        # Get the reynolds number...based on max in the flow
+        U = np.max(np.sqrt(self.u**2 + self.v**2))
+        L = self.ly*self.dr # Diameter
+        self.Re = U*L/self.viscosity
 
         # To get the mach number...
-        #self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
+        self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
 
 
     def init_hydro(self):
@@ -269,3 +262,65 @@ class Pipe_Flow(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields
 
+
+class Pipe_Flow_Obstacles(Pipe_Flow):
+
+    def __init__(self, *args, obstacle_mask=None, **kwargs):
+        self.obstacle_mask = obstacle_mask
+        self.obstacle_pixels = np.where(self.obstacle_mask)
+
+        super(Pipe_Flow_Obstacles, self).__init__(*args, **kwargs)
+
+    def init_hydro(self):
+        super(Pipe_Flow_Obstacles, self).init_hydro()
+        self.u[self.obstacle_mask] = 0
+        self.v[self.obstacle_mask] = 0
+
+    def update_hydro(self):
+        super(Pipe_Flow_Obstacles, self).update_hydro()
+        self.u[self.obstacle_mask] = 0
+        self.v[self.obstacle_mask] = 0
+
+    def move_bcs(self):
+        Pipe_Flow.move_bcs(self)
+
+        # Now bounceback on the obstacle
+        cdef long[:] x_list = self.obstacle_pixels[0]
+        cdef long[:] y_list = self.obstacle_pixels[1]
+        cdef int num_pixels = y_list.shape[0]
+
+        cdef float[:, :, :] f = self.f
+
+        cdef float old_f0, old_f1, old_f2, old_f3, old_f4, old_f5, old_f6, old_f7, old_f8
+        cdef int i
+        cdef long x, y
+
+        with nogil:
+            for i in range(num_pixels):
+                x = x_list[i]
+                y = y_list[i]
+
+                old_f0 = f[0, x, y]
+                old_f1 = f[1, x, y]
+                old_f2 = f[2, x, y]
+                old_f3 = f[3, x, y]
+                old_f4 = f[4, x, y]
+                old_f5 = f[5, x, y]
+                old_f6 = f[6, x, y]
+                old_f7 = f[7, x, y]
+                old_f8 = f[8, x, y]
+
+                # Bounce back everywhere!
+                # left right
+                f[1, x, y] = old_f3
+                f[3, x, y] = old_f1
+                # up down
+                f[2, x, y] = old_f4
+                f[4, x, y] = old_f2
+                # up-right
+                f[5, x, y] = old_f7
+                f[7, x, y] = old_f5
+
+                # up-left
+                f[6, x, y] = old_f8
+                f[8, x, y] = old_f6
