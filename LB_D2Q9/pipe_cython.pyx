@@ -29,19 +29,16 @@ NUM_JUMPERS = 9
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=None, dt = None, deltaP=None):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
 
-        if dr is None: self.dr = 1.
-        else: self.dr = dr
-        if dt is None: self.dt = 1.
-        else: self.dt = dt
-        if deltaP is None: self.deltaP = -1.0
-        else: self.deltaP = deltaP
-
         self.omega = omega
+
+        self.dr = dr
+        self.dt = dt
+        self.deltaP = deltaP
 
         ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
@@ -268,18 +265,8 @@ class Pipe_Flow(object):
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
-    def __init__(self, *args, obstacle_size=.5, **kwargs):
-        self.obstacle_size = obstacle_size
-        dr = kwargs['dr']
-        lx = kwargs['lx']
-        ly = kwargs['ly']
-        self.ob_size = obstacle_size/dr
-        center = np.array([lx/2, ly/2])
-        self.obstacle_mask = np.zeros((lx + 1, ly + 1), dtype=np.bool)
-
-        self.obstacle_mask[center[0]-self.ob_size:center[0] + self.ob_size,
-                            center[1]-self.ob_size:center[1]+self.ob_size] = True
-
+    def __init__(self, *args, obstacle_mask=None, **kwargs):
+        self.obstacle_mask = obstacle_mask
         self.obstacle_pixels = np.where(self.obstacle_mask)
 
         super(Pipe_Flow_Obstacles, self).__init__(*args, **kwargs)
