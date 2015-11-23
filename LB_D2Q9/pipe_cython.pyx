@@ -275,22 +275,22 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
         ly = kwargs['ly']
         self.ob_size = obstacle_size/dr
         center = np.array([lx/2, ly/2])
-        self.obstacle_mask = np.zeros((lx + 1, ly + 1), dtype=np.int)
+        self.obstacle_mask = np.zeros((lx + 1, ly + 1), dtype=np.bool)
 
         self.obstacle_mask[center[0]-self.ob_size:center[0] + self.ob_size,
-                            center[1]-self.ob_size:center[1]+self.ob_size] = 1
+                            center[1]-self.ob_size:center[1]+self.ob_size] = True
 
         self.obstacle_pixels = np.where(self.obstacle_mask)
 
-        Pipe_Flow.__init__(self, *args, **kwargs)
+        super(Pipe_Flow_Obstacles, self).__init__(*args, **kwargs)
 
     def init_hydro(self):
-        Pipe_Flow.init_hydro(self)
+        super(Pipe_Flow_Obstacles, self).init_hydro()
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 
     def update_hydro(self):
-        Pipe_Flow.update_hydro(self)
+        super(Pipe_Flow_Obstacles, self).update_hydro()
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 
