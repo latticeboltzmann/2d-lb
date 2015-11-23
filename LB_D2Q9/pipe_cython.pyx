@@ -265,3 +265,75 @@ class Pipe_Flow(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields
 
+
+class Pipe_Flow_Obstacles(Pipe_Flow):
+
+    def __init__(self, *args, obstacle_size=.5, **kwargs):
+        self.obstacle_size = obstacle_size
+        dr = kwargs['dr']
+        lx = kwargs['lx']
+        ly = kwargs['ly']
+        self.ob_size = obstacle_size/dr
+        center = np.array([lx/2, ly/2])
+        self.obstacle_mask = np.zeros((lx + 1, ly + 1), dtype=np.int)
+
+        self.obstacle_mask[center[0]-self.ob_size:center[0] + self.ob_size,
+                            center[1]-self.ob_size:center[1]+self.ob_size] = 1
+
+        self.obstacle_pixels = np.where(self.obstacle_mask)
+
+        Pipe_Flow.__init__(self, *args, **kwargs)
+
+    def init_hydro(self):
+        Pipe_Flow.init_hydro(self)
+        self.u[self.obstacle_mask] = 0
+        self.v[self.obstacle_mask] = 0
+
+    def update_hydro(self):
+        Pipe_Flow.update_hydro(self)
+        self.u[self.obstacle_mask] = 0
+        self.v[self.obstacle_mask] = 0
+
+    def move_bcs(self):
+        Pipe_Flow.move_bcs(self)
+
+        # Now bounceback on the obstacle
+        cdef long[:] x_list = self.obstacle_pixels[0]
+        cdef long[:] y_list = self.obstacle_pixels[1]
+        cdef int num_pixels = y_list.shape[0]
+
+        cdef float[:, :, :] f = self.f
+
+        cdef float old_f0, old_f1, old_f2, old_f3, old_f4, old_f5, old_f6, old_f7, old_f8
+        cdef int i
+        cdef long x, y
+
+        with nogil:
+            for i in range(num_pixels):
+                x = x_list[i]
+                y = y_list[i]
+
+                old_f0 = f[0, x, y]
+                old_f1 = f[1, x, y]
+                old_f2 = f[2, x, y]
+                old_f3 = f[3, x, y]
+                old_f4 = f[4, x, y]
+                old_f5 = f[5, x, y]
+                old_f6 = f[6, x, y]
+                old_f7 = f[7, x, y]
+                old_f8 = f[8, x, y]
+
+                # Bounce back everywhere!
+                # left right
+                f[1, x, y] = old_f3
+                f[3, x, y] = old_f1
+                # up down
+                f[2, x, y] = old_f4
+                f[4, x, y] = old_f2
+                # up-right
+                f[5, x, y] = old_f7
+                f[7, x, y] = old_f5
+
+                # up-left
+                f[6, x, y] = old_f8
+                f[8, x, y] = old_f6
