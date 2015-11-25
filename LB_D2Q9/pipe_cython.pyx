@@ -1,5 +1,6 @@
-#cython: profile=False
-#cython: boundscheck=True
+#cython: profile=True
+#cython: linetrace=True
+#cython: boundscheck=False
 #cython: initializedcheck=False
 #cython: nonecheck=False
 #cython: wraparound=False
@@ -252,7 +253,7 @@ class Pipe_Flow(object):
         feq = self.feq
         omega = self.omega
 
-        self.f = f*(1.-omega)+omega*feq
+        self.f[:, :, :] = f*(1.-omega)+omega*feq
 
     def run(self, num_iterations):
         for cur_iteration in range(num_iterations):
