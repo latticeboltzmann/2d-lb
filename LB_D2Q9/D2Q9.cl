@@ -1,16 +1,16 @@
 const float[9] w = {4./9.,1./9.,1./9.,1./9.,1./9.,1./36., 1./36.,1./36.,1./36.]}; // weights for directions
+const int[9]  cx= {0,1,0,-1,0,1,-1,-1,1]} // direction vector for the x direction
+const int [9] cy = {0,0,1,0,-1,1,1,-1,-1} // direction vector for the y direction
+
 const float cs = 1/np.sqrt(3);
 const float cs2 = cs**2;
-const float cs22 = 2*cs2;
-const float cssq = 2.0/9.0;
-const float w0 = 4./9.;
-const float w1 = 1./9.;
-const float w2 = 1./36.;
+const float two_cs2 = 2.*cs2;
+const float two_cs4 = 2*cs**4;
 
 const float NUM_JUMPERS = 9;
 
 __kernel void
-update_feq(__global __read_write float *feq_global,
+update_feq(__global __write_only float *feq_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
            __global __read_only float *rho_global,
@@ -27,37 +27,19 @@ update_feq(__global __read_write float *feq_global,
     float u = u_global[x, y];
     float v= v_global[x, y];
     float rho = rho_global[x, y];
-    float feq = feq_global[x, y, jump_id]
 
-    float ul = u/cs2;
-    float vl = v/cs2;
-    float uv = ul*vl;
-    float usq = u*u;
-    float vsq = v*v;
-    float sumsq  = (usq+vsq)/cs22;
-    float sumsq2 = sumsq*(1.-cs2)/cs2;
-    float u2 = usq/cssq;
-    float v2 = vsq/cssq;
+    // We used to have a bunch of if statements here. It's better to have something thata
+    // can be executed in parallel.
+    cdef float cur_w = w[jump_id];
+    cdef int cur_cx = cx[jump_id];
+    cdef int cur_cy = cy[jump_id];
 
-    if (jump_id == 0){
-        feq_global[x, y, jump_id] = w0*rho*(1. - sumsq);
-    }
-    if (jump_id == 1){
-        feq_global[x, y, jump_id] = w1*rho*(1. - sumsq  + u2 + ul)
-    }
-    if (jump_id == 2){
-        feq_global[x, y, jump_id] = w1*rho*(1. - sumsq  + v2 + vl)
-    }
-    if (jump_id == 3){
-        feq_global[x, y, jump_id] = w1*rho*(1. - sumsq  + u2 - ul)
-    }
-    if (jump_id == 4){
+    cdef float cur_c_dot_u = cur_cx*u + cur_cy*v;
+    cdef float velocity_squared = u*u + v*v;
 
-    }
+    cdef float inner_feq = 1 + cur_c_dot_u/cs2 + cur_c_dot_u**2/two_cs4 - velocity_squared/two_cs2;
 
-    feq[4, :, :] = w1*rho*(1. - sumsq  + v2 - vl)
-    feq[5, :, :] = w2*rho*(1. + sumsq2 + ul + vl + uv)
-    feq[6, :, :] = w2*rho*(1. + sumsq2 - ul + vl - uv)
-    feq[7, :, :] = w2*rho*(1. + sumsq2 - ul - vl + uv)
-    feq[8, :, :] = w2*rho*(1. + sumsq2 + ul - vl - uv)
+    cdef float new_feq =  cur_w*rho*inner_feq
+
+    feq_global[x, y, jump_id] = new_feq
 }
