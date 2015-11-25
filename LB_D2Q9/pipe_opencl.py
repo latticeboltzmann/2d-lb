@@ -6,6 +6,10 @@ import ctypes as ct
 
 float_size = ct.sizeof(ct.c_float)
 
+# Get path to *this* file. Necessary when reading in opencl code.
+full_path = os.path.realpath(__file__)
+file_dir = os.path.dirname(full_path)
+
 ##########################
 ##### D2Q9 parameters ####
 ##########################
@@ -67,7 +71,8 @@ class Pipe_Flow(object):
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*feq_host.size)
 
         self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), self.three_dim_local_size,
-                                self.feq, self.u, self.v, self.rho)
+                                self.feq, self.u, self.v, self.rho,
+                                self.nx, self.ny)
 
         self.init_pop()
 
@@ -101,7 +106,7 @@ class Pipe_Flow(object):
         print 'This context is associated with ', len(self.context.devices), 'devices'
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
-        self.kernels = cl.Program(self.context, open('./D2Q9.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
 
     def update_dimensionless_nums(self):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
