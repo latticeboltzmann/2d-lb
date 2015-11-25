@@ -49,6 +49,8 @@ class Pipe_Flow(object):
         # Initialize the opencl environment
         self.context = None
         self.queue = None
+        self.kernels = None
+        self.three_dim_local_size = (32, 16, 16)
         self.init_opencl()
 
         ## Initialize hydrodynamic variables
@@ -64,7 +66,9 @@ class Pipe_Flow(object):
         feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*feq_host.size)
 
-        self.update_feq()
+        self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), self.three_dim_local_size,
+                                self.feq, self.u, self.v, self.rho)
+
         self.init_pop()
 
         # Based on initial parameters, determine dimensionless numbers
@@ -97,6 +101,7 @@ class Pipe_Flow(object):
         print 'This context is associated with ', len(self.context.devices), 'devices'
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
+        self.kernels = cl.Program(self.context, open('./D2Q9.cl').read()).build(options='')
 
     def update_dimensionless_nums(self):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)

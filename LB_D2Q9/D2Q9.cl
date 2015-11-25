@@ -13,8 +13,7 @@ __kernel void
 update_feq(__global __write_only float *feq_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
-           __global __read_only float *rho_global,
-           const int nx, const int ny)
+           __global __read_only float *rho_global)
 {
     //Luckily, everything takes place inplace, so this isn't too bad. No local buffers needed.
     //First dimension should be x, second dimension y, third dimension jumper type
