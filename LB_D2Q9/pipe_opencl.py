@@ -143,31 +143,6 @@ class Pipe_Flow(object):
         self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*u_host.size)
         self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*v_host.size)
 
-    def update_hydro(self):
-        f = self.f
-
-        rho = self.rho
-        rho[:, :] = np.sum(f, axis=0)
-        inverse_rho = 1./self.rho
-
-        u = self.u
-        v = self.v
-
-        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
-        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
-
-        # Deal with boundary conditions...have to specify pressure
-        lx = self.lx
-
-        rho[0, :] = self.inlet_rho
-        rho[lx, :] = self.outlet_rho
-        # INLET
-        u[0, :] = 1 - (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[3, 0, :]+f[6, 0, :]+f[7, 0, :]))/self.inlet_rho
-
-        # OUTLET
-        u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
-
-
     def move_bcs(self):
         """This is slow; cythonizing makes it fast."""
 
@@ -254,7 +229,6 @@ class Pipe_Flow(object):
                 f[7,i,j] = f[7,i+1,j+1]
 
     def init_pop(self):
-        feq = self.feq
         nx = self.nx
         ny = self.ny
 
@@ -282,9 +256,20 @@ class Pipe_Flow(object):
         for cur_iteration in range(num_iterations):
             self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble.
             self.move() # Move all jumpers
-            self.update_hydro() # Update the hydrodynamic variables
-            self.update_feq() # Update the equilibrium fields
-            self.collide_particles() # Relax the nonequilibrium fields
+            # Update the hydrodynamic variables
+            self.kernels.update_hydro(self.queue, (self.nx, self.ny), None,
+                                self.f, self.u, self.v, self.rho,
+                                np.float32(self.inlet_rho), np.float32(self.outlet_rho),
+                                np.int32(self.nx), np.int32(self.ny)).wait()
+            # Update the equilibrium fields
+            self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+                                self.feq, self.u, self.v, self.rho,
+                                np.int32(self.nx), np.int32(self.ny)).wait()
+
+            # Relax the nonequilibrium fields
+            self.kernels.collide_particles(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+                                self.f, self.feq, np.float32(self.omega),
+                                np.int32(self.nx), np.int32(self.ny)).wait()
 
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
