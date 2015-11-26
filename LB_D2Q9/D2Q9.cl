@@ -27,14 +27,14 @@ update_feq(__global __write_only float *feq_global,
         //First dimension should be x, second dimension y, third dimension jumper type
         //Note that this is different from how things are structured now
 
-        //The position in 3d is confusing...
+        //The position in 3d is confusing...REMEMBER, U, V, AND RHO ARE 2D. BUT, FEQ IS 3D!
 
-        int index_position = jump_id*nx*ny + y*nx + x;
+        int two_d_index = y*nx + x;
+        int three_d_index = jump_id*nx*ny + two_d_index;
 
-        float u = u_global[index_position];
-        float v= v_global[index_position];
-        float rho = rho_global[index_position];
-
+        float u = u_global[two_d_index];
+        float v= v_global[two_d_index];
+        float rho = rho_global[two_d_index];
 
         // We used to have a bunch of if statements here. It's better to have something thata
         // can be executed in parallel.
@@ -50,6 +50,7 @@ update_feq(__global __write_only float *feq_global,
 
         float new_feq =  cur_w*rho*inner_feq;
 
-        feq_global[index_position] = new_feq;
+        feq_global[three_d_index] = new_feq;
+
     }
 }
