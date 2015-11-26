@@ -66,6 +66,9 @@ class Pipe_Flow(object):
         f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32) # initializing f
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f_host.size)
 
+        # Necessary for streaming updates
+        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f_host.size)
+
         feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*feq_host.size)
 
@@ -206,27 +209,13 @@ class Pipe_Flow(object):
         f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
 
     def move(self):
-        f = self.f
-        lx = self.lx
-        ly = self.ly
+        self.kernels.move(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+                                self.f, self.f_streamed,
+                                np.int32(self.nx), np.int32(self.ny)).wait()
 
-        # This can't be parallelized without making a copy...order of loops is super important!
-        for j in range(ly,0,-1): # Up, up-left
-            for i in range(0, lx):
-                f[2,i,j] = f[2,i,j-1]
-                f[6,i,j] = f[6,i+1,j-1]
-        for j in range(ly,0,-1): # Right, up-right
-            for i in range(lx,0,-1):
-                f[1,i,j] = f[1,i-1,j]
-                f[5,i,j] = f[5,i-1,j-1]
-        for j in range(0,ly): # Down, right-down
-            for i in range(lx,0,-1):
-                f[4,i,j] = f[4,i,j+1]
-                f[8,i,j] = f[8,i-1,j+1]
-        for j in range(0,ly): # Left, left-down
-            for i in range(0, lx):
-                f[3,i,j] = f[3,i+1,j]
-                f[7,i,j] = f[7,i+1,j+1]
+        # Replace f with f_streamed
+        self.f, self.f_streamed = self.f_streamed, self.f
+
 
     def init_pop(self):
         nx = self.nx
@@ -244,6 +233,8 @@ class Pipe_Flow(object):
 
         # Now send f to the GPU
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f.size)
+
+        # Create a new buffer
 
     def run(self, num_iterations):
         for cur_iteration in range(num_iterations):

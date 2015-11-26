@@ -124,32 +124,89 @@ collide_particles(__global float *f_global,
 }
 
 __kernel void
-move(__global float *f_global,
-     __global float *f_streamed_global,
-     __global float *feq_global,
+move_bcs(__global float *f_global,
+     __global float *u_global,
+     float inlet_rho, float outlet_rho,
      int nx, int ny)
 {
-    //Input should be a 3d workgroup!
+    //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int jump_id = get_global_id(2);
 
-    //Only stream if you will not go out of the system.
-    const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
-    const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
+    int two_d_index = y*nx + x;
 
-    int cur_cx = cx[jump_id];
-    int cur_cy = cy[jump_id];
+    float f0 = f_global[0*ny*nx + two_d_index];
+    float f1 = f_global[1*ny*nx + two_d_index];
+    float f2 = f_global[2*ny*nx + two_d_index];
+    float f3 = f_global[3*ny*nx + two_d_index];
+    float f4 = f_global[4*ny*nx + two_d_index];
+    float f5 = f_global[5*ny*nx + two_d_index];
+    float f6 = f_global[6*ny*nx + two_d_index];
+    float f7 = f_global[7*ny*nx + two_d_index];
+    float f8 = f_global[8*ny*nx + two_d_index];
 
-    //Make sure that you don't go out of the system
+    float u = u_global[two_d_index];
 
-    int stream_x = x + cur_cx;
-    int stream_y = y + cur_cy;
+    //INLET: constant pressure
+    if ((x==0) && (1<=y)&&(y < ny -1)){
+        f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
+        f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
+        f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
+    }
+    //OUTLET: constant pressure
+    if ((x==lx) && (1<=y)&&(y < ny -1)){
+        f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
+        f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
+        f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
+    }
 
-    if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){
-        int old_3d_index = jump_id*nx*ny + y*nx + x;
-        int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
-        //Need two buffers to avoid parallel updates & shennanigans.
-        f_streamed_global[new_3d_index] = f_global[old_3d_index];
+    //NORTH: solid; bounce back
+    if ((y == nx-1)&&(x <=1) && (x < nx - 1)){
+        f_global[4*ny*nx + two_d_index] = f2;
+        f_global[8*ny*nx + two_d_index] = f6;
+        f_global[7*ny*nx + two_d_index] = f5;
+    }
+
+    //SOUTH: solid; bounce back
+    if ((y == 0)&&(x <=1) && (x < nx - 1)){
+        f_global[2*ny*nx + two_d_index] = f4;
+        f_global[6*ny*nx + two_d_index] = f8;
+        f_global[5*ny*nx + two_d_index] = f7;
+    }
+
+    //Corner nodes: tricky and a huge pain! And likely very slow.
+    // BOTTOM INLET
+    if ((x==0) && (y==0)){
+        f_global[1*ny*nx + two_d_index] = f3;
+        f_global[2*ny*nx + two_d_index] = f4;
+        f_global[5*ny*nx + two_d_index] = f7;
+        f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+        f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+    }
+    // TOP INLET
+    if ((x==0)&&(y==ny-1)){
+        f_global[1*ny*nx + two_d_index] = f3;
+        f_global[4*ny*nx + two_d_index] = f2;
+        f_global[8*ny*nx + two_d_index] = f6;
+        f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
+        f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
+    }
+
+    // BOTTOM OUTLET
+    if ((x==nx-1)&&(y==0)){
+        f_global[3*ny*nx + two_d_index] = f1;
+        f_global[2*ny*nx + two_d_index] = f4;
+        f_global[6*ny*nx + two_d_index] = f8;
+        f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+        f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+    }
+    // TOP OUTLET
+    if ((x==nx-1)&&(y==ny-1)){
+        f_global[3*ny*nx + two_d_index] = f1;
+        f_global[4*ny*nx + two_d_index] = f2;
+        f_global[7*ny*nx + two_d_index] = f5;
+        f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+        f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
     }
 }
+
