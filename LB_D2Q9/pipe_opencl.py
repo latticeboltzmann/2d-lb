@@ -108,7 +108,7 @@ class Pipe_Flow(object):
         print 'This context is associated with ', len(self.context.devices), 'devices'
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
-        self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='-g -cl-opt-disable')
+        self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
 
     def update_dimensionless_nums(self):
         self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
