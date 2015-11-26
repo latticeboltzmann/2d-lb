@@ -257,11 +257,18 @@ class Pipe_Flow(object):
         nx = self.nx
         ny = self.ny
 
-        self.f = feq.copy()
+        # For simplicity, copy feq to the local host, where you can make a copy
+        f = np.zeros((nx, ny, NUM_JUMPERS), dtype=np.float32)
+        cl.enqueue_copy(self.queue, self.feq, f, is_blocking=True)
+
+        f = f.copy() # Make sure there is no problem
         # We now slightly perturb f
-        amplitude = .01
-        perturb = (1. + amplitude*np.random.randn(nx, ny))
-        self.f *= perturb
+        amplitude = .001
+        perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
+        f *= perturb
+
+        # Now send f to the GPU
+        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f.size)
 
     def collide_particles(self):
         f = self.f

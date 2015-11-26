@@ -23,6 +23,7 @@ update_feq(__global __write_only float *feq_global,
     const int x = get_global_id(0);
     const int y = get_global_id(1);
     const int jump_id = get_global_id(2);
+
     //The position in 3d is confusing...
 
     int index_position = jump_id*nx*ny + y*nx + x;
