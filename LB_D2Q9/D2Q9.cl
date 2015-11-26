@@ -6,6 +6,7 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            int nx, int ny)
 {
+    //Input should be a 3d workgroup.
     const int x = get_global_id(0);
     const int y = get_global_id(1);
     const int jump_id = get_global_id(2);
@@ -52,5 +53,38 @@ update_feq(__global __write_only float *feq_global,
 
         feq_global[three_d_index] = new_feq;
 
+    }
+}
+
+
+__kernel void
+update_hydro(__global float *f_global,
+             __global float *u_global,
+             __global float *v_global,
+             __global float *rho_global,
+             int nx, int ny)
+{
+    if ((x < nx) && (y < ny)){
+        //Input should be a 2d workgroup!
+        const int x = get_global_id(0);
+        const int y = get_global_id(1);
+
+        int two_d_index = y*nx + x;
+        float f0 = f_global[0*ny*nx + two_d_index];
+        float f1 = f_global[1*ny*nx + two_d_index];
+        float f2 = f_global[2*ny*nx + two_d_index];
+        float f3 = f_global[3*ny*nx + two_d_index];
+        float f4 = f_global[4*ny*nx + two_d_index];
+        float f5 = f_global[5*ny*nx + two_d_index];
+        float f6 = f_global[6*ny*nx + two_d_index];
+        float f7 = f_global[7*ny*nx + two_d_index];
+        float f8 = f_global[8*ny*nx + two_d_index];
+
+        float rho = f0+f1+f2+f3+f4+f5+f6+f7+f8;
+        rho_global[two_d_index] = rho
+        float inverse_rho = 1./rho
+
+        u[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho
+        v[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho
     }
 }

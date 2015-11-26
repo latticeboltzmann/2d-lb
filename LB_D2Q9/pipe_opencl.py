@@ -110,16 +110,16 @@ class Pipe_Flow(object):
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
 
-    def update_dimensionless_nums(self):
-        self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
-
-        # Get the reynolds number...based on max in the flow
-        U = np.max(np.sqrt(self.u**2 + self.v**2))
-        L = self.ly*self.dr # Diameter
-        self.Re = U*L/self.viscosity
-
-        # To get the mach number...
-        self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
+    # def update_dimensionless_nums(self):
+    #     self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
+    #
+    #     # Get the reynolds number...based on max in the flow
+    #     U = np.max(np.sqrt(self.u**2 + self.v**2))
+    #     L = self.ly*self.dr # Diameter
+    #     self.Re = U*L/self.viscosity
+    #
+    #     # To get the mach number...
+    #     self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
 
 
     def init_hydro(self):
