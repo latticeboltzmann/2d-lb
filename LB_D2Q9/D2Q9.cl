@@ -47,7 +47,7 @@ update_feq(__global __write_only float *feq_global,
         float cur_c_dot_u = cur_cx*u + cur_cy*v;
         float velocity_squared = u*u + v*v;
 
-        float inner_feq = 1 + cur_c_dot_u/cs2 + pow((float) cur_c_dot_u, (float) 2)/two_cs4 - velocity_squared/two_cs2;
+        float inner_feq = 1 + cur_c_dot_u/cs2 + pow(cur_c_dot_u,2f)/two_cs4 - velocity_squared/two_cs2;
 
         float new_feq =  cur_w*rho*inner_feq;
 
@@ -62,13 +62,14 @@ update_hydro(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
+             float inlet_rho, float outlet_rho,
              int nx, int ny)
 {
-    if ((x < nx) && (y < ny)){
-        //Input should be a 2d workgroup!
-        const int x = get_global_id(0);
-        const int y = get_global_id(1);
+    //Input should be a 2d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
 
+    if ((x < nx) && (y < ny)){
         int two_d_index = y*nx + x;
         float f0 = f_global[0*ny*nx + two_d_index];
         float f1 = f_global[1*ny*nx + two_d_index];
@@ -86,5 +87,17 @@ update_hydro(__global float *f_global,
 
         u[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho
         v[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho
+
+        //Now do the boundary conditions. It is faster to do it here so we don't have to
+        //reread variables! I think two if statements are needed...I don't see a way around it.
+
+        if (x==0){
+            rho_global[two_d_index] = inlet_rho
+            u_global[two_d_index] = 1 - (f0+f2+f4+2*(f3+f6+f7))/inlet_rho
+        }
+        if (x==nx-1){
+            rho_global[two_d_index] = outlet_rho
+            u_global[two_d_index] = -1 + (f0+f2+f4+2*(f1+f5+f8))/outlet_rho
+        }
     }
 }
