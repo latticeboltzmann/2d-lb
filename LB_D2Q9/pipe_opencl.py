@@ -36,11 +36,11 @@ class Pipe_Flow(object):
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
 
-        self.omega = omega
+        self.omega = np.float32(omega)
 
-        self.dr = dr
-        self.dt = dt
-        self.deltaP = deltaP
+        self.dr = np.float32(dr)
+        self.dt = np.float32(dt)
+        self.deltaP = np.float32(deltaP)
 
         ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
@@ -72,7 +72,7 @@ class Pipe_Flow(object):
 
         self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), self.three_dim_local_size,
                                 self.feq, self.u, self.v, self.rho,
-                                self.nx, self.ny)
+                                np.int32(self.nx), np.int32(self.ny))
 
         self.init_pop()
 
@@ -140,34 +140,6 @@ class Pipe_Flow(object):
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*rho_host.size)
         self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*u_host.size)
         self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*v_host.size)
-
-    def update_feq(self):
-        """Taken from sauro succi's code. This will be super easy to put on the GPU."""
-
-        u = self.u
-        v = self.v
-        rho = self.rho
-        feq = self.feq
-
-        ul = u/cs2
-        vl = v/cs2
-        uv = ul*vl
-        usq = u*u
-        vsq = v*v
-        sumsq  = (usq+vsq)/cs22
-        sumsq2 = sumsq*(1.-cs2)/cs2
-        u2 = usq/cssq
-        v2 = vsq/cssq
-
-        feq[0, :, :] = w0*rho*(1. - sumsq)
-        feq[1, :, :] = w1*rho*(1. - sumsq  + u2 + ul)
-        feq[2, :, :] = w1*rho*(1. - sumsq  + v2 + vl)
-        feq[3, :, :] = w1*rho*(1. - sumsq  + u2 - ul)
-        feq[4, :, :] = w1*rho*(1. - sumsq  + v2 - vl)
-        feq[5, :, :] = w2*rho*(1. + sumsq2 + ul + vl + uv)
-        feq[6, :, :] = w2*rho*(1. + sumsq2 - ul + vl - uv)
-        feq[7, :, :] = w2*rho*(1. + sumsq2 - ul - vl + uv)
-        feq[8, :, :] = w2*rho*(1. + sumsq2 + ul - vl - uv)
 
     def update_hydro(self):
         f = self.f

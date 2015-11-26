@@ -6,16 +6,15 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            int nx, int ny)
 {
-
     //Define global constants...which openCL makes difficult!
     const float w[9] = {4./9.,1./9.,1./9.,1./9.,1./9.,1./36., 1./36.,1./36.,1./36.}; // weights for directions
-    const float cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
+    const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
     const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
 
-    const float cs = 1/pow(3,.5);
-    const float cs2 = pow(cs,2);
+    const float cs = 1/pow(3.f, .5f);
+    const float cs2 = pow(cs, 2.f);
     const float two_cs2 = 2.*cs2;
-    const float two_cs4 = 2*pow(cs,4);
+    const float two_cs4 = 2*pow(cs, 4.f);
 
     //Luckily, everything takes place inplace, so this isn't too bad. No local buffers needed.
     //First dimension should be x, second dimension y, third dimension jumper type
@@ -41,7 +40,7 @@ update_feq(__global __write_only float *feq_global,
     float cur_c_dot_u = cur_cx*u + cur_cy*v;
     float velocity_squared = u*u + v*v;
 
-    float inner_feq = 1 + cur_c_dot_u/cs2 + pow(cur_c_dot_u, 2)/two_cs4 - velocity_squared/two_cs2;
+    float inner_feq = 1 + cur_c_dot_u/cs2 + pow((float) cur_c_dot_u, (float) 2)/two_cs4 - velocity_squared/two_cs2;
 
     float new_feq =  cur_w*rho*inner_feq;
 
