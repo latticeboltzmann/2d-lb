@@ -64,13 +64,13 @@ class Pipe_Flow(object):
 
         # Intitialize the underlying probablistic fields
         f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32) # initializing f
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f_host.size)
+        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
 
         # Necessary for streaming updates
-        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f_host.size)
+        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
 
         feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
-        self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*feq_host.size)
+        self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
 
         print 'Starting kernel...'
         self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
@@ -142,9 +142,9 @@ class Pipe_Flow(object):
         v_host = v_host.astype(np.float32)
 
         # Transfer arrays to the device
-        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*rho_host.size)
-        self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*u_host.size)
-        self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*v_host.size)
+        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
+        self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
+        self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
 
     def move_bcs(self):
         self.kernels.move_bcs(self.queue, (self.nx, self.ny), None,
@@ -167,7 +167,7 @@ class Pipe_Flow(object):
 
         # For simplicity, copy feq to the local host, where you can make a copy
         f = np.zeros((nx, ny, NUM_JUMPERS), dtype=np.float32)
-        cl.enqueue_copy(self.queue, self.feq, f, is_blocking=True)
+        cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
 
         f = f.copy() # Make sure there is no problem
         # We now slightly perturb f
@@ -176,7 +176,7 @@ class Pipe_Flow(object):
         f *= perturb
 
         # Now send f to the GPU
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f.size)
+        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
         # Create a new buffer
 
@@ -208,7 +208,29 @@ class Pipe_Flow(object):
             # Relax the nonequilibrium fields
             self.collide_particles()
 
+    def get_fields_on_cpu(self):
+        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
+        cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
 
+        feq = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
+        cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
+
+        u = np.zeros((self.nx, self.ny), dtype=np.float32)
+        cl.enqueue_copy(self.queue, u, self.u, is_blocking=True)
+
+        v = np.zeros((self.nx, self.ny), dtype=np.float32)
+        cl.enqueue_copy(self.queue, v, self.v, is_blocking=True)
+
+        rho = np.zeros((self.nx, self.ny), dtype=np.float32)
+        cl.enqueue_copy(self.queue, rho, self.rho, is_blocking=True)
+
+        results={}
+        results['f'] = f
+        results['u'] = u
+        results['v'] = v
+        results['rho'] = rho
+        results['feq'] = feq
+        return results
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
