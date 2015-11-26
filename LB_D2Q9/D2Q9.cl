@@ -122,3 +122,34 @@ collide_particles(__global float *f_global,
         f_global[three_d_index] = f*(1.f-omega) + omega*feq;
     }
 }
+
+__kernel void
+move(__global float *f_global,
+     __global float *f_streamed_global,
+     __global float *feq_global,
+     int nx, int ny)
+{
+    //Input should be a 3d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    const int jump_id = get_global_id(2);
+
+    //Only stream if you will not go out of the system.
+    const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
+    const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
+
+    int cur_cx = cx[jump_id];
+    int cur_cy = cy[jump_id];
+
+    //Make sure that you don't go out of the system
+
+    int stream_x = x + cur_cx;
+    int stream_y = y + cur_cy;
+
+    if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){
+        int old_3d_index = jump_id*nx*ny + y*nx + x;
+        int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
+        //Need two buffers to avoid parallel updates & shennanigans.
+        f_streamed_global[new_3d_index] = f_global[old_3d_index];
+    }
+}

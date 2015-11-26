@@ -245,13 +245,6 @@ class Pipe_Flow(object):
         # Now send f to the GPU
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, float_size*f.size)
 
-    def collide_particles(self):
-        f = self.f
-        feq = self.feq
-        omega = self.omega
-
-        self.f[:, :, :] = f*(1.-omega)+omega*feq
-
     def run(self, num_iterations):
         for cur_iteration in range(num_iterations):
             self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble.
