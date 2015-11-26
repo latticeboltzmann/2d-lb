@@ -180,24 +180,34 @@ class Pipe_Flow(object):
 
         # Create a new buffer
 
+    def update_hydro(self):
+        self.kernels.update_hydro(self.queue, (self.nx, self.ny), None,
+                                self.f, self.u, self.v, self.rho,
+                                np.float32(self.inlet_rho), np.float32(self.outlet_rho),
+                                np.int32(self.nx), np.int32(self.ny)).wait()
+
+    def update_feq(self):
+        self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+                                self.feq, self.u, self.v, self.rho,
+                                np.int32(self.nx), np.int32(self.ny)).wait()
+
+    def collide_particles(self):
+        self.kernels.collide_particles(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+                                self.f, self.feq, np.float32(self.omega),
+                                np.int32(self.nx), np.int32(self.ny)).wait()
+
     def run(self, num_iterations):
         for cur_iteration in range(num_iterations):
             self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble.
             self.move() # Move all jumpers
             # Update the hydrodynamic variables
-            self.kernels.update_hydro(self.queue, (self.nx, self.ny), None,
-                                self.f, self.u, self.v, self.rho,
-                                np.float32(self.inlet_rho), np.float32(self.outlet_rho),
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+            self.update_hydro()
             # Update the equilibrium fields
-            self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
-                                self.feq, self.u, self.v, self.rho,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+            self.update_feq()
 
             # Relax the nonequilibrium fields
-            self.kernels.collide_particles(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
-                                self.f, self.feq, np.float32(self.omega),
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+            self.collide_particles()
+
 
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
