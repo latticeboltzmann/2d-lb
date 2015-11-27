@@ -52,7 +52,7 @@ update_feq(__global __write_only float *feq_global,
         //The problem is that rho is one everywhere...which does not make sense!
         float new_feq =  cur_w*rho*inner_feq;
 
-        feq_global[three_d_index] = rho;
+        feq_global[three_d_index] = new_feq;
     }
 }
 
