@@ -198,10 +198,10 @@ class Pipe_Flow(object):
             f[8, 0, ly] = f[6, 0, ly]
 
             # BOTTOM OUTLET
-            f[2, lx, 0] = f[4, lx, 0]
             f[3, lx, 0] = f[1, lx, 0]
-            f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+            f[2, lx, 0] = f[4, lx, 0]
             f[6, lx, 0] = f[8, lx, 0]
+            f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
             f[7, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
 
             # TOP OUTLET
