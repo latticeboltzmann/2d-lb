@@ -193,22 +193,22 @@ class Pipe_Flow(object):
             # TOP INLET
             f[1, 0, ly] = f[3, 0, ly]
             f[4, 0, ly] = f[2, 0, ly]
-            f[8, 0, ly] = f[6, 0, ly]
             f[5, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
             f[7, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
+            f[8, 0, ly] = f[6, 0, ly]
 
             # BOTTOM OUTLET
-            f[3, lx, 0] = f[1, lx, 0]
             f[2, lx, 0] = f[4, lx, 0]
-            f[6, lx, 0] = f[8, lx, 0]
+            f[3, lx, 0] = f[1, lx, 0]
             f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
-            f[8, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+            f[6, lx, 0] = f[8, lx, 0]
+            f[7, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
 
             # TOP OUTLET
             f[3, lx, ly] = f[1, lx, ly]
             f[4, lx, ly] = f[2, lx, ly]
-            f[7, lx, ly] = f[5, lx, ly]
             f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+            f[7, lx, ly] = f[5, lx, ly]
             f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
 
     def move(self):
