@@ -47,12 +47,12 @@ update_feq(__global __write_only float *feq_global,
         float cur_c_dot_u = cur_cx*u + cur_cy*v;
         float velocity_squared = u*u + v*v;
 
-        float inner_feq = 1 + cur_c_dot_u/cs2 + pow(cur_c_dot_u,2.f)/two_cs4 - velocity_squared/two_cs2;
+        float inner_feq = 1.f + cur_c_dot_u/cs2 + pow(cur_c_dot_u,2.f)/two_cs4 - velocity_squared/two_cs2;
 
+        //The problem is that rho is one everywhere...which does not make sense!
         float new_feq =  cur_w*rho*inner_feq;
 
-        feq_global[three_d_index] = new_feq;
-
+        feq_global[three_d_index] = rho;
     }
 }
 
@@ -190,7 +190,7 @@ move_bcs(__global float *f_global,
     if ((x==nx - 1) && (1<=y)&&(y < ny -1)){
         f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
         f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
-
+        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 0");
         f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
     }
 
@@ -205,6 +205,7 @@ move_bcs(__global float *f_global,
     if ((y == 0)&&(1<=x) && (x < nx-1)){
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[6*ny*nx + two_d_index] = f8;
+        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 1");
         f_global[5*ny*nx + two_d_index] = f7;
     }
 
@@ -215,6 +216,7 @@ move_bcs(__global float *f_global,
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[5*ny*nx + two_d_index] = f7;
         f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 2");
         f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
     }
     // TOP INLET
@@ -231,6 +233,7 @@ move_bcs(__global float *f_global,
         f_global[3*ny*nx + two_d_index] = f1;
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[6*ny*nx + two_d_index] = f8;
+        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 3");
         f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
         f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
     }
@@ -240,6 +243,7 @@ move_bcs(__global float *f_global,
         f_global[4*ny*nx + two_d_index] = f2;
         f_global[7*ny*nx + two_d_index] = f5;
         f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 4");
         f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
     }
 }

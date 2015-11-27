@@ -67,11 +67,7 @@ class Pipe_Flow(object):
         feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
 
-        print 'Starting kernel...'
-        self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
-                                self.feq, self.u, self.v, self.rho,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
-        print 'Done!'
+        self.update_feq()
 
         f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32) # initializing f
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
