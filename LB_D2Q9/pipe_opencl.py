@@ -206,10 +206,10 @@ class Pipe_Flow(object):
             self.collide_particles()
 
     def get_fields_on_cpu(self):
-        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
+        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
 
-        feq = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
+        feq = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
 
         u = np.zeros((self.nx, self.ny), dtype=np.float32)
