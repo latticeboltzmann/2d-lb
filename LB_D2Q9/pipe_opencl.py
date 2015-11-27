@@ -64,12 +64,12 @@ class Pipe_Flow(object):
 
         # Intitialize the underlying probablistic fields
 
-        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
+        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
 
         self.update_feq()
 
-        f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32) # initializing f
+        f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F') # initializing f
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
         self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
 
@@ -126,16 +126,16 @@ class Pipe_Flow(object):
         ny = self.ny
 
         # Initialize arrays on the host
-        rho_host = np.ones((nx, ny), dtype=np.float32)
+        rho_host = np.ones((nx, ny), dtype=np.float32, order='F')
         rho_host[0, :] = self.inlet_rho
         rho_host[self.lx, :] = self.outlet_rho # Is there a shock in this case? We'll see...
         for i in range(rho_host.shape[0]):
             rho_host[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(rho_host.shape[0])
 
         u_host = .0001*np.random.randn(nx, ny) # Fluctuations in the fluid; small
-        u_host = u_host.astype(np.float32)
+        u_host = u_host.astype(np.float32, order='F')
         v_host = .0001*np.random.randn(nx, ny) # Fluctuations in the fluid; small
-        v_host = v_host.astype(np.float32)
+        v_host = v_host.astype(np.float32, order='F')
 
         # Transfer arrays to the device
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
@@ -162,10 +162,9 @@ class Pipe_Flow(object):
         ny = self.ny
 
         # For simplicity, copy feq to the local host, where you can make a copy
-        f = np.zeros((nx, ny, NUM_JUMPERS), dtype=np.float32)
+        f = np.zeros((nx, ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
 
-        f = f.copy() # Make sure there is no problem
         # We now slightly perturb f
         amplitude = .001
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
@@ -212,13 +211,13 @@ class Pipe_Flow(object):
         feq = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
 
-        u = np.zeros((self.nx, self.ny), dtype=np.float32)
+        u = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, u, self.u, is_blocking=True)
 
-        v = np.zeros((self.nx, self.ny), dtype=np.float32)
+        v = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, v, self.v, is_blocking=True)
 
-        rho = np.zeros((self.nx, self.ny), dtype=np.float32)
+        rho = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, rho, self.rho, is_blocking=True)
 
         results={}
