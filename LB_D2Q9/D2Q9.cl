@@ -133,26 +133,25 @@ move(__global float *f_global,
     const int y = get_global_id(1);
     const int jump_id = get_global_id(2);
 
-    //Only stream if you will not go out of the system.
-    const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
-    const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
+    if ((x < nx) && (y < ny) && (jump_id < 9)){
+        //Only stream if you will not go out of the system.
+        const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
+        const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
 
-    int cur_cx = cx[jump_id];
-    int cur_cy = cy[jump_id];
+        int cur_cx = cx[jump_id];
+        int cur_cy = cy[jump_id];
 
-    //Make sure that you don't go out of the system
+        //Make sure that you don't go out of the system
 
-    int stream_x = x + cur_cx;
-    int stream_y = y + cur_cy;
+        int stream_x = x + cur_cx;
+        int stream_y = y + cur_cy;
 
-    int old_3d_index = jump_id*nx*ny + y*nx + x;
-    if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
-        int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
-        //Need two buffers to avoid parallel updates & shennanigans.
-        f_streamed_global[new_3d_index] = f_global[old_3d_index];
-    }
-    else{ // Don't stream!
-        f_streamed_global[old_3d_index] = f_global[old_3d_index];
+        int old_3d_index = jump_id*nx*ny + y*nx + x;
+        if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
+            int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
+            //Need two buffers to avoid parallel updates & shennanigans.
+            f_streamed_global[new_3d_index] = f_global[old_3d_index];
+        }
     }
 }
 
@@ -168,78 +167,81 @@ move_bcs(__global float *f_global,
 
     int two_d_index = y*nx + x;
 
-    float f0 = f_global[0*ny*nx + two_d_index];
-    float f1 = f_global[1*ny*nx + two_d_index];
-    float f2 = f_global[2*ny*nx + two_d_index];
-    float f3 = f_global[3*ny*nx + two_d_index];
-    float f4 = f_global[4*ny*nx + two_d_index];
-    float f5 = f_global[5*ny*nx + two_d_index];
-    float f6 = f_global[6*ny*nx + two_d_index];
-    float f7 = f_global[7*ny*nx + two_d_index];
-    float f8 = f_global[8*ny*nx + two_d_index];
+    if ((x < nx) && (y < ny)){
 
-    float u = u_global[two_d_index];
+        float f0 = f_global[0*ny*nx + two_d_index];
+        float f1 = f_global[1*ny*nx + two_d_index];
+        float f2 = f_global[2*ny*nx + two_d_index];
+        float f3 = f_global[3*ny*nx + two_d_index];
+        float f4 = f_global[4*ny*nx + two_d_index];
+        float f5 = f_global[5*ny*nx + two_d_index];
+        float f6 = f_global[6*ny*nx + two_d_index];
+        float f7 = f_global[7*ny*nx + two_d_index];
+        float f8 = f_global[8*ny*nx + two_d_index];
 
-    //INLET: constant pressure
-    if ((x==0) && (y >= 1)&&(y < ny-1)){
-        f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
-        f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
-        f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
-    }
-    //OUTLET: constant pressure
-    if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
-        f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
-        f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
-        f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
-    }
+        float u = u_global[two_d_index];
 
-    //NORTH: solid; bounce back
-    if ((y == ny-1) && (x >= 1) && (x< nx-1)){
-        f_global[4*ny*nx + two_d_index] = f2;
-        f_global[8*ny*nx + two_d_index] = f6;
-        f_global[7*ny*nx + two_d_index] = f5;
-    }
+        //INLET: constant pressure
+        if ((x==0) && (y >= 1)&&(y < ny-1)){
+            f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
+            f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
+            f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
+        }
+        //OUTLET: constant pressure
+        if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
+            f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
+            f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
+            f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
+        }
 
-    //SOUTH: solid; bounce back
-    if ((y == 0) && (1<=x) && (x < nx-1)){
-        f_global[2*ny*nx + two_d_index] = f4;
-        f_global[6*ny*nx + two_d_index] = f8;
-        f_global[5*ny*nx + two_d_index] = f7;
-    }
+        //NORTH: solid; bounce back
+        if ((y == ny-1) && (x >= 1) && (x< nx-1)){
+            f_global[4*ny*nx + two_d_index] = f2;
+            f_global[8*ny*nx + two_d_index] = f6;
+            f_global[7*ny*nx + two_d_index] = f5;
+        }
 
-    //Corner nodes: tricky and a huge pain! And likely very slow.
-    // BOTTOM INLET
-    if ((x==0) && (y==0)){
-        f_global[1*ny*nx + two_d_index] = f3;
-        f_global[2*ny*nx + two_d_index] = f4;
-        f_global[5*ny*nx + two_d_index] = f7;
-        f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
-        f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
-    }
-    // TOP INLET
-    if ((x==0)&&(y==ny-1)){
-        f_global[1*ny*nx + two_d_index] = f3;
-        f_global[4*ny*nx + two_d_index] = f2;
-        f_global[8*ny*nx + two_d_index] = f6;
-        f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
-        f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
-    }
+        //SOUTH: solid; bounce back
+        if ((y == 0) && (1<=x) && (x < nx-1)){
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[6*ny*nx + two_d_index] = f8;
+            f_global[5*ny*nx + two_d_index] = f7;
+        }
 
-    // BOTTOM OUTLET
-    if ((x==nx-1)&&(y==0)){
-        f_global[3*ny*nx + two_d_index] = f1;
-        f_global[2*ny*nx + two_d_index] = f4;
-        f_global[6*ny*nx + two_d_index] = f8;
-        f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
-        f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
-    }
-    // TOP OUTLET
-    if ((x==nx-1)&&(y==ny-1)){
-        f_global[3*ny*nx + two_d_index] = f1;
-        f_global[4*ny*nx + two_d_index] = f2;
-        f_global[7*ny*nx + two_d_index] = f5;
-        f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
-        f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+        //Corner nodes: tricky and a huge pain! And likely very slow.
+        // BOTTOM INLET
+        if ((x==0) && (y==0)){
+            f_global[1*ny*nx + two_d_index] = f3;
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[5*ny*nx + two_d_index] = f7;
+            f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+            f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+        }
+        // TOP INLET
+        if ((x==0)&&(y==ny-1)){
+            f_global[1*ny*nx + two_d_index] = f3;
+            f_global[4*ny*nx + two_d_index] = f2;
+            f_global[8*ny*nx + two_d_index] = f6;
+            f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
+            f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
+        }
+
+        // BOTTOM OUTLET
+        if ((x==nx-1)&&(y==0)){
+            f_global[3*ny*nx + two_d_index] = f1;
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[6*ny*nx + two_d_index] = f8;
+            f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+            f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+        }
+        // TOP OUTLET
+        if ((x==nx-1)&&(y==ny-1)){
+            f_global[3*ny*nx + two_d_index] = f1;
+            f_global[4*ny*nx + two_d_index] = f2;
+            f_global[7*ny*nx + two_d_index] = f5;
+            f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+            f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+        }
     }
 }
 

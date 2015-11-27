@@ -6,6 +6,7 @@
 #cython: wraparound=False
 #cython: cdivision=True
 
+from libc.stdio cimport printf
 import numpy as np
 cimport numpy as np
 
