@@ -171,7 +171,7 @@ class Pipe_Flow(object):
 
         f = f.copy() # Make sure there is no problem
         # We now slightly perturb f
-        amplitude = .01
+        amplitude = .001
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
         f *= perturb
 

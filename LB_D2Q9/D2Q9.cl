@@ -190,18 +190,19 @@ move_bcs(__global float *f_global,
     if ((x==nx - 1) && (1<=y)&&(y < ny -1)){
         f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
         f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
+
         f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
     }
 
     //NORTH: solid; bounce back
-    if ((y == nx-1)&&(x <=1) && (x < nx - 1)){
+    if ((y == nx-1) && (1<=x) && (x< nx-1)){
         f_global[4*ny*nx + two_d_index] = f2;
         f_global[8*ny*nx + two_d_index] = f6;
         f_global[7*ny*nx + two_d_index] = f5;
     }
 
     //SOUTH: solid; bounce back
-    if ((y == 0)&&(x <=1) && (x < nx - 1)){
+    if ((y == 0)&&(1<=x) && (x < nx-1)){
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[6*ny*nx + two_d_index] = f8;
         f_global[5*ny*nx + two_d_index] = f7;
@@ -231,7 +232,7 @@ move_bcs(__global float *f_global,
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[6*ny*nx + two_d_index] = f8;
         f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
-        f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+        f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
     }
     // TOP OUTLET
     if ((x==nx-1)&&(y==ny-1)){
