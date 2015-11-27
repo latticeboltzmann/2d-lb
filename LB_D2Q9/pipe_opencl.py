@@ -63,11 +63,6 @@ class Pipe_Flow(object):
         self.init_hydro()
 
         # Intitialize the underlying probablistic fields
-        f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32) # initializing f
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
-
-        # Necessary for streaming updates
-        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
 
         feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32)
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
@@ -77,6 +72,11 @@ class Pipe_Flow(object):
                                 self.feq, self.u, self.v, self.rho,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
         print 'Done!'
+
+        f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32) # initializing f
+        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
+        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
+
         self.init_pop()
 
         # Based on initial parameters, determine dimensionless numbers
@@ -171,7 +171,7 @@ class Pipe_Flow(object):
 
         f = f.copy() # Make sure there is no problem
         # We now slightly perturb f
-        amplitude = .001
+        amplitude = .01
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
         f *= perturb
 
@@ -179,6 +179,7 @@ class Pipe_Flow(object):
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
         # Create a new buffer
+        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
     def update_hydro(self):
         self.kernels.update_hydro(self.queue, (self.nx, self.ny), None,

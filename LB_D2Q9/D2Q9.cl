@@ -145,11 +145,14 @@ move(__global float *f_global,
     int stream_x = x + cur_cx;
     int stream_y = y + cur_cy;
 
-    if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){
-        int old_3d_index = jump_id*nx*ny + y*nx + x;
+    int old_3d_index = jump_id*nx*ny + y*nx + x;
+    if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
         int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
         //Need two buffers to avoid parallel updates & shennanigans.
         f_streamed_global[new_3d_index] = f_global[old_3d_index];
+    }
+    else{ // Don't stream!
+        f_streamed_global[old_3d_index] = f_global[old_3d_index];
     }
 }
 
