@@ -132,9 +132,9 @@ class Pipe_Flow(object):
         for i in range(rho_host.shape[0]):
             rho_host[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(rho_host.shape[0])
 
-        u_host = .0001*np.random.randn(nx, ny) # Fluctuations in the fluid; small
+        u_host = .0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
-        v_host = .0001*np.random.randn(nx, ny) # Fluctuations in the fluid; small
+        v_host = .0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         v_host = v_host.astype(np.float32, order='F')
 
         # Transfer arrays to the device
@@ -166,7 +166,7 @@ class Pipe_Flow(object):
         cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
 
         # We now slightly perturb f
-        amplitude = .001
+        amplitude = .00
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
         f *= perturb
 
@@ -200,7 +200,6 @@ class Pipe_Flow(object):
             self.update_hydro()
             # Update the equilibrium fields
             self.update_feq()
-
             # Relax the nonequilibrium fields
             self.collide_particles()
 

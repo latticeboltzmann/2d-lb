@@ -158,9 +158,9 @@ move(__global float *f_global,
 
 __kernel void
 move_bcs(__global float *f_global,
-     __global float *u_global,
-     float inlet_rho, float outlet_rho,
-     int nx, int ny)
+         __global float *u_global,
+         float inlet_rho, float outlet_rho,
+         int nx, int ny)
 {
     //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
     const int x = get_global_id(0);
@@ -181,31 +181,29 @@ move_bcs(__global float *f_global,
     float u = u_global[two_d_index];
 
     //INLET: constant pressure
-    if ((x==0) && (1<=y)&&(y < ny -1)){
+    if ((x==0) && (y >= 1)&&(y < ny-1)){
         f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
         f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
         f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
     }
     //OUTLET: constant pressure
-    if ((x==nx - 1) && (1<=y)&&(y < ny -1)){
+    if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
         f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
         f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
-        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 0");
         f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
     }
 
     //NORTH: solid; bounce back
-    if ((y == nx-1) && (1<=x) && (x< nx-1)){
+    if ((y == ny-1) && (x >= 1) && (x< nx-1)){
         f_global[4*ny*nx + two_d_index] = f2;
         f_global[8*ny*nx + two_d_index] = f6;
         f_global[7*ny*nx + two_d_index] = f5;
     }
 
     //SOUTH: solid; bounce back
-    if ((y == 0)&&(1<=x) && (x < nx-1)){
+    if ((y == 0) && (1<=x) && (x < nx-1)){
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[6*ny*nx + two_d_index] = f8;
-        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 1");
         f_global[5*ny*nx + two_d_index] = f7;
     }
 
@@ -216,7 +214,6 @@ move_bcs(__global float *f_global,
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[5*ny*nx + two_d_index] = f7;
         f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
-        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 2");
         f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
     }
     // TOP INLET
@@ -233,7 +230,6 @@ move_bcs(__global float *f_global,
         f_global[3*ny*nx + two_d_index] = f1;
         f_global[2*ny*nx + two_d_index] = f4;
         f_global[6*ny*nx + two_d_index] = f8;
-        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 3");
         f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
         f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
     }
@@ -243,7 +239,6 @@ move_bcs(__global float *f_global,
         f_global[4*ny*nx + two_d_index] = f2;
         f_global[7*ny*nx + two_d_index] = f5;
         f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
-        if (f_global[6*ny*nx + two_d_index] < 0) printf("PROBLEM AREA: 4");
         f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
     }
 }

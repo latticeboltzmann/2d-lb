@@ -90,8 +90,8 @@ class Pipe_Flow(object):
         for i in range(self.rho.shape[0]):
             self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
 
-        self.u = .01*np.random.randn(nx, ny) # Fluctuations in the fluid
-        self.v = .01*np.random.randn(nx, ny) # Fluctuations in the fluid
+        self.u = .0*np.random.randn(nx, ny) # Fluctuations in the fluid
+        self.v = .0*np.random.randn(nx, ny) # Fluctuations in the fluid
 
 
     def update_feq(self):
@@ -244,7 +244,7 @@ class Pipe_Flow(object):
 
         self.f = feq.copy()
         # We now slightly perturb f
-        amplitude = .01
+        amplitude = .00
         perturb = (1. + amplitude*np.random.randn(nx, ny))
         self.f *= perturb
 
