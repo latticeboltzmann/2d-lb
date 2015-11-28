@@ -28,10 +28,21 @@ w2 = 1./36.
 
 NUM_JUMPERS = 9
 
+def get_divisible_global(global_size, local_size):
+    new_size = []
+    for cur_global, cur_local in zip(global_size, local_size):
+        remainder = cur_global % cur_local
+        if remainder == 0:
+            new_size.append(cur_global)
+        else:
+            new_size.append(cur_global + cur_local - remainder)
+    return tuple(new_size)
+
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1):
+    def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1,
+                 two_d_local_size=(64,64), three_d_local_size=(32,32,3)):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -55,6 +66,18 @@ class Pipe_Flow(object):
         self.queue = None
         self.kernels = None
         self.init_opencl()
+
+        # Create global & local sizes appropriately
+        self.two_d_local_size = two_d_local_size
+        self.three_d_local_size = three_d_local_size
+
+        self.two_d_global_size = get_divisible_global((self.nx, self.ny), self.two_d_local_size)
+        self.three_d_global_size = get_divisible_global((self.nx, self.ny, 9), self.three_d_local_size)
+
+        print '2d global:' , self.two_d_global_size
+        print '2d local:' , self.two_d_local_size
+        print '3d global:' , self.three_d_global_size
+        print '3d local:' , self.three_d_local_size
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -143,19 +166,19 @@ class Pipe_Flow(object):
         self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
 
     def move_bcs(self):
-        self.kernels.move_bcs(self.queue, (self.nx, self.ny), None,
+        self.kernels.move_bcs(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u,
                                 np.float32(self.inlet_rho), np.float32(self.outlet_rho),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move(self):
         # Always copy f, then f_streamed
-        self.kernels.move(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+        self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
         # Set f equal to f streamed. This way, if things do not stream, it is ok in future iterations.
-        self.kernels.copy_buffer(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+        self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f_streamed, self.f,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
@@ -179,18 +202,18 @@ class Pipe_Flow(object):
         self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
     def update_hydro(self):
-        self.kernels.update_hydro(self.queue, (self.nx, self.ny), None,
+        self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u, self.v, self.rho,
                                 np.float32(self.inlet_rho), np.float32(self.outlet_rho),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def update_feq(self):
-        self.kernels.update_feq(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+        self.kernels.update_feq(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.feq, self.u, self.v, self.rho,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def collide_particles(self):
-        self.kernels.collide_particles(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+        self.kernels.collide_particles(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.feq, np.float32(self.omega),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
