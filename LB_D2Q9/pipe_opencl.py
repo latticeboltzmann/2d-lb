@@ -32,7 +32,10 @@ def get_divisible_global(global_size, local_size):
     new_size = []
     for cur_global, cur_local in zip(global_size, local_size):
         remainder = cur_global % cur_local
-        new_size.append(cur_global + cur_local - remainder)
+        if remainder == 0:
+            new_size.append(cur_global)
+        else:
+            new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
 class Pipe_Flow(object):

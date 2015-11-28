@@ -115,7 +115,7 @@ collide_particles(__global float *f_global,
     const int y = get_global_id(1);
     const int jump_id = get_global_id(2);
 
-    if ((x < nx) && (y < ny)){
+    if ((x < nx) && (y < ny) && (jump_id < 9)){
         int three_d_index = jump_id*nx*ny + y*nx + x;
 
         float f = f_global[three_d_index];
