@@ -149,13 +149,15 @@ class Pipe_Flow(object):
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move(self):
+        # Always copy f, then f_streamed
         self.kernels.move(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
                                 self.f, self.f_streamed,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
-        # Replace f with f_streamed
-        self.f, self.f_streamed = self.f_streamed, self.f
-
+        # Set f equal to f streamed. This way, if things do not stream, it is ok in future iterations.
+        self.kernels.copy_buffer(self.queue, (self.nx, self.ny, NUM_JUMPERS), None,
+                                self.f_streamed, self.f,
+                                np.int32(self.nx), np.int32(self.ny)).wait()
 
     def init_pop(self):
         nx = self.nx

@@ -124,6 +124,22 @@ collide_particles(__global float *f_global,
 }
 
 __kernel void
+copy_buffer(__global __read_only float *copy_from,
+            __global __write_only float *copy_to,
+            int nx, int ny)
+{
+    //Assumes a 3d workgroup
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    const int jump_id = get_global_id(2);
+
+    if ((x < nx) && (y < ny) && (jump_id < 9)){
+        int three_d_index = jump_id*nx*ny + y*nx + x;
+        copy_to[three_d_index] = copy_from[three_d_index];
+    }
+}
+
+__kernel void
 move(__global float *f_global,
      __global float *f_streamed_global,
      int nx, int ny)
@@ -147,6 +163,7 @@ move(__global float *f_global,
         int stream_y = y + cur_cy;
 
         int old_3d_index = jump_id*nx*ny + y*nx + x;
+
         if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
             int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
             //Need two buffers to avoid parallel updates & shennanigans.
