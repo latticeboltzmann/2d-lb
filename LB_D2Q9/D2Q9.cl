@@ -221,7 +221,7 @@ move_bcs(__global float *f_global,
         }
 
         //SOUTH: solid; bounce back
-        if ((y == 0) && (1<=x) && (x < nx-1)){
+        if ((y == 0) && (x >= 1) && (x < nx-1)){
             f_global[2*ny*nx + two_d_index] = f4;
             f_global[6*ny*nx + two_d_index] = f8;
             f_global[5*ny*nx + two_d_index] = f7;
