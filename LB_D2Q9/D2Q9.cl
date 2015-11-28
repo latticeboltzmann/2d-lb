@@ -85,8 +85,10 @@ update_hydro(__global float *f_global,
         rho_global[two_d_index] = rho;
         float inverse_rho = 1./rho;
 
-        u_global[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho;
-        v_global[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho;
+        if ((x!=0) && (x != nx-1)){
+            u_global[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho;
+            v_global[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho;
+        }
 
         //Now do the boundary conditions. It is faster to do it here so we don't have to
         //reread variables! I think two if statements are needed...I don't see a way around it.
@@ -219,7 +221,7 @@ move_bcs(__global float *f_global,
         }
 
         //SOUTH: solid; bounce back
-        if ((y == 0) && (1<=x) && (x < nx-1)){
+        if ((y == 0) && (x >= 1) && (x < nx-1)){
             f_global[2*ny*nx + two_d_index] = f4;
             f_global[6*ny*nx + two_d_index] = f8;
             f_global[5*ny*nx + two_d_index] = f7;

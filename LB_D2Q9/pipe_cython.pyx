@@ -208,9 +208,9 @@ class Pipe_Flow(object):
             # TOP OUTLET
             f[3, lx, ly] = f[1, lx, ly]
             f[4, lx, ly] = f[2, lx, ly]
-            f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+            f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,lx,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
             f[7, lx, ly] = f[5, lx, ly]
-            f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+            f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,lx,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
 
     def move(self):
         cdef float[:, :, :] f = self.f
