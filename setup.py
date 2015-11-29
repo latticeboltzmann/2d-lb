@@ -1,9 +1,6 @@
 from setuptools import setup
 from distutils.extension import Extension
 from Cython.Build import cythonize
-<<<<<<< HEAD
-=======
->>>>>>> d5ec13cf80d6e08fd1a733e339ee0b719b5c016d
 import numpy as np
 
 extensions = [
