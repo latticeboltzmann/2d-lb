@@ -14,7 +14,7 @@ setup(
     packages=['LB_D2Q9'],
     url='',
     license='',
-    author='Bryan Weinstein, Matheus Fernandes',
+    author='Bryan Weinstein, Matheus C. Fernandes',
     author_email='bweinstein@seas.harvard.edu',
     description='',
     ext_modules = cythonize(extensions, annotate=True, reload_support=True)
