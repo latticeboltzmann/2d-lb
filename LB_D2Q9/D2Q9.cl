@@ -101,6 +101,14 @@ update_hydro(__global float *f_global,
             rho_global[two_d_index] = outlet_rho;
             u_global[two_d_index] = -1 + (f0+f2+f4+2*(f1+f5+f8))/outlet_rho;
         }
+        if (y == 0){
+            u_global[two_d_index] = 0;
+            v_global[two_d_index] = 0;
+        }
+        if (y == ny - 1){
+            u_global[two_d_index] = 0;
+            v_global[two_d_index] = 0;
+        }
     }
 }
 
