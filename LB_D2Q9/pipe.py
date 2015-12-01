@@ -321,9 +321,12 @@ class Pipe_Flow_PeriodicBC(Pipe_Flow):
    
 
 
-class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
+class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow, u_w=1.0):
 
     def __init__(self, **kwargs):
+        #defining inlet velocity on the west side of the domain
+        self.u_w=u_w
+
         super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
 
     def move_bcs(self):
@@ -332,17 +335,24 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         lx = self.lx
         ly = self.ly
 
+        u_w = self.u_w
+
         farr = self.f
 
-        # INLET: constant pressure!
-        farr[1, 0, 1:ly] = farr[3, 0, 1:ly] + (2./3.)*self.inlet_rho*self.u[0, 1:ly]
-        farr[5, 0, 1:ly] = -.5*farr[2,0,1:ly]+.5*farr[4, 0, 1:ly]+farr[7, 0, 1:ly] + (1./6.)*self.u[0, 1:ly]*self.inlet_rho
-        farr[8, 0, 1:ly] = .5*farr[2,0,1:ly]-.5*farr[4, 0, 1:ly]+farr[6, 0, 1:ly] + (1./6.)*self.u[0, 1:ly]*self.inlet_rho
+        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
 
-        # OUTLET: constant pressure!
-        farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*self.outlet_rho*self.u[lx,1:ly]
-        farr[6, lx, 1:ly] = -.5*farr[2,lx,1:ly]+.5*farr[4,lx,1:ly]+farr[8,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
-        farr[7, lx, 1:ly] = .5*farr[2,lx,1:ly]-.5*farr[4,lx,1:ly]+farr[5,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
+        # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
+        farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
+        farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
+        farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
+
+        rho_outlet = 1.
+        u_x_outlet = -1. + (farr[0, lx, 1:ly]+farr[2, lx, 1:ly]+farr[4, lx, 1:ly]+2.*(farr[1, lx, 1:ly]+farr[5, lx, 1:ly]+farr[8, lx, 1:ly]))/rho_outlet
+        
+        # OUTLET: open boundary condition
+        farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*rho_outlet*u_x_outlet
+        farr[6, lx, 1:ly] = farr[5, lx, 1:ly] + (1./2.)*(farr[2, lx, 1:ly]-farr[4, lx, 1:ly])-(1./6.)*rho_outlet*u_x_outlet
+        farr[7, lx, 1:ly] = farr[8, lx, 1:ly] - (1./2.)*(farr[2, lx, 1:ly]-farr[4, lx, 1:ly])-(1./6.)*rho_outlet*u_x_outlet
 
         f = self.f
         inlet_rho = self.inlet_rho
