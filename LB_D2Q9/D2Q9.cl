@@ -272,3 +272,68 @@ move_bcs(__global float *f_global,
     }
 }
 
+// ############ Obstacle Code ################
+
+__kernel void
+set_zero_velocity_in_obstacle(
+    __global int *obstacle_mask,
+    __global float *u_global,
+    __global float *v_global,
+    int nx, int ny)
+{
+    // Input should be a 2d workgroup.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+
+        if (obstacle_mask[two_d_index] ==  1){
+            u_global[two_d_index] = 0;
+            v_global[two_d_index] = 0;
+        }
+    }
+}
+
+__kernel void
+bounceback_in_obstacle(
+    __global int *obstacle_mask,
+    __global float *f_global,
+    int nx, int ny)
+{
+    // Input should be a 2d workgroup.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        if (obstacle_mask[two_d_index] == 1){ // Bounce back on the obstacle
+            float f1 = f_global[1*ny*nx + two_d_index];
+            float f2 = f_global[2*ny*nx + two_d_index];
+            float f3 = f_global[3*ny*nx + two_d_index];
+            float f4 = f_global[4*ny*nx + two_d_index];
+            float f5 = f_global[5*ny*nx + two_d_index];
+            float f6 = f_global[6*ny*nx + two_d_index];
+            float f7 = f_global[7*ny*nx + two_d_index];
+            float f8 = f_global[8*ny*nx + two_d_index];
+
+            // Bounce back everywhere!
+
+            // left right
+            f_global[1*ny*nx + two_d_index] = f3;
+            f_global[3*ny*nx + two_d_index] = f1;
+            // up down
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[4*ny*nx + two_d_index] = f2;
+
+            // up-right
+            f_global[5*ny*nx + two_d_index] = f7;
+            f_global[7*ny*nx + two_d_index] = f5;
+
+            // up-left
+            f_global[6*ny*nx + two_d_index] = f8;
+            f_global[8*ny*nx + two_d_index] = f6;
+        }
+    }
+}
+

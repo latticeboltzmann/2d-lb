@@ -268,6 +268,7 @@ class Pipe_Flow(object):
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
     def __init__(self, *args, obstacle_mask=None, **kwargs):
+
         self.obstacle_mask = obstacle_mask
         self.obstacle_pixels = np.where(self.obstacle_mask)
 

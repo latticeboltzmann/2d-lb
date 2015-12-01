@@ -42,7 +42,7 @@ class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
     def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1,
-                 two_d_local_size=(64,64), three_d_local_size=(32,32,3)):
+                 two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -255,57 +255,43 @@ class Pipe_Flow(object):
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
     def __init__(self, obstacle_mask=None, **kwargs):
-        self.obstacle_mask = obstacle_mask
-        self.obstacle_pixels = np.where(self.obstacle_mask)
+        """Obstacle mask should be ones and zeros."""
+
+        # It is unfortunately annoying to do this, as we need to initialize the opencl kernel before anything else...ugh.
+        # Ah, nevermind, it's fine. We just have to create the obstacle mask in a sub function.
+
+        assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
+        assert (np.sum(obstacle_mask) != 0)
+
+        obstacle_mask = np.asfortranarray(obstacle_mask)
+
+        self.obstacle_mask_host = obstacle_mask.astype(np.int32)
 
         super(Pipe_Flow_Obstacles, self).__init__(**kwargs)
 
     def init_hydro(self):
         super(Pipe_Flow_Obstacles, self).init_hydro()
-        self.u[self.obstacle_mask] = 0
-        self.v[self.obstacle_mask] = 0
+
+        # Now create the obstacle mask on the device
+        self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                       hostbuf=self.obstacle_mask_host)
+
+        # Based on where the obstacle mask is, set velocity to zero, as appropriate.
+
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
 
     def update_hydro(self):
         super(Pipe_Flow_Obstacles, self).update_hydro()
-        self.u[self.obstacle_mask] = 0
-        self.v[self.obstacle_mask] = 0
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move_bcs(self):
-        Pipe_Flow.move_bcs(self)
+        super(Pipe_Flow_Obstacles, self).move_bcs()
 
         # Now bounceback on the obstacle
-        x_list = self.obstacle_pixels[0]
-        y_list = self.obstacle_pixels[1]
-        num_pixels = y_list.shape[0]
-
-        f = self.f
-
-
-        for i in range(num_pixels):
-            x = x_list[i]
-            y = y_list[i]
-
-            old_f0 = f[0, x, y]
-            old_f1 = f[1, x, y]
-            old_f2 = f[2, x, y]
-            old_f3 = f[3, x, y]
-            old_f4 = f[4, x, y]
-            old_f5 = f[5, x, y]
-            old_f6 = f[6, x, y]
-            old_f7 = f[7, x, y]
-            old_f8 = f[8, x, y]
-
-            # Bounce back everywhere!
-            # left right
-            f[1, x, y] = old_f3
-            f[3, x, y] = old_f1
-            # up down
-            f[2, x, y] = old_f4
-            f[4, x, y] = old_f2
-            # up-right
-            f[5, x, y] = old_f7
-            f[7, x, y] = old_f5
-
-            # up-left
-            f[6, x, y] = old_f8
-            f[8, x, y] = old_f6
+        self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                            self.obstacle_mask, self.f,
+                                            np.int32(self.nx), np.int32(self.ny)).wait()
