@@ -276,50 +276,20 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
 
         # Based on where the obstacle mask is, set velocity to zero, as appropriate.
 
-        self.u[self.obstacle_mask] = 0
-        self.v[self.obstacle_mask] = 0
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
 
     def update_hydro(self):
         super(Pipe_Flow_Obstacles, self).update_hydro()
-        self.u[self.obstacle_mask] = 0
-        self.v[self.obstacle_mask] = 0
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move_bcs(self):
-        Pipe_Flow.move_bcs(self)
+        super(Pipe_Flow_Obstacles, self).move_bcs()
 
         # Now bounceback on the obstacle
-        x_list = self.obstacle_pixels[0]
-        y_list = self.obstacle_pixels[1]
-        num_pixels = y_list.shape[0]
-
-        f = self.f
-
-
-        for i in range(num_pixels):
-            x = x_list[i]
-            y = y_list[i]
-
-            old_f0 = f[0, x, y]
-            old_f1 = f[1, x, y]
-            old_f2 = f[2, x, y]
-            old_f3 = f[3, x, y]
-            old_f4 = f[4, x, y]
-            old_f5 = f[5, x, y]
-            old_f6 = f[6, x, y]
-            old_f7 = f[7, x, y]
-            old_f8 = f[8, x, y]
-
-            # Bounce back everywhere!
-            # left right
-            f[1, x, y] = old_f3
-            f[3, x, y] = old_f1
-            # up down
-            f[2, x, y] = old_f4
-            f[4, x, y] = old_f2
-            # up-right
-            f[5, x, y] = old_f7
-            f[7, x, y] = old_f5
-
-            # up-left
-            f[6, x, y] = old_f8
-            f[8, x, y] = old_f6
+        self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                            self.obstacle_mask, self.f,
+                                            np.int32(self.nx), np.int32(self.ny)).wait()
