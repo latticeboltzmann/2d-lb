@@ -255,13 +255,27 @@ class Pipe_Flow(object):
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
     def __init__(self, obstacle_mask=None, **kwargs):
-        self.obstacle_mask = obstacle_mask
-        self.obstacle_pixels = np.where(self.obstacle_mask)
+        """Obstacle mask should be ones and zeros."""
+
+        # It is unfortunately annoying to do this, as we need to initialize the opencl kernel before anything else...ugh.
+        # Ah, nevermind, it's fine. We just have to create the obstacle mask in a sub function.
+
+        assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
+        assert (np.sum(obstacle_mask) != 0)
+
+        self.obstacle_mask_host = obstacle_mask.astype(np.int32)
 
         super(Pipe_Flow_Obstacles, self).__init__(**kwargs)
 
     def init_hydro(self):
         super(Pipe_Flow_Obstacles, self).init_hydro()
+
+        # Now create the obstacle mask on the device
+        self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                       hostbuf=self.obstacle_mask)
+
+        # Based on where the obstacle mask is, set velocity to zero, as appropriate.
+
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 

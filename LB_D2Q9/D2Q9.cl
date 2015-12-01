@@ -113,6 +113,26 @@ update_hydro(__global float *f_global,
 }
 
 __kernel void
+set_zero_velocity_in_obstacle(
+    __global int *obstacle_mask,
+    __global float *u_global,
+    __global float *v_global,
+    int nx, int ny)
+{
+    // Input should be a 2d workgroup.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    const int two_d_index = y*nx + x;
+
+    if (obstacle_mask[two_d_index] ==  1){
+        u_global[two_d_index] = 0;
+        v_global[two_d_index] = 0;
+    }
+
+}
+
+__kernel void
 collide_particles(__global float *f_global,
                   __global float *feq_global,
                   float omega,
