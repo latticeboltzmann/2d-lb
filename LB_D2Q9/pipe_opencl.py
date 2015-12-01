@@ -42,7 +42,7 @@ class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
     def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1,
-                 two_d_local_size=(64,64), three_d_local_size=(32,32,3)):
+                 two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
         ### User input parameters
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
@@ -263,6 +263,8 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
         assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
         assert (np.sum(obstacle_mask) != 0)
 
+        obstacle_mask = np.asfortranarray(obstacle_mask)
+
         self.obstacle_mask_host = obstacle_mask.astype(np.int32)
 
         super(Pipe_Flow_Obstacles, self).__init__(**kwargs)
@@ -272,7 +274,7 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
 
         # Now create the obstacle mask on the device
         self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                       hostbuf=self.obstacle_mask)
+                                       hostbuf=self.obstacle_mask_host)
 
         # Based on where the obstacle mask is, set velocity to zero, as appropriate.
 
