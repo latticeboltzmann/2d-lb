@@ -151,6 +151,7 @@ class Pipe_Flow(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
+        
 
 
     # def update_dimensionless_nums(self):
