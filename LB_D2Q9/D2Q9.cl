@@ -26,19 +26,26 @@ update_feq(__global __write_only float *feq_global,
 
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
+    const int lz = get_local_id(2);
+
+    const int LS0 = get_local_size(0);
+
+    const int buf_index = LS0 * ly + lx;
+
+    // TODO: We need to have local memory corresponding to *all* x-y points. Not just the top-left...
     barrier(CLK_LOCAL_MEM_FENCE);
-    if ((lx==0)&&(ly==0) && (x < nx) && (y < ny) && (jump_id < 9)){
-        local_u[jump_id] = u_global[two_d_index];
-        local_v[jump_id] = v_global[two_d_index];
-        local_rho[jump_id] = rho_global[two_d_index];
+    if ((lz == 0) && (x < nx) && (y < ny) && (jump_id < 9)){
+        local_u[buf_index] = u_global[two_d_index];
+        local_v[buf_index] = v_global[two_d_index];
+        local_rho[buf_index] = rho_global[two_d_index];
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
     if ((x < nx) && (y < ny) && (jump_id < 9)){
 
-        float u = local_u[jump_id];
-        float v = local_v[jump_id];
-        float rho = local_rho[jump_id];
+        float u = local_u[buf_index];
+        float v = local_v[buf_index];
+        float rho = local_rho[buf_index];
 
         /*
         float u = u_global[two_d_index];

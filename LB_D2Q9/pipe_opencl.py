@@ -61,20 +61,6 @@ class Pipe_Flow(object):
         self.inlet_rho = 1.
         self.outlet_rho = self.deltaP/cs2 + self.inlet_rho # deltaP is negative!
 
-        # Initialize the opencl environment
-        self.context = None
-        self.queue = None
-        self.kernels = None
-        self.init_opencl()
-
-        self.w = None
-        self.cx = None
-        self.cy = None
-        self.local_u = None
-        self.local_v = None
-        self.local_rho = None
-        self.allocate_constants()
-
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size
         self.three_d_local_size = three_d_local_size
@@ -86,6 +72,21 @@ class Pipe_Flow(object):
         print '2d local:' , self.two_d_local_size
         print '3d global:' , self.three_d_global_size
         print '3d local:' , self.three_d_local_size
+
+        # Initialize the opencl environment
+        self.context = None
+        self.queue = None
+        self.kernels = None
+        self.init_opencl()
+
+        # Allocate constants & local memory for opencl
+        self.w = None
+        self.cx = None
+        self.cy = None
+        self.local_u = None
+        self.local_v = None
+        self.local_rho = None
+        self.allocate_constants()
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -119,9 +120,9 @@ class Pipe_Flow(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
-        self.local_u = cl.LocalMemory(float_size * 9)
-        self.local_v = cl.LocalMemory(float_size * 9)
-        self.local_rho = cl.LocalMemory(float_size * 9)
+        self.local_u = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
+        self.local_v = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
+        self.local_rho = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
 
     def init_opencl(self):
         platforms = cl.get_platforms()
