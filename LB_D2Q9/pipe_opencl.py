@@ -20,7 +20,7 @@ cy=np.array([0,0,1,0,-1,1,1,-1,-1], order='F', dtype=np.int32) # direction vecto
 cs=1/np.sqrt(3)
 cs2 = cs**2
 cs22 = 2*cs2
-cssq = 2.0/9.0
+two_cs4 = 2*cs**4
 
 w0 = 4./9.
 w1 = 1./9.
@@ -220,6 +220,8 @@ class Pipe_Flow(object):
     def update_feq(self):
         self.kernels.update_feq(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.feq, self.u, self.v, self.rho,
+                                self.w, self.cx, self.cy,
+                                np.float32(cs), np.float32(cs2), np.float32(cs22), np.float32(two_cs4),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def collide_particles(self):
@@ -271,7 +273,7 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
         # Ah, nevermind, it's fine. We just have to create the obstacle mask in a sub function.
 
         assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
-        assert (np.sum(obstacle_mask) != 0)
+        assert (np.sum(obstacle_mask) != 0) # Make sure at least one pixel is an obstacle.
 
         obstacle_mask = np.asfortranarray(obstacle_mask)
 

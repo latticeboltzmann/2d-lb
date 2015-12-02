@@ -11,7 +11,7 @@ update_feq(__global __write_only float *feq_global,
            const float cs2,
            const float two_cs2,
            const float two_cs4,
-           int nx, int ny)
+           const int nx, const int ny)
 {
     //Input should be a 3d workgroup.
     const int x = get_global_id(0);
@@ -21,15 +21,6 @@ update_feq(__global __write_only float *feq_global,
     if ((x < nx) && (y < ny) && (jump_id < 9)){
 
         //Define global constants...which openCL makes difficult!
-        const float w[9] = {4./9.,1./9.,1./9.,1./9.,1./9.,1./36., 1./36.,1./36.,1./36.}; // weights for directions
-        const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
-        const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
-
-
-        const float cs = 1/pow(3.f, .5f);
-        const float cs2 = pow(cs, 2.f);
-        const float two_cs2 = 2.*cs2;
-        const float two_cs4 = 2*pow(cs, 4.f);
 
         //Luckily, everything takes place inplace, so this isn't too bad. No local buffers needed.
         //First dimension should be x, second dimension y, third dimension jumper type
