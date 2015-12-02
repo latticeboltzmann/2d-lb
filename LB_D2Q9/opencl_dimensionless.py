@@ -73,7 +73,7 @@ class Pipe_Flow(object):
         self.inlet_rho = 1.
         self.outlet_rho = self.inlet_rho + self.delta_rho
 
-        self.viscosity = (self.delta_t/self.delta_x)**2*(1./self.Re)
+        self.viscosity = (self.delta_t/self.delta_x**2)*(1./self.Re)
 
         # Get omega from viscosity
         self.omega = (self.viscosity/cs2) + 1./2.
