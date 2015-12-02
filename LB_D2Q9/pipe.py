@@ -161,15 +161,13 @@ class Pipe_Flow(object):
         outlet_rho = self.outlet_rho
 
         # NORTH solid
-        for i in range(1, lx): # Bounce back
-            f[4,i,ly] = f[2,i,ly]
-            f[8,i,ly] = f[6,i,ly]
-            f[7,i,ly] = f[5,i,ly]
+        f[4,1:lx,ly] = f[2,1:lx,ly]
+        f[8,1:lx,ly] = f[6,1:lx,ly]
+        f[7,1:lx,ly] = f[5,1:lx,ly]
         # SOUTH solid
-        for i in range(1, lx):
-            f[2,i,0] = f[4,i,0]
-            f[6,i,0] = f[8,i,0]
-            f[5,i,0] = f[7,i,0]
+        f[2,1:lx,0] = f[4,1:lx,0]
+        f[6,1:lx,0] = f[8,1:lx,0]
+        f[5,1:lx,0] = f[7,1:lx,0]
 
         ### Corner nodes: Tricky & a huge pain ###
         # BOTTOM INLET
@@ -276,17 +274,14 @@ class Pipe_Flow_PeriodicBC(Pipe_Flow):
         inlet_rho = self.inlet_rho
         outlet_rho = self.outlet_rho
 
-        # NORTH periodic
-        for i in range(1, lx): # update the values of f at the top with those from the bottom
-            f[4,i,ly] = f[4,i,0]
-            f[8,i,ly] = f[8,i,0]
-            f[7,i,ly] = f[7,i,0]
-
-        # SOUTH periodic
-        for i in range(1, lx): #update the values of f at the bottom with those from the top
-            f[2,i,0] = f[2,i,ly]
-            f[6,i,0] = f[6,i,ly]
-            f[5,i,0] = f[5,i,ly]
+        # NORTH solid
+        f[4,1:lx,ly] = f[2,1:lx,ly]
+        f[8,1:lx,ly] = f[6,1:lx,ly]
+        f[7,1:lx,ly] = f[5,1:lx,ly]
+        # SOUTH solid
+        f[2,1:lx,0] = f[4,1:lx,0]
+        f[6,1:lx,0] = f[8,1:lx,0]
+        f[5,1:lx,0] = f[7,1:lx,0]
 
         #####THIS PART IS NOT CORRECT, IT NEEDS TO BE FULLY REDERIVED IF THIS PART IS DESIRED, MOVIGN ON TO IMPLMENTING VELOCITY WITH PERIODIC BC
         ### Corner nodes: Tricky & a huge pain ###
@@ -322,10 +317,10 @@ class Pipe_Flow_PeriodicBC(Pipe_Flow):
 
 class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
 
-    def __init__(self, u_w=0.1,u_e=0.1 ,**kwargs):
+    def __init__(self, u_w=0.1 ,**kwargs):
         #defining inlet velocity on the west side of the domain
         self.u_w=u_w
-        self.u_e=u_e
+        self.u_e=u_w
 
         super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
 
@@ -356,6 +351,7 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
         farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
 
+        # ENABLE THIS AND DISABLE THE OTHER OUTLET BOUNDARY CONDTION FOR THIS TO WORK
         # # OUTLET: open boundary condition, init_hydro and update_hydro need to be changed
         # rho_outlet = 1.
         # u_x_outlet = -1. + (farr[0, lx, 1:ly]+farr[2, lx, 1:ly]+farr[4, lx, 1:ly]+
@@ -383,15 +379,13 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         ny = self.ny
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
-        for i in range(self.rho.shape[0]):
-            self.rho[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(self.rho.shape[0])
 
-        self.u = .01*np.random.randn(nx, ny) # Fluctuations in the fluid
-        self.v = .01*np.random.randn(nx, ny) # Fluctuations in the fluid
-        self.u[0,1:self.ly]=self.u_w
-        self.u[self.lx,1:self.ly]=self.u_e
-        self.v[0,1:self.ly]=0
-        self.v[self.lx,1:self.ly]=0
+        self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
+        self.v = np.zeros((nx, ny)) 
+        
+        self.u[:,:]=self.u_w
+        self.v[:,:]=0
+
 
     def update_hydro(self):
         f = self.f
@@ -413,10 +407,10 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         u_w=self.u_w
         u_e=self.u_e
         
-        # INLET
+        # INLET: define the density and prescribe the velocity
         u[0, 1:ly] = u_w 
         rho[0, 1:ly] = (1./(1.-u_w))*(f[0,0,1:ly]+f[2,0,1:ly]+f[4,0,1:ly]+2.*(f[3,0,1:ly]+f[6,0,1:ly]+f[7,0,1:ly]))
-        # OUTLET
+        # OUTLET: define the density and prescribe the velocity
         u[lx, 1:ly] =u_e
         rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
 

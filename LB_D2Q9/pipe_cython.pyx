@@ -1,6 +1,6 @@
 #cython: profile=True
 #cython: linetrace=True
-#cython: boundscheck=False
+#cython: boundscheck=True
 #cython: initializedcheck=False
 #cython: nonecheck=False
 #cython: wraparound=False
