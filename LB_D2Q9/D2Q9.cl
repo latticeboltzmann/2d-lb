@@ -327,19 +327,14 @@ bounceback_in_obstacle(
 
             // Bounce back everywhere!
 
-            // left right
+            // Coalesce reads
             f_global[1*ny*nx + two_d_index] = f3;
-            f_global[3*ny*nx + two_d_index] = f1;
-            // up down
             f_global[2*ny*nx + two_d_index] = f4;
+            f_global[3*ny*nx + two_d_index] = f1;
             f_global[4*ny*nx + two_d_index] = f2;
-
-            // up-right
             f_global[5*ny*nx + two_d_index] = f7;
-            f_global[7*ny*nx + two_d_index] = f5;
-
-            // up-left
             f_global[6*ny*nx + two_d_index] = f8;
+            f_global[7*ny*nx + two_d_index] = f5;
             f_global[8*ny*nx + two_d_index] = f6;
         }
     }
