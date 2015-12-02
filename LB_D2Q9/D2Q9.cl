@@ -37,6 +37,7 @@ update_feq(__global __write_only float *feq_global,
         const int ly = get_local_id(1);
 
         //Read into local memory to prevent uncessary reads
+
         /*
         barrier(CLK_LOCAL_MEM_FENCE);
         if ((lx==0)&&(ly==0)){
@@ -45,7 +46,8 @@ update_feq(__global __write_only float *feq_global,
             local_rho[jump_id] = rho_global[two_d_index];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
-
+        */
+        /*
         float u = local_u[jump_id];
         float v = local_v[jump_id];
         float rho = local_rho[jump_id];
