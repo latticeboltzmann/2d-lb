@@ -264,6 +264,7 @@ class Pipe_Flow(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields
 
+
 class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
 
     def __init__(self, u_w=0.1, **kwargs):
@@ -279,8 +280,8 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         cdef int lx = self.lx
         cdef int ly = self.ly
 
-        cdef int u_w = self.u_w
-        cdef int u_e = self.u_e
+        cdef float u_w = self.u_w
+        cdef float u_e = self.u_e
 
         cdef float[:,:,:] farr = self.f
         cdef float[:] rho_w = np.zeros((ly),dtype=np.float32)
@@ -316,6 +317,7 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
             f[2,ii,0] = f[2,ii,ly]
             f[6,ii,0] = f[6,ii,ly]
             f[5,ii,0] = f[5,ii,ly] 
+
 
     def init_hydro(self):
         nx = self.nx
