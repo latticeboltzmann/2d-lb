@@ -338,6 +338,7 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         u_w = self.u_w
 
         farr = self.f
+        
 
         # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
         rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
