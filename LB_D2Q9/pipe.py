@@ -317,7 +317,7 @@ class Pipe_Flow_PeriodicBC(Pipe_Flow):
 
 class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
 
-    def __init__(self, u_w=0.1 ,**kwargs):
+    def __init__(self, u_w=0.1, **kwargs):
         #defining inlet velocity on the west side of the domain
         self.u_w=u_w
         self.u_e=u_w
