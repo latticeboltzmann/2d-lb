@@ -279,47 +279,39 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         cdef int ly = self.ly
 
         cdef int u_w = self.u_w
+        cdef int u_e = u_w
 
         cdef float[:,:,:] farr = self.f
-        cdef rho_w[:]
+        cdef float[:] rho_w
+        cdef float[:] rho_e
+
+        cdef float[:,:,:] f = self.f
 
         with nogil:
-        # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
+            # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
+            rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
 
-        farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
-        farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
-        farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
-             
-        # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        u_e=-u_w
-        rho_e = (1./(1.+u_e))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
+            farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
+            farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
+            farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
+                 
+            # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
+            rho_e = (1./(1.+u_e))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
 
-        farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_e
-        farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
-        farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
+            farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_e
+            farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
+            farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
 
-        # # OUTLET: open boundary condition
-        # rho_outlet = 1.
-        # u_x_outlet = -1. + (farr[0, lx, 1:ly]+farr[2, lx, 1:ly]+farr[4, lx, 1:ly]+
-        #     2.*(farr[1, lx, 1:ly]+farr[5, lx, 1:ly]+farr[8, lx, 1:ly]))/rho_outlet
-
-        # farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*rho_outlet*u_x_outlet
-        # farr[7, lx, 1:ly] = farr[5, lx, 1:ly] + (1./2.)*(farr[2, lx, 1:ly]-farr[4, lx, 1:ly])-(1./6.)*rho_outlet*u_x_outlet
-        # farr[6, lx, 1:ly] = farr[8, lx, 1:ly] - (1./2.)*(farr[2, lx, 1:ly]-farr[4, lx, 1:ly])-(1./6.)*rho_outlet*u_x_outlet
-        
-        f = self.f
-
-        # NORTH periodic
-        # update the values of f at the top with those from the bottom
-        f[4,0:(lx+1),ly] = f[4,0:(lx+1),0]
-        f[8,0:(lx+1),ly] = f[8,0:(lx+1),0]
-        f[7,0:(lx+1),ly] = f[7,0:(lx+1),0]
-        # SOUTH periodic
-        #update the values of f at the bottom with those from the top
-        f[2,0:(lx+1),0] = f[2,0:(lx+1),ly]
-        f[6,0:(lx+1),0] = f[6,0:(lx+1),ly]
-        f[5,0:(lx+1),0] = f[5,0:(lx+1),ly] 
+            # NORTH periodic
+            # update the values of f at the top with those from the bottom
+            f[4,0:(lx+1),ly] = f[4,0:(lx+1),0]
+            f[8,0:(lx+1),ly] = f[8,0:(lx+1),0]
+            f[7,0:(lx+1),ly] = f[7,0:(lx+1),0]
+            # SOUTH periodic
+            #update the values of f at the bottom with those from the top
+            f[2,0:(lx+1),0] = f[2,0:(lx+1),ly]
+            f[6,0:(lx+1),0] = f[6,0:(lx+1),ly]
+            f[5,0:(lx+1),0] = f[5,0:(lx+1),ly] 
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
