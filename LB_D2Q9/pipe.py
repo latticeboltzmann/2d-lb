@@ -249,7 +249,6 @@ class Pipe_Flow(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields
 
-
 class Pipe_Flow_PeriodicBC(Pipe_Flow):
 
     def __init__(self, **kwargs):

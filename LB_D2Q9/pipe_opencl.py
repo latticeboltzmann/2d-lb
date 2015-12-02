@@ -14,13 +14,13 @@ file_dir = os.path.dirname(full_path)
 ##### D2Q9 parameters ####
 ##########################
 w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
-            1./36.,1./36.,1./36.]) # weights for directions
-cx=np.array([0,1,0,-1,0,1,-1,-1,1]) # direction vector for the x direction
-cy=np.array([0,0,1,0,-1,1,1,-1,-1]) # direction vector for the y direction
-cs=1/np.sqrt(3)
+            1./36.,1./36.,1./36.], order='F', dtype=np.float32) # weights for directions
+cx=np.array([0,1,0,-1,0,1,-1,-1,1], order='F', dtype=np.int32) # direction vector for the x direction
+cy=np.array([0,0,1,0,-1,1,1,-1,-1], order='F', dtype=np.int32) # direction vector for the y direction
+cs=1./np.sqrt(3)
 cs2 = cs**2
 cs22 = 2*cs2
-cssq = 2.0/9.0
+two_cs4 = 2*cs**4
 
 w0 = 4./9.
 w1 = 1./9.
@@ -61,12 +61,6 @@ class Pipe_Flow(object):
         self.inlet_rho = 1.
         self.outlet_rho = self.deltaP/cs2 + self.inlet_rho # deltaP is negative!
 
-        # Initialize the opencl environment
-        self.context = None
-        self.queue = None
-        self.kernels = None
-        self.init_opencl()
-
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size
         self.three_d_local_size = three_d_local_size
@@ -78,6 +72,21 @@ class Pipe_Flow(object):
         print '2d local:' , self.two_d_local_size
         print '3d global:' , self.three_d_global_size
         print '3d local:' , self.three_d_local_size
+
+        # Initialize the opencl environment
+        self.context = None
+        self.queue = None
+        self.kernels = None
+        self.init_opencl()
+
+        # Allocate constants & local memory for opencl
+        self.w = None
+        self.cx = None
+        self.cy = None
+        self.local_u = None
+        self.local_v = None
+        self.local_rho = None
+        self.allocate_constants()
 
         ## Initialize hydrodynamic variables
         self.rho = None # Density
@@ -103,6 +112,17 @@ class Pipe_Flow(object):
         #self.Re = None
         #self.Ma = None
         #self.update_dimensionless_nums()
+
+    def allocate_constants(self):
+        """Allocates constants to be used by opencl."""
+
+        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
+        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
+        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
+
+        self.local_u = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
+        self.local_v = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
+        self.local_rho = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
 
     def init_opencl(self):
         platforms = cl.get_platforms()
@@ -131,7 +151,7 @@ class Pipe_Flow(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
-        
+
 
     # def update_dimensionless_nums(self):
     #     self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
@@ -176,6 +196,7 @@ class Pipe_Flow(object):
         # Always copy f, then f_streamed
         self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
+                                self.cx, self.cy,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
         # Set f equal to f streamed. This way, if things do not stream, it is ok in future iterations.
@@ -210,7 +231,11 @@ class Pipe_Flow(object):
 
     def update_feq(self):
         self.kernels.update_feq(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.feq, self.u, self.v, self.rho,
+                                self.feq,
+                                self.u, self.v, self.rho,
+                                self.local_u, self.local_v, self.local_rho,
+                                self.w, self.cx, self.cy,
+                                np.float32(cs), np.float32(cs2), np.float32(cs22), np.float32(two_cs4),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def collide_particles(self):
@@ -262,7 +287,7 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
         # Ah, nevermind, it's fine. We just have to create the obstacle mask in a sub function.
 
         assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
-        assert (np.sum(obstacle_mask) != 0)
+        assert (np.sum(obstacle_mask) != 0) # Make sure at least one pixel is an obstacle.
 
         obstacle_mask = np.asfortranarray(obstacle_mask)
 
