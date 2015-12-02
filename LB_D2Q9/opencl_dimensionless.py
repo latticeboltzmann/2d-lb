@@ -41,9 +41,38 @@ def get_divisible_global(global_size, local_size):
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1,
+    def __init__(self, diameter, rho, viscosity, pressure_grad, pipe_length,
+                 delta_x = 1./200., delta_t = 1./200,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
-        ### User input parameters
+
+        # Physical units
+        self.phys_diameter = diameter
+        self.phys_rho = rho
+        self.phys_visc = viscosity
+        self.phys_pressure_grad = pressure_grad
+        self.phys_pipe_length = pipe_length
+
+        # Get the characteristic length and time scales for the flow
+        self.L = self.phys_diameter
+        self.T = (16*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.phys_diameter)
+
+        # Initialize the reynolds number
+        self.Re = self.L**2/(self.phys_visc*self.T**2)
+        print 'Reynolds number:' , self.Re
+
+        # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
+        self.delta_x = delta_x # How many squares characteristic length is broken into
+        self.delta_t = delta_t # How many time iterations until the characteristic time
+
+        deltaP = self.phys_pipe_length * self.phys_pressure_grad
+        dim_deltaP = (self.T**2/(self.phys_rho*self.L**2))*deltaP
+
+        self.delta_rho = (dim_deltaP/cs2)*(self.delta_t**2/self.delta_x**2)
+        self.inlet_rho = 1.
+        self.outlet_rho = self.inlet_rho + self.delta_rho
+
+        self.viscosity = (self.delta_t/self.delta_x)**2*(1./self.Re)
+
         self.lx = lx # Grid not including boundary in x
         self.ly = ly # Grid not including boundary in y
 
