@@ -338,21 +338,22 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         u_w = self.u_w
 
         farr = self.f
-        
+
 
         # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
+        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2.*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
 
         farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
         farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
         farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
              
         # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        rho_e = (1./(1.+u_w))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
+        u_e=u_w
+        rho_e = (1./(1.+u_e))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2.*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
 
-        farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_w
-        farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_w 
-        farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_w
+        farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_e
+        farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
+        farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
 
         # # OUTLET: open boundary condition
         # rho_outlet = 1.
@@ -375,45 +376,6 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         f[2,0:(lx+1),0] = f[2,0:(lx+1),ly]
         f[6,0:(lx+1),0] = f[6,0:(lx+1),ly]
         f[5,0:(lx+1),0] = f[5,0:(lx+1),ly] 
-
-        # ### Corner nodes: Tricky & a huge pain ###
-        # # BOTTOM INLET
-        # rho_w_bottom = (1./(1.-u_w))*(f[0,0,0]+f[2,0,0]+f[4,0,0]+2*(f[3,0,0]+f[6,0,0]+f[7,0,0]))
-   
-        # f[2,i,0] = f[2,0,ly]
-        # f[6,i,0] = f[6,0,ly]
-        # f[1, 0, 0] = f[3,0,0] + (2./3.)*rho_w_bottom*u_w
-        # f[5, 0, 0] = f[7,0,0] - (1./2.)*(f[2,0,0]-f[4,0,0]) + (1./6.)*rho_w_bottom*u_w 
-        # f[8, 0, 0] = f[6,0,0] + (1./2.)*(f[2,0,0]-f[4,0,0]) + (1./6.)*rho_w_bottom*u_w
-
-        # # TOP INLET
-        # rho_w_upper = (1./(1.-u_w))*(f[0,0,ly]+f[2,0,ly]+f[4,0,ly]+2*(f[3,0,ly]+f[6,0,ly]+f[7,0,ly]))
-
-        # f[4,0,ly] = f[4,0,0]
-        # f[7,0,ly] = f[7,0,0]
-        # f[1, 0, ly] = f[3,0,ly] + (2./3.)*rho_w_upper*u_w
-        # f[5, 0, ly] = f[7,0,ly] - (1./2.)*(f[2,0,ly]-f[4,0,ly]) + (1./6.)*rho_w_upper*u_w 
-        # f[8, 0, ly] = f[6,0,ly] + (1./2.)*(f[2,0,ly]-f[4,0,ly]) + (1./6.)*rho_w_upper*u_w
-
-        # # BOTTOM OUTLET
-        # u_x_outlet_bottom = -1. + (f[0, lx, 0]+f[2, lx, 0]+f[4, lx, 0]+2.*(f[1, lx, 0]+f[5, lx, 0]+f[8, lx, 0]))/rho_outlet
-        
-        # f[2,lx,0] = f[2,lx,ly]
-        # f[5,lx,0] = f[5,lx,ly]
-        # f[3, lx, 0] = f[1, lx, 0] - (2./3.)*rho_outlet*u_x_outlet_bottom
-        # f[7, lx, 0] = f[5, lx, 0] + (1./2.)*(f[2, lx, 0]-f[4, lx, 0])-(1./6.)*rho_outlet*u_x_outlet_bottom
-        # f[6, lx, 0] = f[8, lx, 0] - (1./2.)*(f[2, lx, 0]-f[4, lx, 0])-(1./6.)*rho_outlet*u_x_outlet_bottom
-
-
-        # # TOP OUTLET
-        # u_x_outlet_upper = -1. + (f[0, lx, ly]+f[2, lx, ly]+f[4, lx, ly]+2.*(f[1, lx, ly]+f[5, lx, ly]+f[8, lx, ly]))/rho_outlet
-        
-        # f[4,lx,ly] = f[4,lx,0]
-        # f[8,lx,ly] = f[8,lx,0]
-        # f[3, lx, ly] = f[1, lx, ly] - (2./3.)*rho_outlet*u_x_outlet_upper
-        # f[7, lx, ly] = f[5, lx, ly] + (1./2.)*(f[2, lx, ly]-f[4, lx, ly])-(1./6.)*rho_outlet*u_x_outlet_upper
-        # f[6, lx, ly] = f[8, lx, ly] - (1./2.)*(f[2, lx, ly]-f[4, lx, ly])-(1./6.)*rho_outlet*u_x_outlet_upper
-
 
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
