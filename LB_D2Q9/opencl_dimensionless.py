@@ -260,7 +260,7 @@ class Pipe_Flow(object):
             # Relax the nonequilibrium fields
             self.collide_particles()
 
-    def get_fields_on_cpu(self):
+    def get_fields(self):
         f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
 
@@ -283,6 +283,19 @@ class Pipe_Flow(object):
         results['rho'] = rho
         results['feq'] = feq
         return results
+
+    def get_physical_fields(self):
+        # TODO: Density is definitely screwed up
+        fields = self.get_fields()
+
+        u_d = (self.delta_x)/(self.delta_t) * fields['u']
+        v_d = (self.delta_x)/(self.delta_t) * fields['v']
+
+        fields['u'] = (self.L/self.T)*u_d
+        fields['v'] = (self.L/self.T)*v_d
+
+        return fields
+
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
