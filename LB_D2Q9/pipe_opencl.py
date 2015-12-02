@@ -192,11 +192,6 @@ class Pipe_Flow(object):
                                 self.cx, self.cy,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
-        # Set f equal to f streamed. This way, if things do not stream, it is ok in future iterations.
-        self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.f_streamed, self.f,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
-
     def init_pop(self):
         nx = self.nx
         ny = self.ny

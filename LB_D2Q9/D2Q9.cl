@@ -158,8 +158,8 @@ copy_buffer(__global __read_only float *copy_from,
 }
 
 __kernel void
-move(__global float *f_global,
-     __global float *f_streamed_global,
+move(__global __read_only float *f_global,
+     __global __write_only float *f_streamed_global,
      __constant int *cx,
      __constant int *cy,
      const int nx, const int ny)
@@ -187,6 +187,9 @@ move(__global float *f_global,
             //Need two buffers to avoid parallel updates & shennanigans.
             f_streamed_global[new_3d_index] = f_global[old_3d_index];
         }
+
+        //Copy f_streamed to f_global
+        f_global[old_3d_index] = f_streamed_global[old_3d_index]
     }
 }
 
