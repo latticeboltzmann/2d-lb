@@ -189,6 +189,7 @@ class Pipe_Flow(object):
         # Always copy f, then f_streamed
         self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
+                                self.cx, self.cy,
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
         # Set f equal to f streamed. This way, if things do not stream, it is ok in future iterations.

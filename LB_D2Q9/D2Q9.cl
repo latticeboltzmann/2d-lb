@@ -27,8 +27,8 @@ update_feq(__global __write_only float *feq_global,
 
         //The position in 3d is confusing...REMEMBER, U, V, AND RHO ARE 2D. BUT, FEQ IS 3D!
 
-        int two_d_index = y*nx + x;
-        int three_d_index = jump_id*nx*ny + two_d_index;
+        const int two_d_index = y*nx + x;
+        const int three_d_index = jump_id*nx*ny + two_d_index;
 
         // Use local buffers so that each thread does not need to read in u, v, and rho every time
 
@@ -160,6 +160,8 @@ copy_buffer(__global __read_only float *copy_from,
 __kernel void
 move(__global float *f_global,
      __global float *f_streamed_global,
+     __constant int *cx,
+     __constant int *cy,
      const int nx, const int ny)
 {
     //Input should be a 3d workgroup!
@@ -169,8 +171,6 @@ move(__global float *f_global,
 
     if ((x < nx) && (y < ny) && (jump_id < 9)){
         //Only stream if you will not go out of the system.
-        const int cx[9] = {0,1,0,-1,0,1,-1,-1,1}; // direction vector for the x direction
-        const int cy[9] = {0,0,1,0,-1,1,1,-1,-1}; // direction vector for the y direction
 
         int cur_cx = cx[jump_id];
         int cur_cy = cy[jump_id];
@@ -180,10 +180,10 @@ move(__global float *f_global,
         int stream_x = x + cur_cx;
         int stream_y = y + cur_cy;
 
-        int old_3d_index = jump_id*nx*ny + y*nx + x;
+        const int old_3d_index = jump_id*nx*ny + y*nx + x;
 
         if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
-            int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
+            const int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
             //Need two buffers to avoid parallel updates & shennanigans.
             f_streamed_global[new_3d_index] = f_global[old_3d_index];
         }
