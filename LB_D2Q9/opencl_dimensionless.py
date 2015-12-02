@@ -42,7 +42,7 @@ class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
     def __init__(self, diameter, rho, viscosity, pressure_grad, pipe_length,
-                 delta_x = 1./200., delta_t = 1./200,
+                 N, time_prefactor = 1.,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
 
         # Physical units
@@ -61,8 +61,10 @@ class Pipe_Flow(object):
         print 'Reynolds number:' , self.Re
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
-        self.delta_x = delta_x # How many squares characteristic length is broken into
-        self.delta_t = delta_t # How many time iterations until the characteristic time
+
+        self.N = N # Characteristic length is broken into N pieces
+        self.delta_x = 1./N # How many squares characteristic length is broken into
+        self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
         deltaP = self.phys_pipe_length * self.phys_pressure_grad
         dim_deltaP = (self.T**2/(self.phys_rho*self.L**2))*deltaP
@@ -73,22 +75,16 @@ class Pipe_Flow(object):
 
         self.viscosity = (self.delta_t/self.delta_x)**2*(1./self.Re)
 
-        self.lx = lx # Grid not including boundary in x
-        self.ly = ly # Grid not including boundary in y
+        # Get omega from viscosity
+        self.omega = (self.viscosity/cs2) + 1./2.
+        assert ((self.omega > 0.5) and (self.omega < 1.))
 
-        self.omega = np.float32(omega)
+        # Initialize grid dimensions
+        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*N))
+        self.ly = N
 
-        self.dr = np.float32(dr)
-        self.dt = np.float32(dt)
-        self.deltaP = np.float32(deltaP)
-
-        ## Everything else
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
-
-        # Based on deltaP, set rho at the edges, as P = rho*cs^2, so rho=P/cs^2
-        self.inlet_rho = 1.
-        self.outlet_rho = self.deltaP/cs2 + self.inlet_rho # deltaP is negative!
 
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size
@@ -136,12 +132,6 @@ class Pipe_Flow(object):
 
         self.init_pop()
 
-        # Based on initial parameters, determine dimensionless numbers
-        #self.viscosity = None
-        #self.Re = None
-        #self.Ma = None
-        #self.update_dimensionless_nums()
-
     def allocate_constants(self):
         """Allocates constants to be used by opencl."""
 
@@ -180,19 +170,6 @@ class Pipe_Flow(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
-
-
-    # def update_dimensionless_nums(self):
-    #     self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
-    #
-    #     # Get the reynolds number...based on max in the flow
-    #     U = np.max(np.sqrt(self.u**2 + self.v**2))
-    #     L = self.ly*self.dr # Diameter
-    #     self.Re = U*L/self.viscosity
-    #
-    #     # To get the mach number...
-    #     self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
-
 
     def init_hydro(self):
         nx = self.nx
