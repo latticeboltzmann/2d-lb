@@ -182,7 +182,6 @@ move(__global __read_only float *f_global,
 
         const int old_3d_index = jump_id*nx*ny + y*nx + x;
 
-        barrier(CLK_GLOBAL_MEM_FENCE);
         if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
             const int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
             //Need two buffers to avoid parallel updates & shennanigans.
@@ -190,7 +189,6 @@ move(__global __read_only float *f_global,
         }
         barrier(CLK_GLOBAL_MEM_FENCE);
 
-        //Copy f_streamed to f_global
         f_global[old_3d_index] = f_streamed_global[old_3d_index];
 
     }
