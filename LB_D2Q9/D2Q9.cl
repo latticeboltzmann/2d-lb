@@ -32,7 +32,6 @@ update_feq(__global __write_only float *feq_global,
 
     const int buf_index = LS0 * ly + lx;
 
-    // TODO: We need to have local memory corresponding to *all* x-y points. Not just the top-left...
     barrier(CLK_LOCAL_MEM_FENCE);
     if ((lz == 0) && (x < nx) && (y < ny) && (jump_id < 9)){
         local_u[buf_index] = u_global[two_d_index];
@@ -46,12 +45,6 @@ update_feq(__global __write_only float *feq_global,
         float u = local_u[buf_index];
         float v = local_v[buf_index];
         float rho = local_rho[buf_index];
-
-        /*
-        float u = u_global[two_d_index];
-        float v = v_global[two_d_index];
-        float rho = rho_global[two_d_index];
-        */
 
         float cur_w = w[jump_id];
         int cur_cx = cx[jump_id];
@@ -192,7 +185,6 @@ move(__global __read_only float *f_global,
             //Need two buffers to avoid parallel updates & shennanigans.
             f_streamed_global[new_3d_index] = f_global[old_3d_index];
         }
-        barrier(CLK_GLOBAL_MEM_FENCE);
 
         f_global[old_3d_index] = f_streamed_global[old_3d_index];
 
