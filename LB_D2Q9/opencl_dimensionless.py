@@ -41,8 +41,8 @@ def get_divisible_global(global_size, local_size):
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, diameter, rho, viscosity, pressure_grad, pipe_length,
-                 N, time_prefactor = 1.,
+    def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
+                 N=200, time_prefactor = 1.,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
 
         # Physical units
