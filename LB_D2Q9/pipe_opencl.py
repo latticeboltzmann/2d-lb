@@ -17,7 +17,7 @@ w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
             1./36.,1./36.,1./36.], order='F', dtype=np.float32) # weights for directions
 cx=np.array([0,1,0,-1,0,1,-1,-1,1], order='F', dtype=np.int32) # direction vector for the x direction
 cy=np.array([0,0,1,0,-1,1,1,-1,-1], order='F', dtype=np.int32) # direction vector for the y direction
-cs=1/np.sqrt(3)
+cs=1./np.sqrt(3)
 cs2 = cs**2
 cs22 = 2*cs2
 two_cs4 = 2*cs**4
@@ -67,6 +67,12 @@ class Pipe_Flow(object):
         self.kernels = None
         self.init_opencl()
 
+        self.w = None
+        self.cx = None
+        self.cy = None
+        self.local_u = None
+        self.local_v = None
+        self.local_rho = None
         self.allocate_constants()
 
         # Create global & local sizes appropriately

@@ -28,6 +28,7 @@ update_feq(__global __write_only float *feq_global,
         //The position in 3d is confusing...REMEMBER, U, V, AND RHO ARE 2D. BUT, FEQ IS 3D!
 
         const int two_d_index = y*nx + x;
+
         const int three_d_index = jump_id*nx*ny + two_d_index;
 
         // Use local buffers so that each thread does not need to read in u, v, and rho every time
@@ -36,6 +37,7 @@ update_feq(__global __write_only float *feq_global,
         const int ly = get_local_id(1);
 
         //Read into local memory to prevent uncessary reads
+        /*
         barrier(CLK_LOCAL_MEM_FENCE);
         if ((lx==0)&&(ly==0)){
             local_u[jump_id] = u_global[two_d_index];
@@ -47,6 +49,11 @@ update_feq(__global __write_only float *feq_global,
         float u = local_u[jump_id];
         float v = local_v[jump_id];
         float rho = local_rho[jump_id];
+        */
+
+        float u = u_global[two_d_index];
+        float v = v_global[two_d_index];
+        float rho = rho_global[two_d_index];
 
         float cur_w = w[jump_id];
         int cur_cx = cx[jump_id];
