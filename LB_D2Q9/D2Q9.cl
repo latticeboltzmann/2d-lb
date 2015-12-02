@@ -4,6 +4,13 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
            __global __read_only float *rho_global,
+           __constant float *w,
+           __constant int *cx,
+           __constant int *cy,
+           const float cs,
+           const float cs2,
+           const float two_cs2,
+           const float two_cs4,
            int nx, int ny)
 {
     //Input should be a 3d workgroup.

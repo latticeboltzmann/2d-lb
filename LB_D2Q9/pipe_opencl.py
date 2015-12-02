@@ -14,9 +14,9 @@ file_dir = os.path.dirname(full_path)
 ##### D2Q9 parameters ####
 ##########################
 w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
-            1./36.,1./36.,1./36.]) # weights for directions
-cx=np.array([0,1,0,-1,0,1,-1,-1,1]) # direction vector for the x direction
-cy=np.array([0,0,1,0,-1,1,1,-1,-1]) # direction vector for the y direction
+            1./36.,1./36.,1./36.], order='F', dtype=np.float32) # weights for directions
+cx=np.array([0,1,0,-1,0,1,-1,-1,1], order='F', dtype=np.int32) # direction vector for the x direction
+cy=np.array([0,0,1,0,-1,1,1,-1,-1], order='F', dtype=np.int32) # direction vector for the y direction
 cs=1/np.sqrt(3)
 cs2 = cs**2
 cs22 = 2*cs2
@@ -67,6 +67,8 @@ class Pipe_Flow(object):
         self.kernels = None
         self.init_opencl()
 
+        self.allocate_constants()
+
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size
         self.three_d_local_size = three_d_local_size
@@ -104,6 +106,13 @@ class Pipe_Flow(object):
         #self.Ma = None
         #self.update_dimensionless_nums()
 
+    def allocate_constants(self):
+        """Allocates constants to be used by opencl."""
+
+        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
+        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
+        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
+
     def init_opencl(self):
         platforms = cl.get_platforms()
         print 'The platforms detected are:'
@@ -131,6 +140,7 @@ class Pipe_Flow(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
+
 
     # def update_dimensionless_nums(self):
     #     self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
