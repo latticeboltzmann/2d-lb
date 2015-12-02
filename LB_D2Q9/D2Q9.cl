@@ -185,9 +185,7 @@ move(__global __read_only float *f_global,
             //Need two buffers to avoid parallel updates & shennanigans.
             f_streamed_global[new_3d_index] = f_global[old_3d_index];
         }
-
-        f_global[old_3d_index] = f_streamed_global[old_3d_index];
-
+        //TODO: See if we can avoid copying later and avoid bizarre movement problems
     }
 }
 
