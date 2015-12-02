@@ -113,6 +113,10 @@ class Pipe_Flow(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
+        self.local_u = cl.LocalMemory(float_size * 9)
+        self.local_v = cl.LocalMemory(float_size * 9)
+        self.local_rho = cl.LocalMemory(float_size * 9)
+
     def init_opencl(self):
         platforms = cl.get_platforms()
         print 'The platforms detected are:'
@@ -219,7 +223,9 @@ class Pipe_Flow(object):
 
     def update_feq(self):
         self.kernels.update_feq(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.feq, self.u, self.v, self.rho,
+                                self.feq,
+                                self.u, self.v, self.rho,
+                                self.local_u, self.local_v, self.local_rho,
                                 self.w, self.cx, self.cy,
                                 np.float32(cs), np.float32(cs2), np.float32(cs22), np.float32(two_cs4),
                                 np.int32(self.nx), np.int32(self.ny)).wait()

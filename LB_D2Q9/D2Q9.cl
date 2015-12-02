@@ -4,6 +4,9 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
            __global __read_only float *rho_global,
+           __local float *local_u,
+           __local float *local_v,
+           __local float *local_rho,
            __constant float *w,
            __constant int *cx,
            __constant int *cy,
@@ -22,21 +25,28 @@ update_feq(__global __write_only float *feq_global,
 
         //Define global constants...which openCL makes difficult!
 
-        //Luckily, everything takes place inplace, so this isn't too bad. No local buffers needed.
-        //First dimension should be x, second dimension y, third dimension jumper type
-        //Note that this is different from how things are structured now
-
         //The position in 3d is confusing...REMEMBER, U, V, AND RHO ARE 2D. BUT, FEQ IS 3D!
 
         int two_d_index = y*nx + x;
         int three_d_index = jump_id*nx*ny + two_d_index;
 
-        float u = u_global[two_d_index];
-        float v= v_global[two_d_index];
-        float rho = rho_global[two_d_index];
+        // Use local buffers so that each thread does not need to read in u, v, and rho every time
 
-        // We used to have a bunch of if statements here. It's better to have something thata
-        // can be executed in parallel.
+        const int lx = get_local_id(0);
+        const int ly = get_local_id(1);
+
+        //Read into local memory to prevent uncessary reads
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if ((lx==0)&&(ly==0)){
+            local_u[jump_id] = u_global[two_d_index];
+            local_v[jump_id] = v_global[two_d_index];
+            local_rho[jump_id] = rho_global[two_d_index];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        float u = local_u[jump_id];
+        float v = local_v[jump_id];
+        float rho = local_rho[jump_id];
 
         float cur_w = w[jump_id];
         int cur_cx = cx[jump_id];
@@ -45,7 +55,7 @@ update_feq(__global __write_only float *feq_global,
         float cur_c_dot_u = cur_cx*u + cur_cy*v;
         float velocity_squared = u*u + v*v;
 
-        float inner_feq = 1.f + cur_c_dot_u/cs2 + pow(cur_c_dot_u,2.f)/two_cs4 - velocity_squared/two_cs2;
+        float inner_feq = 1.f + cur_c_dot_u/cs2 + cur_c_dot_u*cur_c_dot_u/two_cs4 - velocity_squared/two_cs2;
 
         //The problem is that rho is one everywhere...which does not make sense!
         float new_feq =  cur_w*rho*inner_feq;
@@ -60,8 +70,8 @@ update_hydro(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
-             float inlet_rho, float outlet_rho,
-             int nx, int ny)
+             const float inlet_rho, const float outlet_rho,
+             const int nx, const int ny)
 {
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
@@ -113,8 +123,8 @@ update_hydro(__global float *f_global,
 __kernel void
 collide_particles(__global float *f_global,
                   __global float *feq_global,
-                  float omega,
-                  int nx, int ny)
+                  const float omega,
+                  const int nx, const int ny)
 {
     //Input should be a 3d workgroup!
     const int x = get_global_id(0);
@@ -134,7 +144,7 @@ collide_particles(__global float *f_global,
 __kernel void
 copy_buffer(__global __read_only float *copy_from,
             __global __write_only float *copy_to,
-            int nx, int ny)
+            const int nx, const int ny)
 {
     //Assumes a 3d workgroup
     const int x = get_global_id(0);
@@ -150,7 +160,7 @@ copy_buffer(__global __read_only float *copy_from,
 __kernel void
 move(__global float *f_global,
      __global float *f_streamed_global,
-     int nx, int ny)
+     const int nx, const int ny)
 {
     //Input should be a 3d workgroup!
     const int x = get_global_id(0);
@@ -183,8 +193,8 @@ move(__global float *f_global,
 __kernel void
 move_bcs(__global float *f_global,
          __global float *u_global,
-         float inlet_rho, float outlet_rho,
-         int nx, int ny)
+         const float inlet_rho, const float outlet_rho,
+         const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
     const int x = get_global_id(0);
@@ -277,7 +287,7 @@ set_zero_velocity_in_obstacle(
     __global int *obstacle_mask,
     __global float *u_global,
     __global float *v_global,
-    int nx, int ny)
+    const int nx, const int ny)
 {
     // Input should be a 2d workgroup.
     const int x = get_global_id(0);
@@ -297,7 +307,7 @@ __kernel void
 bounceback_in_obstacle(
     __global int *obstacle_mask,
     __global float *f_global,
-    int nx, int ny)
+    const int nx, const int ny)
 {
     // Input should be a 2d workgroup.
     const int x = get_global_id(0);
