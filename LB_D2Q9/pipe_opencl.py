@@ -108,7 +108,7 @@ class Pipe_Flow(object):
         self.init_pop()
 
         # Based on initial parameters, determine dimensionless numbers
-        #self.viscosity = None
+        #self.lb_viscosity = None
         #self.Re = None
         #self.Ma = None
         #self.update_dimensionless_nums()
@@ -154,12 +154,12 @@ class Pipe_Flow(object):
 
 
     # def update_dimensionless_nums(self):
-    #     self.viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
+    #     self.lb_viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
     #
     #     # Get the reynolds number...based on max in the flow
     #     U = np.max(np.sqrt(self.u**2 + self.v**2))
     #     L = self.ly*self.dr # Diameter
-    #     self.Re = U*L/self.viscosity
+    #     self.Re = U*L/self.lb_viscosity
     #
     #     # To get the mach number...
     #     self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re

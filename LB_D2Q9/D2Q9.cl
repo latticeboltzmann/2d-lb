@@ -135,7 +135,7 @@ collide_particles(__global float *f_global,
         float f = f_global[three_d_index];
         float feq = feq_global[three_d_index];
 
-        f_global[three_d_index] = f*(1.f-omega) + omega*feq;
+        f_global[three_d_index] = f*(1-omega) + omega*feq;
     }
 }
 

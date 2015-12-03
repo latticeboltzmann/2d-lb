@@ -79,11 +79,13 @@ class Pipe_Flow(object):
         print 'inlet rho:' , self.inlet_rho
         print 'outlet rho:', self.outlet_rho
 
-        self.viscosity = (self.delta_t/self.delta_x**2)*(1./self.Re)
+        self.lb_viscosity = (self.delta_t / self.delta_x ** 2) * (1. / self.Re)
 
-        # Get omega from viscosity
-        self.omega = (self.viscosity/cs2) + 1./2.
-        assert ((self.omega > 0.5) and (self.omega < 1.))
+        # Get omega from lb_viscosity
+        self.omega = (self.lb_viscosity/cs2 + 0.5)**-1.
+        print 'omega', self.omega
+        assert self.omega < 2.
+
 
         # Initialize grid dimensions
         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*N))
