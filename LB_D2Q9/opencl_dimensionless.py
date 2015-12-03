@@ -54,7 +54,7 @@ class Pipe_Flow(object):
 
         # Get the characteristic length and time scales for the flow
         self.L = self.phys_diameter
-        self.T = (16*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.phys_diameter)
+        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.phys_diameter)
 
         # Initialize the reynolds number
         self.Re = self.L**2/(self.phys_visc*self.T**2)
