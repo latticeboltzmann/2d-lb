@@ -183,7 +183,7 @@ class Pipe_Flow(object):
         ny = self.ny
 
         # Initialize arrays on the host
-        rho_host = np.ones((nx, ny), dtype=np.float32, order='F')
+        rho_host = self.inlet_rho*np.ones((nx, ny), dtype=np.float32, order='F')
         rho_host[0, :] = self.inlet_rho
         rho_host[self.lx, :] = self.outlet_rho # Is there a shock in this case? We'll see...
         for i in range(rho_host.shape[0]):
