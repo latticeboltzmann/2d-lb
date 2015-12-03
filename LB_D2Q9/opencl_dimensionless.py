@@ -4,6 +4,10 @@ os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
 import ctypes as ct
 
+# Required to draw obstacles
+import skimage as ski
+import skimage.draw
+
 float_size = ct.sizeof(ct.c_float)
 
 # Get path to *this* file. Necessary when reading in opencl code.
@@ -41,6 +45,20 @@ def get_divisible_global(global_size, local_size):
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
+    def set_characteristic_length_time(self):
+        """Necessary for subclassing"""
+        self.L = self.phys_diameter
+        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
+
+    def initialize_grid_dims(self):
+        """Necessary for subclassing"""
+
+        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
+        self.ly = self.N
+
+        self.nx = self.lx + 1 # Total size of grid in x including boundary
+        self.ny = self.ly + 1 # Total size of grid in y including boundary
+
     def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
                  N=200, time_prefactor = 1.,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
@@ -53,23 +71,30 @@ class Pipe_Flow(object):
         self.phys_pipe_length = pipe_length
 
         # Get the characteristic length and time scales for the flow
-        self.L = self.phys_diameter
-        self.T = (16*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.phys_diameter)
+        self.L = None
+        self.T = None
+        self.set_characteristic_length_time()
 
         # Initialize the reynolds number
         self.Re = self.L**2/(self.phys_visc*self.T**2)
         print 'Reynolds number:' , self.Re
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
-
         self.N = N # Characteristic length is broken into N pieces
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
+        # Initialize grid dimensions
+        self.lx = None
+        self.ly = None
+        self.nx = None
+        self.ny = None
+        self.initialize_grid_dims()
+
         # Get the non-dimensional pressure gradient
         nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
         # Obtain the difference in density (pressure) at the inlet & outlet
-        delta_rho = (self.phys_pipe_length*self.N/self.L)*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
+        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
 
         # Assume deltaP is negative. So, outlet will have a smaller density.
 
@@ -85,13 +110,6 @@ class Pipe_Flow(object):
         self.omega = (self.lb_viscosity/cs2 + 0.5)**-1.
         print 'omega', self.omega
         assert self.omega < 2.
-
-        # Initialize grid dimensions
-        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*N))
-        self.ly = N
-
-        self.nx = self.lx + 1 # Total size of grid in x including boundary
-        self.ny = self.ly + 1 # Total size of grid in y including boundary
 
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size
@@ -308,25 +326,49 @@ class Pipe_Flow(object):
         return fields
 
 
-class Pipe_Flow_Obstacles(Pipe_Flow):
+class Pipe_Flow_Cylinder(Pipe_Flow):
 
-    def __init__(self, obstacle_mask=None, **kwargs):
+    def set_characteristic_length_time(self):
+        """Necessary for subclassing"""
+        self.L = self.phys_cylinder_radius
+        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
+
+    def initialize_grid_dims(self):
+        """Necessary for subclassing"""
+
+        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
+        self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
+
+        self.nx = self.lx + 1 # Total size of grid in x including boundary
+        self.ny = self.ly + 1 # Total size of grid in y including boundary
+
+        ## Initialize the obstacle mask
+        self.obstacle_mask_host = np.zeros((self.nx, self.ny), dtype=np.int32, order='F')
+
+        # Initialize the obstacle in the correct place
+        x_cylinder = self.N * self.phys_cylinder_center[0]/self.L
+        y_cylinder = self.N * self.phys_cylinder_center[1]/self.L
+
+        circle = ski.draw.circle(x_cylinder, y_cylinder, self.N)
+        self.obstacle_mask_host[circle[0], circle[1]] = 1
+
+
+    def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
         """Obstacle mask should be ones and zeros."""
 
-        # It is unfortunately annoying to do this, as we need to initialize the opencl kernel before anything else...ugh.
-        # Ah, nevermind, it's fine. We just have to create the obstacle mask in a sub function.
+        assert (cylinder_center is not None)
+        assert (cylinder_radius is not None) # If there are no obstacles, this will definitely not run.
 
-        assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
-        assert (np.sum(obstacle_mask) != 0) # Make sure at least one pixel is an obstacle.
+        self.phys_cylinder_center = cylinder_center
+        self.phys_cylinder_radius = cylinder_radius
 
-        obstacle_mask = np.asfortranarray(obstacle_mask)
+        self.obstacle_mask_host = None
+        self.obstacle_mask = None
+        super(Pipe_Flow_Cylinder, self).__init__(**kwargs)
 
-        self.obstacle_mask_host = obstacle_mask.astype(np.int32)
-
-        super(Pipe_Flow_Obstacles, self).__init__(**kwargs)
 
     def init_hydro(self):
-        super(Pipe_Flow_Obstacles, self).init_hydro()
+        super(Pipe_Flow_Cylinder, self).init_hydro()
 
         # Now create the obstacle mask on the device
         self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
@@ -339,13 +381,13 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
 
     def update_hydro(self):
-        super(Pipe_Flow_Obstacles, self).update_hydro()
+        super(Pipe_Flow_Cylinder, self).update_hydro()
         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                                    self.obstacle_mask, self.u, self.v,
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move_bcs(self):
-        super(Pipe_Flow_Obstacles, self).move_bcs()
+        super(Pipe_Flow_Cylinder, self).move_bcs()
 
         # Now bounceback on the obstacle
         self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
