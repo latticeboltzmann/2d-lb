@@ -74,10 +74,12 @@ class Pipe_Flow(object):
         self.L = None
         self.T = None
         self.set_characteristic_length_time()
+        print 'Characteristic L:', self.L
+        print 'Characteristic T:', self.T
 
         # Initialize the reynolds number
         self.Re = self.L**2/(self.phys_visc*self.T**2)
-        print 'Reynolds number:' , self.Re
+        print 'Reynolds number:', self.Re
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
@@ -331,7 +333,7 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
     def set_characteristic_length_time(self):
         """Necessary for subclassing"""
         self.L = self.phys_cylinder_radius
-        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
+        self.T = (8*self.phys_rho*self.phys_visc*self.L)/(np.abs(self.phys_pressure_grad)*self.phys_diameter**2)
 
     def initialize_grid_dims(self):
         """Necessary for subclassing"""
