@@ -67,13 +67,11 @@ class Pipe_Flow(object):
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
         # Pressure gradient must be rescaled too, or else disaster!
-        dim_pressure_grad = ((self.T**2)/(self.phys_rho*self.L))*self.phys_pressure_grad
-
-        lb_pressure_grad = (self.delta_t**2/self.delta_x)*dim_pressure_grad
-
+        deltaP = self.phys_pressure_grad * self.phys_pipe_length
+        delta_rho = (1./cs2)*(self.delta_x**2/(self.phys_rho*self.delta_t**2))*(self.T**2/self.L**2)*deltaP
 
         self.inlet_rho = 1.
-        self.outlet_rho = 1. + (1./cs2)*lb_pressure_grad*(self.phys_pipe_length*self.N/self.phys_diameter)
+        self.outlet_rho = 1. + delta_rho
         print 'outlet rho:' , self.outlet_rho
 
         self.viscosity = (self.delta_t/self.delta_x**2)*(1./self.Re)
