@@ -278,6 +278,36 @@ move_bcs(__global float *f_global,
         }
     }
 }
+// ############ Periodic BC and Inlet Velocity Code ################
+__kernel void
+move_bcs_PeriodicBC_VelocityInlet(__global float *f_global,
+         __global float *u_global,
+         const float u_w, 
+         const float u_e,
+         const int nx, 
+         const int ny)
+{   
+    //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    int two_d_index = y*nx + x;
+
+    if ((x < nx) && (y < ny)){
+
+        float f0 = f_global[0*ny*nx + two_d_index];
+        float f1 = f_global[1*ny*nx + two_d_index];
+        float f2 = f_global[2*ny*nx + two_d_index];
+        float f3 = f_global[3*ny*nx + two_d_index];
+        float f4 = f_global[4*ny*nx + two_d_index];
+        float f5 = f_global[5*ny*nx + two_d_index];
+        float f6 = f_global[6*ny*nx + two_d_index];
+        float f7 = f_global[7*ny*nx + two_d_index];
+        float f8 = f_global[8*ny*nx + two_d_index];
+
+        float u = u_global[two_d_index];
+
+}
 
 // ############ Obstacle Code ################
 

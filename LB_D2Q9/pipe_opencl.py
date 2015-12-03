@@ -278,6 +278,96 @@ class Pipe_Flow(object):
         results['feq'] = feq
         return results
 
+class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
+
+    def __init__(self, u_w=0.1, **kwargs):
+        #defining inlet velocity on the west side of the domain
+        self.u_w=u_w
+        self.u_e=u_w
+
+        super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+
+    def move_bcs(self):
+        """This is slow; cythonizing makes it fast."""
+
+        lx = self.lx
+        ly = self.ly
+
+        u_w = self.u_w
+        u_e = self.u_e
+
+        farr = self.f
+
+
+        # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
+        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2.*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
+
+
+        farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
+        farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
+        farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
+             
+        # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
+        rho_e = (1./(1.+u_e))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2.*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
+
+        farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_e
+        farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
+        farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
+
+        f = self.f
+
+        # NORTH periodic
+        # update the values of f at the top with those from the bottom
+        f[4,0:(lx+1),ly] = f[4,0:(lx+1),0]
+        f[8,0:(lx+1),ly] = f[8,0:(lx+1),0]
+        f[7,0:(lx+1),ly] = f[7,0:(lx+1),0]
+        # SOUTH periodic
+        #update the values of f at the bottom with those from the top
+        f[2,0:(lx+1),0] = f[2,0:(lx+1),ly]
+        f[6,0:(lx+1),0] = f[6,0:(lx+1),ly]
+        f[5,0:(lx+1),0] = f[5,0:(lx+1),ly] 
+
+    def init_hydro(self):
+        nx = self.nx
+        ny = self.ny
+
+        self.rho = np.ones((nx, ny), dtype=np.float32)
+
+        self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
+        self.v = np.zeros((nx, ny)) 
+        
+        self.u[:,:]=self.u_w
+        self.v[:,:]=0
+
+
+    def update_hydro(self):
+        f = self.f
+
+        rho = self.rho
+        rho[:, :] = np.sum(f, axis=0)
+        inverse_rho = 1./self.rho
+
+        u = self.u
+        v = self.v
+
+        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+
+        # Deal with boundary conditions...have to specify pressure
+        lx = self.lx
+        ly = self.ly
+
+        u_w=self.u_w
+        u_e=self.u_e
+        
+        # INLET: define the density and prescribe the velocity
+        u[0, 1:ly] = u_w 
+        rho[0, 1:ly] = (1./(1.-u_w))*(f[0,0,1:ly]+f[2,0,1:ly]+f[4,0,1:ly]+2.*(f[3,0,1:ly]+f[6,0,1:ly]+f[7,0,1:ly]))
+        # OUTLET: define the density and prescribe the velocity
+        u[lx, 1:ly] =u_e
+        rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
+
+
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
     def __init__(self, obstacle_mask=None, **kwargs):
