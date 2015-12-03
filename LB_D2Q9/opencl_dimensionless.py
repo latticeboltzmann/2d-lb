@@ -66,13 +66,18 @@ class Pipe_Flow(object):
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
-        # Pressure gradient must be rescaled too, or else disaster!
-        deltaP = self.phys_pressure_grad * self.phys_pipe_length
-        delta_rho = (1./cs2)*(self.delta_x**2/(self.phys_rho*self.delta_t**2))*(self.T**2/self.L**2)*deltaP
+        # Get the non-dimensional pressure gradient
+        nondim_deltaP = self.T**2/(self.phys_rho*self.L)*self.phys_pressure_grad
+        # Obtain the difference in density (pressure) at the inlet & outlet
+        delta_rho = (self.phys_pipe_length*self.N/self.L)*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
 
-        self.inlet_rho = 1.
-        self.outlet_rho = 1. + delta_rho
-        print 'outlet rho:' , self.outlet_rho
+        # Assume deltaP is negative. So, outlet will have a smaller density.
+
+        self.outlet_rho = 1.
+        self.inlet_rho = 1. + np.abs(delta_rho)
+
+        print 'inlet rho:' , self.inlet_rho
+        print 'outlet rho:', self.outlet_rho
 
         self.viscosity = (self.delta_t/self.delta_x**2)*(1./self.Re)
 
