@@ -161,15 +161,13 @@ class Pipe_Flow(object):
         outlet_rho = self.outlet_rho
 
         # NORTH solid
-        for i in range(1, lx): # Bounce back
-            f[4,i,ly] = f[2,i,ly]
-            f[8,i,ly] = f[6,i,ly]
-            f[7,i,ly] = f[5,i,ly]
+        f[4,1:lx,ly] = f[2,1:lx,ly]
+        f[8,1:lx,ly] = f[6,1:lx,ly]
+        f[7,1:lx,ly] = f[5,1:lx,ly]
         # SOUTH solid
-        for i in range(1, lx):
-            f[2,i,0] = f[4,i,0]
-            f[6,i,0] = f[8,i,0]
-            f[5,i,0] = f[7,i,0]
+        f[2,1:lx,0] = f[4,1:lx,0]
+        f[6,1:lx,0] = f[8,1:lx,0]
+        f[5,1:lx,0] = f[7,1:lx,0]
 
         ### Corner nodes: Tricky & a huge pain ###
         # BOTTOM INLET
@@ -248,6 +246,173 @@ class Pipe_Flow(object):
             self.update_hydro() # Update the hydrodynamic variables
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields
+
+class Pipe_Flow_PeriodicBC(Pipe_Flow):
+
+    def __init__(self, **kwargs):
+        super(Pipe_Flow_PeriodicBC, self).__init__(**kwargs)
+
+    def move_bcs(self):
+        """This is slow; cythonizing makes it fast."""
+
+        lx = self.lx
+        ly = self.ly
+
+        farr = self.f
+
+        # INLET: constant pressure!
+        farr[1, 0, 1:ly] = farr[3, 0, 1:ly] + (2./3.)*self.inlet_rho*self.u[0, 1:ly]
+        farr[5, 0, 1:ly] = -.5*farr[2,0,1:ly]+.5*farr[4, 0, 1:ly]+farr[7, 0, 1:ly] + (1./6.)*self.u[0, 1:ly]*self.inlet_rho
+        farr[8, 0, 1:ly] = .5*farr[2,0,1:ly]-.5*farr[4, 0, 1:ly]+farr[6, 0, 1:ly] + (1./6.)*self.u[0, 1:ly]*self.inlet_rho
+
+        # OUTLET: constant pressure!
+        farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*self.outlet_rho*self.u[lx,1:ly]
+        farr[6, lx, 1:ly] = -.5*farr[2,lx,1:ly]+.5*farr[4,lx,1:ly]+farr[8,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
+        farr[7, lx, 1:ly] = .5*farr[2,lx,1:ly]-.5*farr[4,lx,1:ly]+farr[5,lx,1:ly]-(1./6.)*self.u[lx,1:ly]*self.outlet_rho
+
+        f = self.f
+        inlet_rho = self.inlet_rho
+        outlet_rho = self.outlet_rho
+
+        # NORTH solid
+        f[4,1:lx,ly] = f[2,1:lx,ly]
+        f[8,1:lx,ly] = f[6,1:lx,ly]
+        f[7,1:lx,ly] = f[5,1:lx,ly]
+        # SOUTH solid
+        f[2,1:lx,0] = f[4,1:lx,0]
+        f[6,1:lx,0] = f[8,1:lx,0]
+        f[5,1:lx,0] = f[7,1:lx,0]
+
+        #####THIS PART IS NOT CORRECT, IT NEEDS TO BE FULLY REDERIVED IF THIS PART IS DESIRED, MOVIGN ON TO IMPLMENTING VELOCITY WITH PERIODIC BC
+        ### Corner nodes: Tricky & a huge pain ###
+        # BOTTOM INLET
+        f[1, 0, 0] = f[3, 0, 0]
+        f[2, 0, 0] = f[4, 0, 0]
+        f[5, 0, 0] = f[7, 0, 0]
+        f[6, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+inlet_rho)
+        f[8, 0, 0] = .5*(-f[0,0,0]-2*f[3,0,0]-2*f[4,0,0]-2*f[7,0,0]+inlet_rho)
+
+        # TOP INLET
+        f[1, 0, ly] = f[3, 0, ly]
+        f[4, 0, ly] = f[2, 0, ly]
+        f[8, 0, ly] = f[6, 0, ly]
+        f[5, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
+        f[7, 0, ly] = .5*(-f[0,0,ly]-2*f[2,0,ly]-2*f[3,0,ly]-2*f[6,0,ly]+inlet_rho)
+
+        # BOTTOM OUTLET
+        f[3, lx, 0] = f[1, lx, 0]
+        f[2, lx, 0] = f[4, lx, 0]
+        f[6, lx, 0] = f[8, lx, 0]
+        f[5, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+        f[8, lx, 0] = .5*(-f[0,lx,0]-2*f[1,lx,0]-2*f[4,lx,0]-2*f[8,lx,0]+outlet_rho)
+
+        # TOP OUTLET
+        f[3, lx, ly] = f[1, lx, ly]
+        f[4, lx, ly] = f[2, lx, ly]
+        f[7, lx, ly] = f[5, lx, ly]
+        f[6, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+        f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,ly,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
+   
+
+
+class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
+
+    def __init__(self, u_w=0.1, **kwargs):
+        #defining inlet velocity on the west side of the domain
+        self.u_w=u_w
+        self.u_e=u_w
+
+        super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+
+    def move_bcs(self):
+        """This is slow; cythonizing makes it fast."""
+
+        lx = self.lx
+        ly = self.ly
+
+        u_w = self.u_w
+        u_e = self.u_e
+
+        farr = self.f
+
+
+        # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
+        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2.*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
+
+
+        farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
+        farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
+        farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
+             
+        # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
+        rho_e = (1./(1.+u_e))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2.*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
+
+        farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_e
+        farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
+        farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
+
+        # ENABLE THIS AND DISABLE THE OTHER OUTLET BOUNDARY CONDTION FOR THIS TO WORK
+        # # OUTLET: open boundary condition, init_hydro and update_hydro need to be changed
+        # rho_outlet = 1.
+        # u_x_outlet = -1. + (farr[0, lx, 1:ly]+farr[2, lx, 1:ly]+farr[4, lx, 1:ly]+
+        #     2.*(farr[1, lx, 1:ly]+farr[5, lx, 1:ly]+farr[8, lx, 1:ly]))/rho_outlet
+
+        # farr[3, lx, 1:ly] = farr[1, lx, 1:ly] - (2./3.)*rho_outlet*u_x_outlet
+        # farr[7, lx, 1:ly] = farr[5, lx, 1:ly] + (1./2.)*(farr[2, lx, 1:ly]-farr[4, lx, 1:ly])-(1./6.)*rho_outlet*u_x_outlet
+        # farr[6, lx, 1:ly] = farr[8, lx, 1:ly] - (1./2.)*(farr[2, lx, 1:ly]-farr[4, lx, 1:ly])-(1./6.)*rho_outlet*u_x_outlet
+        
+        f = self.f
+
+        # NORTH periodic
+        # update the values of f at the top with those from the bottom
+        f[4,0:(lx+1),ly] = f[4,0:(lx+1),0]
+        f[8,0:(lx+1),ly] = f[8,0:(lx+1),0]
+        f[7,0:(lx+1),ly] = f[7,0:(lx+1),0]
+        # SOUTH periodic
+        #update the values of f at the bottom with those from the top
+        f[2,0:(lx+1),0] = f[2,0:(lx+1),ly]
+        f[6,0:(lx+1),0] = f[6,0:(lx+1),ly]
+        f[5,0:(lx+1),0] = f[5,0:(lx+1),ly] 
+    
+    def init_hydro(self):
+        nx = self.nx
+        ny = self.ny
+
+        self.rho = np.ones((nx, ny), dtype=np.float32)
+
+        self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
+        self.v = np.zeros((nx, ny)) 
+        
+        self.u[:,:]=self.u_w
+        self.v[:,:]=0
+
+
+    def update_hydro(self):
+        f = self.f
+
+        rho = self.rho
+        rho[:, :] = np.sum(f, axis=0)
+        inverse_rho = 1./self.rho
+
+        u = self.u
+        v = self.v
+
+        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+
+        # Deal with boundary conditions...have to specify pressure
+        lx = self.lx
+        ly = self.ly
+
+        u_w=self.u_w
+        u_e=self.u_e
+        
+        # INLET: define the density and prescribe the velocity
+        u[0, 1:ly] = u_w 
+        rho[0, 1:ly] = (1./(1.-u_w))*(f[0,0,1:ly]+f[2,0,1:ly]+f[4,0,1:ly]+2.*(f[3,0,1:ly]+f[6,0,1:ly]+f[7,0,1:ly]))
+        # OUTLET: define the density and prescribe the velocity
+        u[lx, 1:ly] =u_e
+        rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
 
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
