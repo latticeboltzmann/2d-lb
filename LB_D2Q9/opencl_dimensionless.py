@@ -41,25 +41,57 @@ def get_divisible_global(global_size, local_size):
 class Pipe_Flow(object):
     """2d pipe flow with D2Q9"""
 
-    def __init__(self, omega=.99, lx=400, ly=400, dr=1., dt = 1., deltaP=-.1,
+    def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
+                 N=200, time_prefactor = 1.,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
-        ### User input parameters
-        self.lx = lx # Grid not including boundary in x
-        self.ly = ly # Grid not including boundary in y
 
-        self.omega = np.float32(omega)
+        # Physical units
+        self.phys_diameter = diameter
+        self.phys_rho = rho
+        self.phys_visc = viscosity
+        self.phys_pressure_grad = pressure_grad
+        self.phys_pipe_length = pipe_length
 
-        self.dr = np.float32(dr)
-        self.dt = np.float32(dt)
-        self.deltaP = np.float32(deltaP)
+        # Get the characteristic length and time scales for the flow
+        self.L = self.phys_diameter
+        self.T = (16*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.phys_diameter)
 
-        ## Everything else
+        # Initialize the reynolds number
+        self.Re = self.L**2/(self.phys_visc*self.T**2)
+        print 'Reynolds number:' , self.Re
+
+        # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
+
+        self.N = N # Characteristic length is broken into N pieces
+        self.delta_x = 1./N # How many squares characteristic length is broken into
+        self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
+
+        # Get the non-dimensional pressure gradient
+        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
+        # Obtain the difference in density (pressure) at the inlet & outlet
+        delta_rho = (self.phys_pipe_length*self.N/self.L)*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
+
+        # Assume deltaP is negative. So, outlet will have a smaller density.
+
+        self.outlet_rho = 1.
+        self.inlet_rho = 1. + np.abs(delta_rho)
+
+        print 'inlet rho:' , self.inlet_rho
+        print 'outlet rho:', self.outlet_rho
+
+        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re)
+
+        # Get omega from lb_viscosity
+        self.omega = (self.lb_viscosity/cs2 + 0.5)**-1.
+        print 'omega', self.omega
+        assert self.omega < 2.
+
+        # Initialize grid dimensions
+        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*N))
+        self.ly = N
+
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
-
-        # Based on deltaP, set rho at the edges, as P = rho*cs^2, so rho=P/cs^2
-        self.inlet_rho = 1.
-        self.outlet_rho = self.deltaP/cs2 + self.inlet_rho # deltaP is negative!
 
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size
@@ -107,12 +139,6 @@ class Pipe_Flow(object):
 
         self.init_pop()
 
-        # Based on initial parameters, determine dimensionless numbers
-        #self.lb_viscosity = None
-        #self.Re = None
-        #self.Ma = None
-        #self.update_dimensionless_nums()
-
     def allocate_constants(self):
         """Allocates constants to be used by opencl."""
 
@@ -152,25 +178,12 @@ class Pipe_Flow(object):
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
 
-
-    # def update_dimensionless_nums(self):
-    #     self.lb_viscosity = (self.dr**2/(3*self.dt))*(self.omega-0.5)
-    #
-    #     # Get the reynolds number...based on max in the flow
-    #     U = np.max(np.sqrt(self.u**2 + self.v**2))
-    #     L = self.ly*self.dr # Diameter
-    #     self.Re = U*L/self.lb_viscosity
-    #
-    #     # To get the mach number...
-    #     self.Ma = (self.dr/(L*np.sqrt(3)))*(self.omega-.5)*self.Re
-
-
     def init_hydro(self):
         nx = self.nx
         ny = self.ny
 
         # Initialize arrays on the host
-        rho_host = np.ones((nx, ny), dtype=np.float32, order='F')
+        rho_host = self.inlet_rho*np.ones((nx, ny), dtype=np.float32, order='F')
         rho_host[0, :] = self.inlet_rho
         rho_host[self.lx, :] = self.outlet_rho # Is there a shock in this case? We'll see...
         for i in range(rho_host.shape[0]):
@@ -213,7 +226,7 @@ class Pipe_Flow(object):
         cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
 
         # We now slightly perturb f
-        amplitude = .00
+        amplitude = .001
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
         f *= perturb
 
@@ -254,7 +267,7 @@ class Pipe_Flow(object):
             # Relax the nonequilibrium fields
             self.collide_particles()
 
-    def get_fields_on_cpu(self):
+    def get_fields(self):
         f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
 
@@ -278,94 +291,21 @@ class Pipe_Flow(object):
         results['feq'] = feq
         return results
 
-class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
+    def get_nondim_fields(self):
+        fields = self.get_fields()
 
-    def __init__(self, u_w=0.1, **kwargs):
-        #defining inlet velocity on the west side of the domain
-        self.u_w=u_w
-        self.u_e=u_w
+        fields['u'] *= self.delta_x/self.delta_t
+        fields['v'] *= self.delta_x/self.delta_t
 
-        super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+        return fields
 
-    def move_bcs(self):
-        """This is slow; cythonizing makes it fast."""
+    def get_physical_fields(self):
+        fields = self.get_nondim_fields()
 
-        lx = self.lx
-        ly = self.ly
+        fields['u'] *= (self.L/self.T)
+        fields['v'] *= (self.L/self.T)
 
-        u_w = self.u_w
-        u_e = self.u_e
-
-        farr = self.f
-
-
-        # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        rho_w = (1./(1.-u_w))*(farr[0,0,1:ly]+farr[2,0,1:ly]+farr[4,0,1:ly]+2.*(farr[3,0,1:ly]+farr[6,0,1:ly]+farr[7,0,1:ly]))
-
-
-        farr[1, 0, 1:ly] = farr[3,0,1:ly] + (2./3.)*rho_w*u_w
-        farr[5, 0, 1:ly] = farr[7,0,1:ly] - (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w 
-        farr[8, 0, 1:ly] = farr[6,0,1:ly] + (1./2.)*(farr[2,0,1:ly]-farr[4,0,1:ly]) + (1./6.)*rho_w*u_w
-             
-        # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        rho_e = (1./(1.+u_e))*(farr[0,lx,1:ly]+farr[2,lx,1:ly]+farr[4,lx,1:ly]+2.*(farr[1,lx,1:ly]+farr[5,lx,1:ly]+farr[8,lx,1:ly]))
-
-        farr[3, lx, 1:ly] = farr[1,lx,1:ly] - (2./3.)*rho_e*u_e
-        farr[7, lx, 1:ly] = farr[5,lx,1:ly] + (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e 
-        farr[6, lx, 1:ly] = farr[8,lx,1:ly] - (1./2.)*(farr[2,lx,1:ly]-farr[4,lx,1:ly]) - (1./6.)*rho_e*u_e
-
-        f = self.f
-
-        # NORTH periodic
-        # update the values of f at the top with those from the bottom
-        f[4,0:(lx+1),ly] = f[4,0:(lx+1),0]
-        f[8,0:(lx+1),ly] = f[8,0:(lx+1),0]
-        f[7,0:(lx+1),ly] = f[7,0:(lx+1),0]
-        # SOUTH periodic
-        #update the values of f at the bottom with those from the top
-        f[2,0:(lx+1),0] = f[2,0:(lx+1),ly]
-        f[6,0:(lx+1),0] = f[6,0:(lx+1),ly]
-        f[5,0:(lx+1),0] = f[5,0:(lx+1),ly] 
-
-    def init_hydro(self):
-        nx = self.nx
-        ny = self.ny
-
-        self.rho = np.ones((nx, ny), dtype=np.float32)
-
-        self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
-        self.v = np.zeros((nx, ny)) 
-        
-        self.u[:,:]=self.u_w
-        self.v[:,:]=0
-
-
-    def update_hydro(self):
-        f = self.f
-
-        rho = self.rho
-        rho[:, :] = np.sum(f, axis=0)
-        inverse_rho = 1./self.rho
-
-        u = self.u
-        v = self.v
-
-        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
-        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
-
-        # Deal with boundary conditions...have to specify pressure
-        lx = self.lx
-        ly = self.ly
-
-        u_w=self.u_w
-        u_e=self.u_e
-        
-        # INLET: define the density and prescribe the velocity
-        u[0, 1:ly] = u_w 
-        rho[0, 1:ly] = (1./(1.-u_w))*(f[0,0,1:ly]+f[2,0,1:ly]+f[4,0,1:ly]+2.*(f[3,0,1:ly]+f[6,0,1:ly]+f[7,0,1:ly]))
-        # OUTLET: define the density and prescribe the velocity
-        u[lx, 1:ly] =u_e
-        rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
+        return fields
 
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
