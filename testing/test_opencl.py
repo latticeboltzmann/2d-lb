@@ -14,11 +14,11 @@ dt = 4.
 viscosity = 10.**-6. # More viscous = easier to simulate!
 
 ##### Derived parameters ######
-print 'Desired viscosity:' , viscosity
-#Re = (input_velocity * diameter)/viscosity
+print 'Desired lb_viscosity:' , viscosity
+#Re = (input_velocity * diameter)/lb_viscosity
 #print 'Desired Re', Re
 
-# Re is set by diameter, input_velocity, and viscosity
+# Re is set by diameter, input_velocity, and lb_viscosity
 # Adjust dr so that mach number doers not explode!
 print
 print '###### Simulation Parameters #########'
