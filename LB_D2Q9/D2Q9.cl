@@ -343,8 +343,10 @@ update_hydro_PeriodicBC_VelocityInlet(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
-             const float inlet_rho, const float outlet_rho,
-             const int nx, const int ny)
+             const float u_w, 
+             const float u_e,
+             const int nx, 
+             const int ny)
 {
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
@@ -375,21 +377,14 @@ update_hydro_PeriodicBC_VelocityInlet(__global float *f_global,
         //reread variables! I think two if statements are needed...I don't see a way around it.
 
         if (x==0){
-            rho_global[two_d_index] = inlet_rho;
-            u_global[two_d_index] = 1 - (f0+f2+f4+2*(f3+f6+f7))/inlet_rho;
+            rho_global[two_d_index] = (1./(1.-u_w))*(f0+f2+f4+2.*(f3+f6+f7));
+            u_global[two_d_index] = u_w;
         }
         if (x==nx-1){
-            rho_global[two_d_index] = outlet_rho;
-            u_global[two_d_index] = -1 + (f0+f2+f4+2*(f1+f5+f8))/outlet_rho;
+            rho_global[two_d_index] = (1./(1.-u_e))*(f0+f2+f4+2.*(f1+f5+f8));
+            u_global[two_d_index] = u_e;
         }
-        if (y == 0){
-            u_global[two_d_index] = 0;
-            v_global[two_d_index] = 0;
-        }
-        if (y == ny - 1){
-            u_global[two_d_index] = 0;
-            v_global[two_d_index] = 0;
-        }
+        
     }
 }
 // ############ Obstacle Code ################
