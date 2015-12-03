@@ -67,7 +67,7 @@ class Pipe_Flow(object):
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
         # Get the non-dimensional pressure gradient
-        nondim_deltaP = self.T**2/(self.phys_rho*self.L)*self.phys_pressure_grad
+        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
         # Obtain the difference in density (pressure) at the inlet & outlet
         delta_rho = (self.phys_pipe_length*self.N/self.L)*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
 
@@ -79,13 +79,12 @@ class Pipe_Flow(object):
         print 'inlet rho:' , self.inlet_rho
         print 'outlet rho:', self.outlet_rho
 
-        self.lb_viscosity = (self.delta_t / self.delta_x ** 2) * (1. / self.Re)
+        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re)
 
         # Get omega from lb_viscosity
         self.omega = (self.lb_viscosity/cs2 + 0.5)**-1.
         print 'omega', self.omega
         assert self.omega < 2.
-
 
         # Initialize grid dimensions
         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*N))
@@ -227,7 +226,7 @@ class Pipe_Flow(object):
         cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
 
         # We now slightly perturb f
-        amplitude = .00
+        amplitude = .001
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
         f *= perturb
 
@@ -295,8 +294,8 @@ class Pipe_Flow(object):
     def get_nondim_fields(self):
         fields = self.get_fields()
 
-        fields['u'] *= (self.delta_x)/(self.delta_t)
-        fields['v'] *= (self.delta_x)/(self.delta_t)
+        fields['u'] *= self.delta_x/self.delta_t
+        fields['v'] *= self.delta_x/self.delta_t
 
         return fields
 
