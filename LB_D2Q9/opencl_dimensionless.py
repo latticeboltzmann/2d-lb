@@ -4,6 +4,10 @@ os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
 import ctypes as ct
 
+# Required to draw obstacles
+import skimage as ski
+import skimage.draw
+
 float_size = ct.sizeof(ct.c_float)
 
 # Get path to *this* file. Necessary when reading in opencl code.
@@ -322,11 +326,11 @@ class Pipe_Flow(object):
         return fields
 
 
-class Pipe_Flow_Obstacles(Pipe_Flow):
+class Pipe_Flow_Cylinder(Pipe_Flow):
 
     def set_characteristic_length_time(self):
         """Necessary for subclassing"""
-        self.L = self.obstacle_scale
+        self.L = self.phys_cylinder_radius
         self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
 
     def initialize_grid_dims(self):
@@ -338,21 +342,33 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
         self.nx = self.lx + 1 # Total size of grid in x including boundary
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
-    def __init__(self, obstacle_scale=None, obstacle_mask=None, **kwargs):
+        ## Initialize the obstacle mask
+        self.obstacle_mask_host = np.zeros((self.nx, self.ny), dtype=np.int32, order='F')
+
+        # Initialize the obstacle in the correct place
+        x_cylinder = self.N * self.phys_cylinder_center[0]/self.L
+        y_cylinder = self.N * self.phys_cylinder_center[1]/self.L
+
+        circle = ski.draw.circle(x_cylinder, y_cylinder, self.N)
+        self.obstacle_mask_host[circle[0], circle[1]] = 1
+
+
+    def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
         """Obstacle mask should be ones and zeros."""
 
-        assert (obstacle_scale is not None)
-        assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
-        assert (np.sum(obstacle_mask) != 0) # Make sure at least one pixel is an obstacle.
+        assert (cylinder_center is not None)
+        assert (cylinder_radius is not None) # If there are no obstacles, this will definitely not run.
 
-        self.obstacle_scale = obstacle_scale
-        obstacle_mask = np.asfortranarray(obstacle_mask)
-        self.obstacle_mask_host = obstacle_mask.astype(np.int32)
+        self.phys_cylinder_center = cylinder_center
+        self.phys_cylinder_radius = cylinder_radius
 
-        super(Pipe_Flow_Obstacles, self).__init__(**kwargs)
+        self.obstacle_mask_host = None
+        self.obstacle_mask = None
+        super(Pipe_Flow_Cylinder, self).__init__(**kwargs)
+
 
     def init_hydro(self):
-        super(Pipe_Flow_Obstacles, self).init_hydro()
+        super(Pipe_Flow_Cylinder, self).init_hydro()
 
         # Now create the obstacle mask on the device
         self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
@@ -365,13 +381,13 @@ class Pipe_Flow_Obstacles(Pipe_Flow):
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
 
     def update_hydro(self):
-        super(Pipe_Flow_Obstacles, self).update_hydro()
+        super(Pipe_Flow_Cylinder, self).update_hydro()
         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                                    self.obstacle_mask, self.u, self.v,
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move_bcs(self):
-        super(Pipe_Flow_Obstacles, self).move_bcs()
+        super(Pipe_Flow_Cylinder, self).move_bcs()
 
         # Now bounceback on the obstacle
         self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
