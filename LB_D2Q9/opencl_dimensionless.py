@@ -290,15 +290,19 @@ class Pipe_Flow(object):
         results['feq'] = feq
         return results
 
-    def get_physical_fields(self):
-        # TODO: Density is definitely screwed up
+    def get_nondim_fields(self):
         fields = self.get_fields()
 
-        u_d = (self.delta_x)/(self.delta_t) * fields['u']
-        v_d = (self.delta_x)/(self.delta_t) * fields['v']
+        fields['u'] *= (self.delta_x)/(self.delta_t)
+        fields['v'] *= (self.delta_x)/(self.delta_t)
 
-        fields['u'] = (self.L/self.T)*u_d
-        fields['v'] = (self.L/self.T)*v_d
+        return fields
+
+    def get_physical_fields(self):
+        fields = self.get_nondim_fields()
+
+        fields['u'] *= (self.L/self.T)
+        fields['v'] *= (self.L/self.T)
 
         return fields
 
