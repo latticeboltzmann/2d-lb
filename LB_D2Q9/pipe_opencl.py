@@ -278,6 +278,98 @@ class Pipe_Flow(object):
         results['feq'] = feq
         return results
 
+class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
+
+    def __init__(self, u_w=0.1, **kwargs):
+        #defining inlet velocity on the west side of the domain
+        self.u_w=u_w
+        self.u_e=u_w
+
+        super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+
+    def move_bcs(self):
+        self.kernels.move_bcs_PeriodicBC_VelocityInlet(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f, 
+                                self.u,
+                                np.float32(self.u_w), 
+                                np.float32(self.u_e),
+                                np.int32(self.nx), 
+                                np.int32(self.ny)).wait()
+
+    def init_hydro(self):
+            nx = self.nx
+            ny = self.ny
+
+            # Initialize arrays on the host
+            rho_host = np.ones((nx, ny), dtype=np.float32, order='F')
+            
+            u_host = np.ones((nx, ny))*self.u_w
+            u_host = u_host.astype(np.float32, order='F') # Fluctuations in the fluid; small
+            
+
+            v_host = np.zeros((nx, ny)).astype(np.float32, order='F')  # Fluctuations in the fluid; small
+            
+
+            # Transfer arrays to the device
+            self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
+            self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
+            self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
+
+    def update_hydro(self):
+        self.kernels.update_hydro_PeriodicBC_VelocityInlet(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f, 
+                                self.u, 
+                                self.v, 
+                                self.rho,
+                                np.float32(self.u_w), 
+                                np.float32(self.u_e),
+                                np.int32(self.nx), 
+                                np.int32(self.ny)).wait()
+
+class Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet(Pipe_Flow_PeriodicBC_VelocityInlet):
+
+    def __init__(self, obstacle_mask=None, **kwargs):
+        """Obstacle mask should be ones and zeros."""
+
+        # It is unfortunately annoying to do this, as we need to initialize the opencl kernel before anything else...ugh.
+        # Ah, nevermind, it's fine. We just have to create the obstacle mask in a sub function.
+
+        assert (obstacle_mask is not None) # If there are no obstacles, this will definitely not run.
+        assert (np.sum(obstacle_mask) != 0) # Make sure at least one pixel is an obstacle.
+
+        obstacle_mask = np.asfortranarray(obstacle_mask)
+
+        self.obstacle_mask_host = obstacle_mask.astype(np.int32)
+
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+
+    def init_hydro(self):
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).init_hydro()
+
+        # Now create the obstacle mask on the device
+        self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                       hostbuf=self.obstacle_mask_host)
+
+        # Based on where the obstacle mask is, set velocity to zero, as appropriate.
+
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
+
+    def update_hydro(self):
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).update_hydro()
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
+
+    def move_bcs(self):
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).move_bcs()
+
+        # Now bounceback on the obstacle
+        self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                            self.obstacle_mask, self.f,
+                                            np.int32(self.nx), np.int32(self.ny)).wait()
+        
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
     def __init__(self, obstacle_mask=None, **kwargs):
