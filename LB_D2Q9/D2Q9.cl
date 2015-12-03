@@ -280,7 +280,8 @@ move_bcs(__global float *f_global,
 }
 // ############ Periodic BC and Inlet Velocity Code ################
 __kernel void
-move_bcs_PeriodicBC_VelocityInlet(__global float *f_global,
+move_bcs_PeriodicBC_VelocityInlet(
+         __global float *f_global,
          __global float *u_global,
          const float u_w, 
          const float u_e,
@@ -314,7 +315,7 @@ move_bcs_PeriodicBC_VelocityInlet(__global float *f_global,
         }
         // OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
         if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
-            float rho_e = (1./1.+u_e)*(f0+f2+f4+2.*(f1+f5+f8));
+            float rho_e = (1./(1.+u_e))*(f0+f2+f4+2.*(f1+f5+f8));
             f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*rho_e*u_e;
             f_global[6*ny*nx + two_d_index] = f5 + (1./2.)*(f2-f4) - (1./6.)*rho_e*u_e;
             f_global[7*ny*nx + two_d_index] = f8 - (1./2.)*(f2-f4) - (1./6.)*rho_e*u_e;
@@ -339,7 +340,8 @@ move_bcs_PeriodicBC_VelocityInlet(__global float *f_global,
 }
 
 __kernel void
-update_hydro_PeriodicBC_VelocityInlet(__global float *f_global,
+update_hydro_PeriodicBC_VelocityInlet(
+             __global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
@@ -376,12 +378,14 @@ update_hydro_PeriodicBC_VelocityInlet(__global float *f_global,
         //Now do the boundary conditions. It is faster to do it here so we don't have to
         //reread variables! I think two if statements are needed...I don't see a way around it.
 
-        if (x==0){
+        // updating at the inlet
+        if ((x==0) && (y!=0) && (y<ny-1)){
             rho_global[two_d_index] = (1./(1.-u_w))*(f0+f2+f4+2.*(f3+f6+f7));
             u_global[two_d_index] = u_w;
         }
-        if (x==nx-1){
-            rho_global[two_d_index] = (1./(1.-u_e))*(f0+f2+f4+2.*(f1+f5+f8));
+        // updating at the outlet
+        if ((x==nx-1) && (y!=0) && (y<ny-1)){
+            rho_global[two_d_index] = (1./(1.+u_e))*(f0+f2+f4+2.*(f1+f5+f8));
             u_global[two_d_index] = u_e;
         }
         

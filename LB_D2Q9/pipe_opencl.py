@@ -297,17 +297,23 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
                                 np.int32(self.ny)).wait()
 
     def init_hydro(self):
-        nx = self.nx
-        ny = self.ny
+            nx = self.nx
+            ny = self.ny
 
-        self.rho = np.ones((nx, ny), dtype=np.float32)
+            # Initialize arrays on the host
+            rho_host = np.ones((nx, ny), dtype=np.float32, order='F')
+            
+            u_host = np.ones((nx, ny))*self.u_w
+            u_host = u_host.astype(np.float32, order='F') # Fluctuations in the fluid; small
+            
 
-        self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
-        self.v = np.zeros((nx, ny)) 
-        
-        self.u[:,:]=self.u_w
-        self.v[:,:]=0
+            v_host = np.zeros((nx, ny)).astype(np.float32, order='F')  # Fluctuations in the fluid; small
+            
 
+            # Transfer arrays to the device
+            self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
+            self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
+            self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
 
     def update_hydro(self):
         self.kernels.update_hydro_PeriodicBC_VelocityInlet(self.queue, self.two_d_global_size, self.two_d_local_size,
@@ -319,8 +325,8 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
                                 np.float32(self.u_e),
                                 np.int32(self.nx), 
                                 np.int32(self.ny)).wait()
-        
 
+        
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
     def __init__(self, obstacle_mask=None, **kwargs):
