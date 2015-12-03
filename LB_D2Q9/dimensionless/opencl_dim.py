@@ -13,6 +13,7 @@ float_size = ct.sizeof(ct.c_float)
 # Get path to *this* file. Necessary when reading in opencl code.
 full_path = os.path.realpath(__file__)
 file_dir = os.path.dirname(full_path)
+parent_dir = os.path.dirname(file_dir)
 
 ##########################
 ##### D2Q9 parameters ####
@@ -196,7 +197,7 @@ class Pipe_Flow(object):
         print 'This context is associated with ', len(self.context.devices), 'devices'
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
-        self.kernels = cl.Program(self.context, open(file_dir + '/D2Q9.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9.cl').read()).build(options='')
 
     def init_hydro(self):
         nx = self.nx
