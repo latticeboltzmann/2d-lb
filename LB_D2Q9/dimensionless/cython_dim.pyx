@@ -48,7 +48,7 @@ class Pipe_Flow(object):
 
 
     def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
-                 N=200, time_prefactor = 1.):
+                 N=100, time_prefactor = 1.):
 
          # Physical units
         self.phys_diameter = diameter
@@ -168,6 +168,12 @@ class Pipe_Flow(object):
 
         u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
         v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+
+        # 0 velocity on walls
+        u[:, 0] = 0
+        u[:, self.ly] = 0
+        v[:, 0] = 0
+        v[:, self.ly] = 0
 
         # Deal with boundary conditions...have to specify pressure
         lx = self.lx
@@ -340,14 +346,14 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
         ## Initialize the obstacle mask
-        self.obstacle_mask = np.zeros((self.nx, self.ny), dtype=np.int32, order='F')
+        self.obstacle_mask = np.zeros((self.nx, self.ny), dtype=np.bool, order='F')
 
         # Initialize the obstacle in the correct place
         x_cylinder = self.N * self.phys_cylinder_center[0]/self.L
         y_cylinder = self.N * self.phys_cylinder_center[1]/self.L
 
         circle = ski.draw.circle(x_cylinder, y_cylinder, self.N)
-        self.obstacle_mask[circle[0], circle[1]] = 1
+        self.obstacle_mask[circle[0], circle[1]] = True
 
     def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
         """Obstacle mask should be ones and zeros."""
