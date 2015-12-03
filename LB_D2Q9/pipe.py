@@ -414,6 +414,63 @@ class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
         u[lx, 1:ly] =u_e
         rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
 
+class Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet(Pipe_Flow_PeriodicBC_VelocityInlet):
+
+    def __init__(self, obstacle_mask=None, **kwargs):
+        self.obstacle_mask = obstacle_mask
+        self.obstacle_pixels = np.where(self.obstacle_mask)
+
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+
+    def init_hydro(self):
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).init_hydro()
+        self.u[self.obstacle_mask] = 0
+        self.v[self.obstacle_mask] = 0
+
+    def update_hydro(self):
+        super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).update_hydro()
+        self.u[self.obstacle_mask] = 0
+        self.v[self.obstacle_mask] = 0
+
+    def move_bcs(self):
+        Pipe_Flow_PeriodicBC_VelocityInlet.move_bcs(self)
+
+        # Now bounceback on the obstacle
+        x_list = self.obstacle_pixels[0]
+        y_list = self.obstacle_pixels[1]
+        num_pixels = y_list.shape[0]
+
+        f = self.f
+
+
+        for i in range(num_pixels):
+            x = x_list[i]
+            y = y_list[i]
+
+            old_f0 = f[0, x, y]
+            old_f1 = f[1, x, y]
+            old_f2 = f[2, x, y]
+            old_f3 = f[3, x, y]
+            old_f4 = f[4, x, y]
+            old_f5 = f[5, x, y]
+            old_f6 = f[6, x, y]
+            old_f7 = f[7, x, y]
+            old_f8 = f[8, x, y]
+
+            # Bounce back everywhere!
+            # left right
+            f[1, x, y] = old_f3
+            f[3, x, y] = old_f1
+            # up down
+            f[2, x, y] = old_f4
+            f[4, x, y] = old_f2
+            # up-right
+            f[5, x, y] = old_f7
+            f[7, x, y] = old_f5
+
+            # up-left
+            f[6, x, y] = old_f8
+            f[8, x, y] = old_f6
 
 class Pipe_Flow_Obstacles(Pipe_Flow):
 
