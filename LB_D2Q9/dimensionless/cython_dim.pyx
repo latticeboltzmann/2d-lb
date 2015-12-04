@@ -47,10 +47,10 @@ class Pipe_Flow(object):
         self.ny = self.ly + 1 # Total size of grid in y including boundary
 
 
-    def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
+    def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=1., pipe_length=None,
                  N=100, time_prefactor = 1.):
 
-         # Physical units
+        # Physical units
         self.phys_diameter = diameter
         self.phys_rho = rho
         self.phys_visc = viscosity
@@ -80,19 +80,6 @@ class Pipe_Flow(object):
         self.ny = None
         self.initialize_grid_dims()
 
-        # Get the non-dimensional pressure gradient
-        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
-        # Obtain the difference in density (pressure) at the inlet & outlet
-        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
-
-        # Assume deltaP is negative. So, outlet will have a smaller density.
-
-        self.outlet_rho = 1.
-        self.inlet_rho = 1. + np.abs(delta_rho)
-
-        print 'inlet rho:' , self.inlet_rho
-        print 'outlet rho:', self.outlet_rho
-
         self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re)
 
         # Get omega from lb_viscosity
@@ -101,6 +88,8 @@ class Pipe_Flow(object):
         assert self.omega < 2.
 
         ## Initialize hydrodynamic variables
+        self.inlet_rho = None
+        self.outlet_rho = None
         self.rho = None # Density
         self.u = None # Horizontal flow
         self.v = None # Vertical flow
@@ -117,6 +106,18 @@ class Pipe_Flow(object):
     def init_hydro(self):
         nx = self.nx
         ny = self.ny
+
+        # Create the inlet & outlet densities
+        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
+        # Obtain the difference in density (pressure) at the inlet & outlet
+        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
+
+        self.outlet_rho = 1.
+        self.inlet_rho = 1. + np.abs(delta_rho)
+
+        print 'inlet rho:' , self.inlet_rho
+        print 'outlet rho:', self.outlet_rho
+
 
         self.rho = np.ones((nx, ny), dtype=np.float32)
         self.rho[0, :] = self.inlet_rho
@@ -424,14 +425,43 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 
 ### Matt Stuff ###
 
-# class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
+# class Velocity_Inlet_Cylinder(Pipe_Flow_Cylinder):
 #
-#     def __init__(self, u_w=0.1, **kwargs):
-#         #defining inlet velocity on the west side of the domain
-#         self.u_w=u_w
-#         self.u_e=u_w
+#     def __init__(self, *args, inlet_velocity=None, **kwargs):
 #
-#         super(Pipe_Flow_PeriodicBC_VelocityInlet, self).__init__(**kwargs)
+#         assert inlet_velocity is not None
+#         self.phys_inlet_velocity = inlet_velocity
+#         self.dim_inlet_velocity = None
+#         self.lb_inlet_velocity = None
+#
+#         super(Velocity_Inlet_Cylinder, self).__init__(**kwargs)
+#
+#
+#     def set_characteristic_length_time(self):
+#         """Necessary for subclassing"""
+#         self.L = self.phys_cylinder_radius
+#         self.T = self.phys_cylinder_radius/self.phys_inlet_velocity
+#
+#         self.dim_inlet_velocity = (self.T/self.L) * self.phys_inlet_velocity
+#
+#     def initialize_grid_dims(self):
+#         """Necessary for subclassing"""
+#
+#         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
+#         self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
+#
+#         self.nx = self.lx + 1 # Total size of grid in x including boundary
+#         self.ny = self.ly + 1 # Total size of grid in y including boundary
+#
+#         ## Initialize the obstacle mask
+#         self.obstacle_mask = np.zeros((self.nx, self.ny), dtype=np.bool, order='F')
+#
+#         # Initialize the obstacle in the correct place
+#         x_cylinder = self.N * self.phys_cylinder_center[0]/self.L
+#         y_cylinder = self.N * self.phys_cylinder_center[1]/self.L
+#
+#         circle = ski.draw.circle(x_cylinder, y_cylinder, self.N)
+#         self.obstacle_mask[circle[0], circle[1]] = True
 #
 #     def move_bcs(self):
 #         """This is slow; cythonizing makes it fast."""
@@ -439,20 +469,18 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 #         cdef int lx = self.lx
 #         cdef int ly = self.ly
 #
-#         cdef float u_w = self.u_w
-#         cdef float u_e = self.u_e
+#         cdef float u_w = self.lb_inlet_velocity
+#         cdef float u_e = self.lb_inlet_velocity
 #
 #         cdef float[:,:,:] farr = self.f
-#         cdef float[:] rho_w = np.zeros((ly),dtype=np.float32)
-#         cdef float[:] rho_e = np.zeros((ly),dtype=np.float32)
+#         cdef float[:] rho_w = self.rho[0, 1:ly]
+#         cdef float[:] rho_e = self.rho[lx, 1:ly]
 #
 #         cdef float[:,:,:] f = self.f
 #         cdef int ii
 #
-#
 #         for ii in range(1,ly):
 #             # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
-#             rho_w[ii] = (1./(1.-u_w))*(farr[0,0,ii]+farr[2,0,ii]+farr[4,0,ii]+2.*(farr[3,0,ii]+farr[6,0,ii]+farr[7,0,ii]))
 #
 #             farr[1, 0, ii] = farr[3,0,ii] + (2./3.)*rho_w[ii]*u_w
 #             farr[5, 0, ii] = farr[7,0,ii] - (1./2.)*(farr[2,0,ii]-farr[4,0,ii]) + (1./6.)*rho_w[ii]*u_w
@@ -477,8 +505,48 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 #             f[6,ii,0] = f[6,ii,ly]
 #             f[5,ii,0] = f[5,ii,ly]
 #
+#         # Now bounceback on the obstacle
+#         cdef long[:] x_list = self.obstacle_pixels[0]
+#         cdef long[:] y_list = self.obstacle_pixels[1]
+#         cdef int num_pixels = y_list.shape[0]
+#
+#         cdef float old_f0, old_f1, old_f2, old_f3, old_f4, old_f5, old_f6, old_f7, old_f8
+#         cdef int j
+#         cdef long x, y
+#
+#         with nogil:
+#             for j in range(num_pixels):
+#                 x = x_list[j]
+#                 y = y_list[j]
+#
+#                 old_f0 = f[0, x, y]
+#                 old_f1 = f[1, x, y]
+#                 old_f2 = f[2, x, y]
+#                 old_f3 = f[3, x, y]
+#                 old_f4 = f[4, x, y]
+#                 old_f5 = f[5, x, y]
+#                 old_f6 = f[6, x, y]
+#                 old_f7 = f[7, x, y]
+#                 old_f8 = f[8, x, y]
+#
+#                 # Bounce back everywhere!
+#                 # left right
+#                 f[1, x, y] = old_f3
+#                 f[3, x, y] = old_f1
+#                 # up down
+#                 f[2, x, y] = old_f4
+#                 f[4, x, y] = old_f2
+#                 # up-right
+#                 f[5, x, y] = old_f7
+#                 f[7, x, y] = old_f5
+#
+#                 # up-left
+#                 f[6, x, y] = old_f8
+#                 f[8, x, y] = old_f6
 #
 #     def init_hydro(self):
+#         """We have to initialize everything is dimensionless units!"""
+#
 #         nx = self.nx
 #         ny = self.ny
 #
@@ -487,9 +555,14 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 #         self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
 #         self.v = np.zeros((nx, ny))
 #
-#         self.u[:,:]=self.u_w
+#         self.lb_inlet_velocity = self.dim_inlet_velocity * (self.delta_t/self.delta_x)
+#
+#         self.u[:,:]=self.lb_inlet_velocity
 #         self.v[:,:]=0
 #
+#         # Zero velocity in the obstacles...not taken care of as we don't call super
+#         self.u[self.obstacle_mask] = 0
+#         self.v[self.obstacle_mask] = 0
 #
 #     def update_hydro(self):
 #         f = self.f
@@ -504,12 +577,12 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 #         u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
 #         v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
 #
-#         # Deal with boundary conditions...have to specify pressure
+#         # Deal with boundary conditions...
 #         lx = self.lx
 #         ly = self.ly
 #
-#         u_w=self.u_w
-#         u_e=self.u_e
+#         u_w=self.lb_inlet_velocity
+#         u_e=self.lb_inlet_velocity
 #
 #         # INLET: define the density and prescribe the velocity
 #         u[0, 1:ly] = u_w
@@ -517,129 +590,7 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 #         # OUTLET: define the density and prescribe the velocity
 #         u[lx, 1:ly] =u_e
 #         rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
-# #TODO: Replace the below with multiple inheritance!
-# class Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet(Pipe_Flow_PeriodicBC_VelocityInlet):
 #
-#     def __init__(self, *args, obstacle_mask=None, **kwargs):
-#
-#         self.obstacle_mask = obstacle_mask
-#         self.obstacle_pixels = np.where(self.obstacle_mask)
-#
-#         super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).__init__(*args, **kwargs)
-#
-#     def init_hydro(self):
-#         super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).init_hydro()
+#         # Zero velocity in the obstacle
 #         self.u[self.obstacle_mask] = 0
 #         self.v[self.obstacle_mask] = 0
-#
-#     def update_hydro(self):
-#         super(Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet, self).update_hydro()
-#         self.u[self.obstacle_mask] = 0
-#         self.v[self.obstacle_mask] = 0
-#
-#     def move_bcs(self):
-#         Pipe_Flow_PeriodicBC_VelocityInlet.move_bcs(self)
-#
-#         # Now bounceback on the obstacle
-#         cdef long[:] x_list = self.obstacle_pixels[0]
-#         cdef long[:] y_list = self.obstacle_pixels[1]
-#         cdef int num_pixels = y_list.shape[0]
-#
-#         cdef float[:, :, :] f = self.f
-#
-#         cdef float old_f0, old_f1, old_f2, old_f3, old_f4, old_f5, old_f6, old_f7, old_f8
-#         cdef int i
-#         cdef long x, y
-#
-#         with nogil:
-#             for i in range(num_pixels):
-#                 x = x_list[i]
-#                 y = y_list[i]
-#
-#                 old_f0 = f[0, x, y]
-#                 old_f1 = f[1, x, y]
-#                 old_f2 = f[2, x, y]
-#                 old_f3 = f[3, x, y]
-#                 old_f4 = f[4, x, y]
-#                 old_f5 = f[5, x, y]
-#                 old_f6 = f[6, x, y]
-#                 old_f7 = f[7, x, y]
-#                 old_f8 = f[8, x, y]
-#
-#                 # Bounce back everywhere!
-#                 # left right
-#                 f[1, x, y] = old_f3
-#                 f[3, x, y] = old_f1
-#                 # up down
-#                 f[2, x, y] = old_f4
-#                 f[4, x, y] = old_f2
-#                 # up-right
-#                 f[5, x, y] = old_f7
-#                 f[7, x, y] = old_f5
-#
-#                 # up-left
-#                 f[6, x, y] = old_f8
-#                 f[8, x, y] = old_f6
-#
-# class Pipe_Flow_Obstacles(Pipe_Flow):
-#
-#     def __init__(self, *args, obstacle_mask=None, **kwargs):
-#
-#         self.obstacle_mask = obstacle_mask
-#         self.obstacle_pixels = np.where(self.obstacle_mask)
-#
-#         super(Pipe_Flow_Obstacles, self).__init__(*args, **kwargs)
-#
-#     def init_hydro(self):
-#         super(Pipe_Flow_Obstacles, self).init_hydro()
-#         self.u[self.obstacle_mask] = 0
-#         self.v[self.obstacle_mask] = 0
-#
-#     def update_hydro(self):
-#         super(Pipe_Flow_Obstacles, self).update_hydro()
-#         self.u[self.obstacle_mask] = 0
-#         self.v[self.obstacle_mask] = 0
-#
-#     def move_bcs(self):
-#         Pipe_Flow.move_bcs(self)
-#
-#         # Now bounceback on the obstacle
-#         cdef long[:] x_list = self.obstacle_pixels[0]
-#         cdef long[:] y_list = self.obstacle_pixels[1]
-#         cdef int num_pixels = y_list.shape[0]
-#
-#         cdef float[:, :, :] f = self.f
-#
-#         cdef float old_f0, old_f1, old_f2, old_f3, old_f4, old_f5, old_f6, old_f7, old_f8
-#         cdef int i
-#         cdef long x, y
-#
-#         with nogil:
-#             for i in range(num_pixels):
-#                 x = x_list[i]
-#                 y = y_list[i]
-#
-#                 old_f0 = f[0, x, y]
-#                 old_f1 = f[1, x, y]
-#                 old_f2 = f[2, x, y]
-#                 old_f3 = f[3, x, y]
-#                 old_f4 = f[4, x, y]
-#                 old_f5 = f[5, x, y]
-#                 old_f6 = f[6, x, y]
-#                 old_f7 = f[7, x, y]
-#                 old_f8 = f[8, x, y]
-#
-#                 # Bounce back everywhere!
-#                 # left right
-#                 f[1, x, y] = old_f3
-#                 f[3, x, y] = old_f1
-#                 # up down
-#                 f[2, x, y] = old_f4
-#                 f[4, x, y] = old_f2
-#                 # up-right
-#                 f[5, x, y] = old_f7
-#                 f[7, x, y] = old_f5
-#
-#                 # up-left
-#                 f[6, x, y] = old_f8
-#                 f[8, x, y] = old_f6
