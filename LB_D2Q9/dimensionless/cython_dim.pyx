@@ -1,5 +1,5 @@
 #cython: profile=True
-#cython: linetrace=True
+#cython: linetrace=False
 #cython: boundscheck=False
 #cython: initializedcheck=False
 #cython: nonecheck=False
