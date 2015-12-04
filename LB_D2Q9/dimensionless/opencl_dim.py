@@ -94,19 +94,6 @@ class Pipe_Flow(object):
         self.ny = None
         self.initialize_grid_dims()
 
-        # Get the non-dimensional pressure gradient
-        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
-        # Obtain the difference in density (pressure) at the inlet & outlet
-        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
-
-        # Assume deltaP is negative. So, outlet will have a smaller density.
-
-        self.outlet_rho = 1.
-        self.inlet_rho = 1. + np.abs(delta_rho)
-
-        print 'inlet rho:' , self.inlet_rho
-        print 'outlet rho:', self.outlet_rho
-
         self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re)
 
         # Get omega from lb_viscosity
@@ -142,6 +129,8 @@ class Pipe_Flow(object):
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
+        self.inlet_rho = None
+        self.outlet_rho = None
         self.rho = None # Density
         self.u = None # Horizontal flow
         self.v = None # Vertical flow
@@ -202,6 +191,17 @@ class Pipe_Flow(object):
     def init_hydro(self):
         nx = self.nx
         ny = self.ny
+
+        # Create the inlet & outlet densities
+        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
+        # Obtain the difference in density (pressure) at the inlet & outlet
+        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
+
+        self.outlet_rho = 1.
+        self.inlet_rho = 1. + np.abs(delta_rho)
+
+        print 'inlet rho:' , self.inlet_rho
+        print 'outlet rho:', self.outlet_rho
 
         # Initialize arrays on the host
         rho_host = self.inlet_rho*np.ones((nx, ny), dtype=np.float32, order='F')
