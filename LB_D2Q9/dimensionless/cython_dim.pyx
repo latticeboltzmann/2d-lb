@@ -517,7 +517,7 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 #         # OUTLET: define the density and prescribe the velocity
 #         u[lx, 1:ly] =u_e
 #         rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
-#
+# #TODO: Replace the below with multiple inheritance!
 # class Pipe_Flow_Obstacles_PeriodicBC_VelocityInlet(Pipe_Flow_PeriodicBC_VelocityInlet):
 #
 #     def __init__(self, *args, obstacle_mask=None, **kwargs):
