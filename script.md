@@ -1,12 +1,21 @@
 # Intro
 
-MF: My name is Matt Fernandes
+MF: Hello everyome, my name is Matt Fernandes
 
 BW: I am Bryan Weinstein. 
 
 MF: And in this video we will be showing you a parallel implementation of the Lattice Boltzmann Method modeling a continuum scale fluid dynamics problem. First, Bryan, explain to us why are we using the Lattice Boltzman method and what in the world is it?
 
-BW: Matt, the LBM is 
+BW: Matt -- the LBM is a method that uses local dynamic hoppers that interact with each other allowing us to calculate the field flow localy. We do this by calculating the density of these hoppers and update its location based on a stochastic approximation.  In turn, we are able to eliminate the nasty non-linearity implicit in the analytical continuum model known as the Navier-Stokes equation. 
+
+MF: But how can we benefit from using multiple threads to solve this problem? What are advantages of using the lattice boltzmann method?
+
+BW: The mothod is perfect for parallelization and can make great use of an architecture like the GPU because there is no limit in how much you can divide up the work between each processor. Except for potentially along the boundaries where we impose different boundary conditions, but even there most of times it is possible to parallelize. 
+
+MF: Can we use complicated geometries as well? 
+
+BW: Yes, as matter of fact we can use almost anything we want, as long as we refine the discretization well enough. The method is even great for computing flows around sharp corners, where other mothos would run into singularities. 
+
 * Instead of calculating derivatives in a nonlocal manner, lattice boltzmann uses a variety of hoppers that dynamically
 update the field locally
    * You track the position and velocity of each jumper and extract the fields from them.
