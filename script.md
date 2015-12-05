@@ -1,4 +1,4 @@
-# Intro
+# Script
 
 MF: Hello everyome, my name is Matt Fernandes
 
@@ -28,6 +28,10 @@ MF: Now let's look at the simulations results in action. Bryan, explain to what 
 
 BW: 
 
+# Outline
+
+## Intro
+
 * Instead of calculating derivatives in a nonlocal manner, lattice boltzmann uses a variety of hoppers that dynamically
 update the field locally
    * You track the position and velocity of each jumper and extract the fields from them.
@@ -43,7 +47,7 @@ parallelizable.
 
 * Obeys all conservation laws such for the underlying flow, giving the simulations additional accuracy
 
-# Performance Improvements: Second
+## Performance Improvements: Second
 
 * Created an equivalent simulation in python, cython, and opencl.
 * cython was 10x faster than python, opencl was 650x faster than python on a GTX titan black video card. 
@@ -57,7 +61,7 @@ parallelizable.
 * Verified that simulations at different resolutions converged to the correct scaled theoretical solution.
 
 
-# Our simulations
+## Our simulations
 
 * Confirmed different flow regimes around cylinder, i.e. vortex eddies
 * Could simulate in wacky geometries easily, i.e. CS205 simulation
