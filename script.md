@@ -2,9 +2,9 @@
 
 MF: Hello everyome, my name is Matt Fernandes
 
-BW: I am Bryan Weinstein. 
+BW: and I am Bryan Weinstein. 
 
-MF: And in this video we will be showing you a parallel implementation of the Lattice Boltzmann Method modeling a continuum scale fluid dynamics problem. First, Bryan, explain to us why are we using the Lattice Boltzman method and what in the world is it?
+MF: In this video we will be showing you a parallel implementation of the Lattice Boltzmann Method modeling a continuum scale fluid dynamics problem. First, Bryan, explain to us, why are we using the Lattice Boltzman method and what in the world is it?
 
 BW: Matt -- the Lattice boltzmann is a method that uses local dynamic hoppers that interact with each other allowing us to calculate the field flow localy. We do this by calculating the density of these hoppers and update its location based on a stochastic approximation.  In turn, we are able to eliminate the nasty non-linearity implicit in the analytical continuum model known as the Navier-Stokes equation. 
 
