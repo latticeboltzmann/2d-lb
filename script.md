@@ -1,8 +1,20 @@
 # Script
 
-MF: Hello everyome, my name is Matt Fernandes
+MF: Hello everyone, my name is Matt Fernandes
 
 BW: and I am Bryan Weinstein. 
+
+** Show fluid dynamics in action, von karmen sheets over an island
+
+MF: Fluid mechanics is all around us. Some problems in fluid mechanics, such as its turbulent limit, are unsolved
+    and are often called the last unsolved problems in classical physics.
+
+BW: The basic equations describing fluid dynamics have been well understood for hundreds of years. Computational
+simulations focused on discretizing the macroscopic partial differential equations have been well established as well.
+
+MF: However, a new method to simulate fluids was introduced in 1970: the lattice boltzmann technique.
+
+BW: The lattice boltzmann technique is a "mesoscopic" technique focused on 
 
 MF: In this video we will be showing you a parallel implementation of the Lattice Boltzmann Method modeling a continuum scale fluid dynamics problem. First, Bryan, explain to us, why are we using the Lattice Boltzman method and what in the world is it?
 
