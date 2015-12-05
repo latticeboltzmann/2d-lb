@@ -1,5 +1,12 @@
 # Intro
 
+MF: My name is Matt Fernandes
+
+BW: I am Bryan Weinstein. 
+
+MF: And in this video we will be showing you a parallel implementation of the Lattice Boltzmann Method modeling a continuum scale fluid dynamics problem. First, Bryan, explain to us why are we using the Lattice Boltzman method and what in the world is it?
+
+BW: Matt, the LBM is 
 * Instead of calculating derivatives in a nonlocal manner, lattice boltzmann uses a variety of hoppers that dynamically
 update the field locally
    * You track the position and velocity of each jumper and extract the fields from them.
