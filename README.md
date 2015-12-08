@@ -12,8 +12,6 @@ or
 
     pip install .
 
-when you are in the directory. Both should work. To learn how to use the code, look in the "docs" folder and run 
-the ipython notebooks there. For more details on the project and the Lattice Boltzmann technique, see our project website at
-at
+when you are in the directory with the setup.py file. Both should work. To learn how to use the code, look in the "docs" folder and run the ipython notebooks there. For more details on the project and the Lattice Boltzmann technique, see our project website at
 
 http://www.latticeboltzmann.us/
