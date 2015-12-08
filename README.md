@@ -1,6 +1,6 @@
 # 2d-lb
 
-![Vortex Sheets](https://github.com/latticeboltzmann/2d-lb/blob/master/pictures/vortex_sheets_2.png)
+![Vortex Sheets](https://github.com/latticeboltzmann/2d-lb/blob/master/pictures/vortex_sheets.png)
 
 An easy-to-read implementation of the D2Q9 Lattice-Boltzmann simulation. We have an implementation of the code in
 Cython, Python, and OpenCL. Our OpenCL code isn't too slow; we achieve roughly 325 MLUPS!
