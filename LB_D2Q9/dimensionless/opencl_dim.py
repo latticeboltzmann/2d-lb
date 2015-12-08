@@ -19,10 +19,10 @@ parent_dir = os.path.dirname(file_dir)
 ##### D2Q9 parameters ####
 ##########################
 w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
-            1./36.,1./36.,1./36.])      # weights for directions
-cx=np.array([0,1,0,-1,0,1,-1,-1,1])     # direction vector for the x direction
-cy=np.array([0,0,1,0,-1,1,1,-1,-1])     # direction vector for the y direction
-cs=1/np.sqrt(3)                         # Speed of sound on the lattice
+            1./36.,1./36.,1./36.], order='F', dtype=np.float32)      # weights for directions
+cx=np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=np.int32)     # direction vector for the x direction
+cy=np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=np.int32)     # direction vector for the y direction
+cs=1./np.sqrt(3)                         # Speed of sound on the lattice
 cs2 = cs**2                             # Speed of sound squared; a constant
 cs22 = 2*cs2                            # Two times the speed of sound squared; another constant
 cssq = 2.0/9.0                          # Another constant used in the update_feq method
