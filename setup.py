@@ -25,5 +25,6 @@ setup(
     author_email='bweinstein@seas.harvard.edu',
     description='',
     ext_modules = cythonize(extensions, annotate=True),
-    include_dirs = [np.get_include()]
+    include_dirs = [np.get_include()],
+    requires=['pyopencl', 'numpy', 'skimage', 'cython', 'seaborn']
 )
