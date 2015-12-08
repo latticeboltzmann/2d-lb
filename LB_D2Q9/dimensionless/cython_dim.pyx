@@ -109,6 +109,8 @@ class Pipe_Flow(object):
         """
         Based on the input parameters, set the characteristic length and time scales. Required to make
         the simulation dimensionless. See http://www.latticeboltzmann.us/home/model-verification for more details.
+        For pipe flow, L is the physical diameter of the pipe, and T is the time it takes the fluid moving at its
+        theoretical maximum to to move a distance of L.
         """
         self.L = self.phys_diameter
         self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
@@ -357,6 +359,10 @@ class Pipe_Flow(object):
             self.collide_particles() # Relax the nonequilibrium fields
 
     def get_fields(self):
+        """
+        :return: Returns a dictionary of all fields. More useful for the OpenCL code, where we have to transfer
+                data from the GPU to the CPU.
+        """
 
         results={}
         results['f'] = self.f
@@ -367,6 +373,9 @@ class Pipe_Flow(object):
         return results
 
     def get_nondim_fields(self):
+        """
+        :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
+        """
         fields = self.get_fields()
 
         fields['u'] *= self.delta_x/self.delta_t
@@ -375,6 +384,10 @@ class Pipe_Flow(object):
         return fields
 
     def get_physical_fields(self):
+        """
+        :return: Returns a dictionary of the fields scaled so that they are in physical form; this is probably what
+                 most users are interested in.
+        """
         fields = self.get_nondim_fields()
 
         fields['u'] *= (self.L/self.T)
@@ -383,14 +396,23 @@ class Pipe_Flow(object):
         return fields
 
 class Pipe_Flow_Cylinder(Pipe_Flow):
+    """
+    A subclass of the Pipe Flow class that simulates fluid flow around a cylinder. This class can also be "hacked"
+    in its current state to simulate flow around arbitrary obstacles. See
+    https://github.com/latticeboltzmann/2d-lb/blob/master/docs/cs205_movie.ipynb for an example of how to do so.
+    """
 
     def set_characteristic_length_time(self):
-        """Necessary for subclassing"""
+        """
+        Sets the characteristic length and time scale. For the cylinder, the characteristic length scale is
+        the cylinder radius. The characteristic time scale is the time it takes the fluid in the pipe moving at its
+        theoretical maximum to move over the cylinder.
+        """
         self.L = self.phys_cylinder_radius
         self.T = (8*self.phys_rho*self.phys_visc*self.L)/(np.abs(self.phys_pressure_grad)*self.phys_diameter**2)
 
     def initialize_grid_dims(self):
-        """Necessary for subclassing"""
+        """Initializes the grid, like above, but also initializes an appropriate mask of the obstacle."""
 
         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
         self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
@@ -409,29 +431,44 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
         self.obstacle_mask[circle[0], circle[1]] = True
 
     def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
-        """Obstacle mask should be ones and zeros."""
+        """
+        :param cylinder_center: The center of the cylinder in physical units.
+        :param cylinder_radius: The raidus of the cylinder in physical units.
+        :param kwargs: All keyword arguments required to initialize the pipe-flow class.
+        """
 
-        assert (cylinder_center is not None)
+        assert (cylinder_center is not None) # If the cylinder does not have a center, this code will explode
         assert (cylinder_radius is not None) # If there are no obstacles, this will definitely not run.
 
-        self.phys_cylinder_center = cylinder_center
-        self.phys_cylinder_radius = cylinder_radius
+        self.phys_cylinder_center = cylinder_center # Center of the cylinder in physical units
+        self.phys_cylinder_radius = cylinder_radius # Radius of the cylinder in physical units
 
-        self.obstacle_mask = None
-        super(Pipe_Flow_Cylinder, self).__init__(**kwargs)
-        self.obstacle_pixels = np.where(self.obstacle_mask)
+        self.obstacle_mask = None # A boolean mask of the location of the obstacle
+        super(Pipe_Flow_Cylinder, self).__init__(**kwargs) # Initialize the superclass
+        self.obstacle_pixels = np.where(self.obstacle_mask) # A list of x and y coordinates of the obstacle
 
     def init_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
         super(Pipe_Flow_Cylinder, self).init_hydro()
+        # The velocity inside the obstacle must be zero.
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 
     def update_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
         super(Pipe_Flow_Cylinder, self).update_hydro()
+        # The velocity inside the obstacle must be zero
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 
     def move_bcs(self):
+        """
+        Overrides the move_bcs method in Pipe_Flow
+        """
         super(Pipe_Flow_Cylinder, self).move_bcs()
 
         # Now bounceback on the obstacle
