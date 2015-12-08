@@ -421,14 +421,23 @@ class Pipe_Flow(object):
 
 
 class Pipe_Flow_Cylinder(Pipe_Flow):
+    """
+    A subclass of the Pipe Flow class that simulates fluid flow around a cylinder. This class can also be "hacked"
+    in its current state to simulate flow around arbitrary obstacles. See
+    https://github.com/latticeboltzmann/2d-lb/blob/master/docs/cs205_movie.ipynb for an example of how to do so.
+    """
 
     def set_characteristic_length_time(self):
-        """Necessary for subclassing"""
+        """
+        Sets the characteristic length and time scale. For the cylinder, the characteristic length scale is
+        the cylinder radius. The characteristic time scale is the time it takes the fluid in the pipe moving at its
+        theoretical maximum to move over the cylinder.
+        """
         self.L = self.phys_cylinder_radius
         self.T = (8*self.phys_rho*self.phys_visc*self.L)/(np.abs(self.phys_pressure_grad)*self.phys_diameter**2)
 
     def initialize_grid_dims(self):
-        """Necessary for subclassing"""
+        """Initializes the grid, like the superclass, but also initializes an appropriate mask of the obstacle."""
 
         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
         self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
@@ -448,20 +457,26 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
 
 
     def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
-        """Obstacle mask should be ones and zeros."""
+        """
+        :param cylinder_center: The center of the cylinder in physical units.
+        :param cylinder_radius: The raidus of the cylinder in physical units.
+        :param kwargs: All keyword arguments required to initialize the pipe-flow class.
+        """
 
-        assert (cylinder_center is not None)
+        assert (cylinder_center is not None) # If the cylinder does not have a center, this code will explode
         assert (cylinder_radius is not None) # If there are no obstacles, this will definitely not run.
 
-        self.phys_cylinder_center = cylinder_center
-        self.phys_cylinder_radius = cylinder_radius
+        self.phys_cylinder_center = cylinder_center # Center of the cylinder in physical units
+        self.phys_cylinder_radius = cylinder_radius # Radius of the cylinder in physical units
 
-        self.obstacle_mask_host = None
-        self.obstacle_mask = None
-        super(Pipe_Flow_Cylinder, self).__init__(**kwargs)
-
+        self.obstacle_mask_host = None # A boolean mask of the location of the obstacle
+        self.obstacle_mask = None   # A buffer of the boolean mask of the obstacle
+        super(Pipe_Flow_Cylinder, self).__init__(**kwargs) # Initialize the superclass
 
     def init_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
         super(Pipe_Flow_Cylinder, self).init_hydro()
 
         # Now create the obstacle mask on the device
@@ -469,26 +484,33 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
                                        hostbuf=self.obstacle_mask_host)
 
         # Based on where the obstacle mask is, set velocity to zero, as appropriate.
-
         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                                    self.obstacle_mask, self.u, self.v,
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
 
     def update_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
         super(Pipe_Flow_Cylinder, self).update_hydro()
+        # The velocity inside the obstacle must be zero.
         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                                    self.obstacle_mask, self.u, self.v,
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move_bcs(self):
+        """
+        Overrides the move_bcs method in Pipe_Flow
+        """
         super(Pipe_Flow_Cylinder, self).move_bcs()
-
         # Now bounceback on the obstacle
         self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                             self.obstacle_mask, self.f,
                                             np.int32(self.nx), np.int32(self.ny)).wait()
 
 ### Matt stuff ###
+
+# TODO: Make the below code when possible
 
 # class Pipe_Flow_PeriodicBC_VelocityInlet(Pipe_Flow):
 #
