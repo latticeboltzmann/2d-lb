@@ -1,11 +1,3 @@
-#cython: profile=True
-#cython: linetrace=True
-#cython: boundscheck=False
-#cython: initializedcheck=False
-#cython: nonecheck=False
-#cython: wraparound=False
-#cython: cdivision=True
-
 import numpy as np
 import skimage as ski
 
@@ -13,42 +5,45 @@ import skimage as ski
 ##### D2Q9 parameters ####
 ##########################
 w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
-            1./36.,1./36.,1./36.]) # weights for directions
-cx=np.array([0,1,0,-1,0,1,-1,-1,1]) # direction vector for the x direction
-cy=np.array([0,0,1,0,-1,1,1,-1,-1]) # direction vector for the y direction
-cs=1/np.sqrt(3)
-cs2 = cs**2
-cs22 = 2*cs2
-cssq = 2.0/9.0
+            1./36.,1./36.,1./36.])      # weights for directions
+cx=np.array([0,1,0,-1,0,1,-1,-1,1])     # direction vector for the x direction
+cy=np.array([0,0,1,0,-1,1,1,-1,-1])     # direction vector for the y direction
+cs=1/np.sqrt(3)                         # Speed of sound on the lattice
+cs2 = cs**2                             # Speed of sound squared; a constant
+cs22 = 2*cs2                            # Two times the speed of sound squared; another constant
+cssq = 2.0/9.0                          # Another constant used in the update_feq method
 
-w0 = 4./9.
-w1 = 1./9.
-w2 = 1./36.
+w0 = 4./9.                              # Weight of stationary jumpers
+w1 = 1./9.                              # Weight of horizontal and vertical jumpers
+w2 = 1./36.                             # Weight of diagonal jumpers
 
-NUM_JUMPERS = 9
+NUM_JUMPERS = 9                         # Number of jumpers for the D2Q9 lattice: 9
 
 class Pipe_Flow(object):
-    """2d pipe flow with D2Q9"""
+    """
+    Simulates pipe flow using the D2Q9 lattice. Generally used to verify that our simulations were working correctly.
+    For usage, see the docs folder.
+    """
 
-    def set_characteristic_length_time(self):
-        """Necessary for subclassing"""
-        self.L = self.phys_diameter
-        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
-
-    def initialize_grid_dims(self):
-        """Necessary for subclassing"""
-
-        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
-        self.ly = self.N
-
-        self.nx = self.lx + 1 # Total size of grid in x including boundary
-        self.ny = self.ly + 1 # Total size of grid in y including boundary
-
-
-    def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
+    def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=1., pipe_length=None,
                  N=100, time_prefactor = 1.):
+        """
+        If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
 
-         # Physical units
+        :param diameter: Physical diameter of the 2-dimensional pipe.
+        :param rho: Physical density of the fluid.
+        :param viscosity: Physical kinematic density of the fluid.
+        :param pressure_grad: Physical pressure gradient
+        :param pipe_length: Physical length of the pipe
+        :param N: Resolution of the simulation. As N increases, the simulation should become more accurate. N determines
+                  how many grid points the characteristic length scale is discretized into
+        :param time_prefactor: In order for a simulation to be accurate, in general, the dimensionless
+                               space discretization delta_t ~ delta_x^2 (see http://wiki.palabos.org/_media/howtos:lbunits.pdf).
+                               In our simulation, delta_t = time_prefactor * delta_x^2. delta_x is determined automatically
+                               by N.
+        """
+
+        # Physical units
         self.phys_diameter = diameter
         self.phys_rho = rho
         self.phys_visc = viscosity
@@ -56,8 +51,8 @@ class Pipe_Flow(object):
         self.phys_pipe_length = pipe_length
 
         # Get the characteristic length and time scales for the flow
-        self.L = None
-        self.T = None
+        self.L = None   # Characteristic length scale
+        self.T = None   # Characteristic time scale
         self.set_characteristic_length_time()
         print 'Characteristic L:', self.L
         print 'Characteristic T:', self.T
@@ -72,36 +67,62 @@ class Pipe_Flow(object):
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
         # Initialize grid dimensions
-        self.lx = None
-        self.ly = None
-        self.nx = None
-        self.ny = None
+        self.lx = None # Number of grid points in the x direction, ignoring the boundary
+        self.ly = None # Number of grid points in the y direction, ignoring the boundary
+        self.nx = None # Number of grid points in the x direction with the boundray
+        self.ny = None # Number of grid points in the y direction with the boundary
         self.initialize_grid_dims()
 
-        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re)
+        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re) # Viscosity of the lattice boltzmann simulation
 
         # Get omega from lb_viscosity
-        self.omega = (self.lb_viscosity/cs2 + 0.5)**-1.
+        self.omega = (self.lb_viscosity/cs2 + 0.5)**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
         ## Initialize hydrodynamic variables
-        self.inlet_rho = None
-        self.outlet_rho = None
-        self.rho = None # Density
-        self.u = None # Horizontal flow
-        self.v = None # Vertical flow
-        self.init_hydro()
+        self.inlet_rho = None   # The density at the inlet...pressure boundary condition
+        self.outlet_rho = None  # The density at the outlet...pressure boundary condition
+        self.rho = None # The simulation's density field
+        self.u = None # The simulation's velocity in the x direction (horizontal)
+        self.v = None # The simulation's velocity in the y direction (vertical)
+        self.init_hydro() # Create the hydrodynamic fields
 
         # Intitialize the underlying probablistic fields
+        self.f=np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float32) # Initialize f
+        self.feq = np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float32) # Initialize feq
 
-        self.f=np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float32) # initializing f
-        self.feq = np.zeros((NUM_JUMPERS, self.nx, self.ny), dtype=np.float32)
+        self.update_feq() # Based on the hydrodynamic fields, create feq
+        self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
-        self.update_feq()
-        self.init_pop()
+
+    def set_characteristic_length_time(self):
+        """
+        Based on the input parameters, set the characteristic length and time scales. Required to make
+        the simulation dimensionless. See http://www.latticeboltzmann.us/home/model-verification for more details.
+        For pipe flow, L is the physical diameter of the pipe, and T is the time it takes the fluid moving at its
+        theoretical maximum to to move a distance of L.
+        """
+        self.L = self.phys_diameter
+        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
+
+    def initialize_grid_dims(self):
+        """
+        Initializes the dimensions of the grid that the simulation will take place in. The size of the grid
+        will depend on both the physical geometry of the input system and the desired resolution N.
+        """
+
+        self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
+        self.ly = self.N
+
+        self.nx = self.lx + 1 # Total size of grid in x including boundary
+        self.ny = self.ly + 1 # Total size of grid in y including boundary
+
 
     def init_hydro(self):
+        """
+        Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity
+        """
         nx = self.nx
         ny = self.ny
 
@@ -128,7 +149,10 @@ class Pipe_Flow(object):
 
 
     def update_feq(self):
-        """Taken from sauro succi's code. This will be super easy to put on the GPU."""
+        """
+        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
+        Note that this function was based on Sauro Succi's fortran code (he figured out an efficient way to do this).
+        """
 
         u = self.u
         v = self.v
@@ -155,39 +179,23 @@ class Pipe_Flow(object):
         feq[7, :, :] = w2*rho*(1. + sumsq2 - ul - vl + uv)
         feq[8, :, :] = w2*rho*(1. + sumsq2 + ul - vl - uv)
 
-    def update_hydro(self):
-        f = self.f
+    def init_pop(self):
+        """Based on feq, create the initial population of jumpers."""
 
-        rho = self.rho
-        rho[:, :] = np.sum(f, axis=0)
-        inverse_rho = 1./self.rho
+        feq = self.feq
+        nx = self.nx
+        ny = self.ny
 
-        u = self.u
-        v = self.v
-
-        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
-        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
-
-        # 0 velocity on walls
-        u[:, 0] = 0
-        u[:, self.ly] = 0
-        v[:, 0] = 0
-        v[:, self.ly] = 0
-
-        # Deal with boundary conditions...have to specify pressure
-        lx = self.lx
-
-        rho[0, :] = self.inlet_rho
-        rho[lx, :] = self.outlet_rho
-        # INLET
-        u[0, :] = 1 - (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[3, 0, :]+f[6, 0, :]+f[7, 0, :]))/self.inlet_rho
-
-        # OUTLET
-        u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
-
+        self.f = feq.copy()
+        # We now slightly perturb f
+        amplitude = .001
+        perturb = (1. + amplitude*np.random.randn(nx, ny))
+        self.f *= perturb
 
     def move_bcs(self):
-        """This is slow; cythonizing makes it fast."""
+        """
+        Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
+        """
 
         lx = self.lx
         ly = self.ly
@@ -249,6 +257,9 @@ class Pipe_Flow(object):
         f[8, lx, ly] = .5*(-f[0,lx,ly]-2*f[1,lx,ly]-2*f[2,lx,ly]-2*f[5,lx,ly]+outlet_rho)
 
     def move(self):
+        """
+        Move all other jumpers than those on the boundary.
+        """
         f = self.f
         lx = self.lx
         ly = self.ly
@@ -271,18 +282,45 @@ class Pipe_Flow(object):
                 f[3,i,j] = f[3,i+1,j]
                 f[7,i,j] = f[7,i+1,j+1]
 
-    def init_pop(self):
-        feq = self.feq
-        nx = self.nx
-        ny = self.ny
 
-        self.f = feq.copy()
-        # We now slightly perturb f
-        amplitude = .001
-        perturb = (1. + amplitude*np.random.randn(nx, ny))
-        self.f *= perturb
+    def update_hydro(self):
+        """
+        Based on the new positions of the jumpers, update the hydrodynamic variables
+        """
+        f = self.f
+
+        rho = self.rho
+        rho[:, :] = np.sum(f, axis=0)
+        inverse_rho = 1./self.rho
+
+        u = self.u
+        v = self.v
+
+        u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+        v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+
+        # 0 velocity on walls
+        u[:, 0] = 0
+        u[:, self.ly] = 0
+        v[:, 0] = 0
+        v[:, self.ly] = 0
+
+        # Deal with boundary conditions...have to specify pressure
+        lx = self.lx
+
+        rho[0, :] = self.inlet_rho
+        rho[lx, :] = self.outlet_rho
+        # INLET
+        u[0, :] = 1 - (f[0, 0, :]+f[2, 0, :]+f[4, 0, :]+2*(f[3, 0, :]+f[6, 0, :]+f[7, 0, :]))/self.inlet_rho
+
+        # OUTLET
+        u[lx, :] = -1 + (f[0, lx, :]+f[2, lx, :]+f[4, lx, :]+2*(f[1, lx, :]+f[5, lx, :]+f[8, lx, :]))/self.outlet_rho
+
 
     def collide_particles(self):
+        """
+        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega.
+        """
         f = self.f
         feq = self.feq
         omega = self.omega
@@ -290,6 +328,13 @@ class Pipe_Flow(object):
         self.f[:, :, :] = f*(1.-omega)+omega*feq
 
     def run(self, num_iterations):
+        """
+        Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
+        to the same non-dimensional time passing, as delta_t, the time discretization, will change depending on
+        your resolution.
+
+        :param num_iterations: The number of iterations to run
+        """
         for cur_iteration in range(num_iterations):
             self.move_bcs() # We have to udpate the boundary conditions first, or we are in trouble.
             self.move() # Move all jumpers
@@ -298,6 +343,10 @@ class Pipe_Flow(object):
             self.collide_particles() # Relax the nonequilibrium fields
 
     def get_fields(self):
+        """
+        :return: Returns a dictionary of all fields. More useful for the OpenCL code, where we have to transfer
+                data from the GPU to the CPU.
+        """
 
         results={}
         results['f'] = self.f
@@ -308,6 +357,9 @@ class Pipe_Flow(object):
         return results
 
     def get_nondim_fields(self):
+        """
+        :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
+        """
         fields = self.get_fields()
 
         fields['u'] *= self.delta_x/self.delta_t
@@ -316,6 +368,10 @@ class Pipe_Flow(object):
         return fields
 
     def get_physical_fields(self):
+        """
+        :return: Returns a dictionary of the fields scaled so that they are in physical form; this is probably what
+                 most users are interested in.
+        """
         fields = self.get_nondim_fields()
 
         fields['u'] *= (self.L/self.T)
@@ -324,14 +380,23 @@ class Pipe_Flow(object):
         return fields
 
 class Pipe_Flow_Cylinder(Pipe_Flow):
+    """
+    A subclass of the Pipe Flow class that simulates fluid flow around a cylinder. This class can also be "hacked"
+    in its current state to simulate flow around arbitrary obstacles. See
+    https://github.com/latticeboltzmann/2d-lb/blob/master/docs/cs205_movie.ipynb for an example of how to do so.
+    """
 
     def set_characteristic_length_time(self):
-        """Necessary for subclassing"""
+        """
+        Sets the characteristic length and time scale. For the cylinder, the characteristic length scale is
+        the cylinder radius. The characteristic time scale is the time it takes the fluid in the pipe moving at its
+        theoretical maximum to move over the cylinder.
+        """
         self.L = self.phys_cylinder_radius
         self.T = (8*self.phys_rho*self.phys_visc*self.L)/(np.abs(self.phys_pressure_grad)*self.phys_diameter**2)
 
     def initialize_grid_dims(self):
-        """Necessary for subclassing"""
+        """Initializes the grid, like above, but also initializes an appropriate mask of the obstacle."""
 
         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
         self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
@@ -350,29 +415,44 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
         self.obstacle_mask[circle[0], circle[1]] = True
 
     def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
-        """Obstacle mask should be ones and zeros."""
+        """
+        :param cylinder_center: The center of the cylinder in physical units.
+        :param cylinder_radius: The raidus of the cylinder in physical units.
+        :param kwargs: All keyword arguments required to initialize the pipe-flow class.
+        """
 
-        assert (cylinder_center is not None)
+        assert (cylinder_center is not None) # If the cylinder does not have a center, this code will explode
         assert (cylinder_radius is not None) # If there are no obstacles, this will definitely not run.
 
-        self.phys_cylinder_center = cylinder_center
-        self.phys_cylinder_radius = cylinder_radius
+        self.phys_cylinder_center = cylinder_center # Center of the cylinder in physical units
+        self.phys_cylinder_radius = cylinder_radius # Radius of the cylinder in physical units
 
-        self.obstacle_mask = None
-        super(Pipe_Flow_Cylinder, self).__init__(**kwargs)
-        self.obstacle_pixels = np.where(self.obstacle_mask)
+        self.obstacle_mask = None # A boolean mask of the location of the obstacle
+        super(Pipe_Flow_Cylinder, self).__init__(**kwargs) # Initialize the superclass
+        self.obstacle_pixels = np.where(self.obstacle_mask) # A list of x and y coordinates of the obstacle
 
     def init_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
         super(Pipe_Flow_Cylinder, self).init_hydro()
+        # The velocity inside the obstacle must be zero.
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 
     def update_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
         super(Pipe_Flow_Cylinder, self).update_hydro()
+        # The velocity inside the obstacle must be zero
         self.u[self.obstacle_mask] = 0
         self.v[self.obstacle_mask] = 0
 
     def move_bcs(self):
+        """
+        Overrides the move_bcs method in Pipe_Flow
+        """
         super(Pipe_Flow_Cylinder, self).move_bcs()
 
         # Now bounceback on the obstacle
@@ -411,4 +491,176 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
             f[6, x, y] = old_f8
             f[8, x, y] = old_f6
 
-### Matt Stuff; will copy from cython when ready ###
+### Matt Stuff ###
+
+#TODO: Make the below work
+
+# class Velocity_Inlet_Cylinder(Pipe_Flow_Cylinder):
+#
+#     def __init__(self, *args, inlet_velocity=None, **kwargs):
+#
+#         assert inlet_velocity is not None
+#         self.phys_inlet_velocity = inlet_velocity
+#         self.dim_inlet_velocity = None
+#         self.lb_inlet_velocity = None
+#
+#         super(Velocity_Inlet_Cylinder, self).__init__(**kwargs)
+#
+#
+#     def set_characteristic_length_time(self):
+#         """Necessary for subclassing"""
+#         self.L = self.phys_cylinder_radius
+#         self.T = self.phys_cylinder_radius/self.phys_inlet_velocity
+#
+#         self.dim_inlet_velocity = (self.T/self.L) * self.phys_inlet_velocity
+#
+#     def initialize_grid_dims(self):
+#         """Necessary for subclassing"""
+#
+#         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
+#         self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
+#
+#         self.nx = self.lx + 1 # Total size of grid in x including boundary
+#         self.ny = self.ly + 1 # Total size of grid in y including boundary
+#
+#         ## Initialize the obstacle mask
+#         self.obstacle_mask = np.zeros((self.nx, self.ny), dtype=np.bool, order='F')
+#
+#         # Initialize the obstacle in the correct place
+#         x_cylinder = self.N * self.phys_cylinder_center[0]/self.L
+#         y_cylinder = self.N * self.phys_cylinder_center[1]/self.L
+#
+#         circle = ski.draw.circle(x_cylinder, y_cylinder, self.N)
+#         self.obstacle_mask[circle[0], circle[1]] = True
+#
+#     def move_bcs(self):
+#         """This is slow; cythonizing makes it fast."""
+#
+#         cdef int lx = self.lx
+#         cdef int ly = self.ly
+#
+#         cdef float u_w = self.lb_inlet_velocity
+#         cdef float u_e = self.lb_inlet_velocity
+#
+#         cdef float[:,:,:] farr = self.f
+#         cdef float[:] rho_w = self.rho[0, 1:ly]
+#         cdef float[:] rho_e = self.rho[lx, 1:ly]
+#
+#         cdef float[:,:,:] f = self.f
+#         cdef int ii
+#
+#         for ii in range(1,ly):
+#             # INLET: imposed velocity of u_w in the x direction and 0 in the y direction
+#
+#             farr[1, 0, ii] = farr[3,0,ii] + (2./3.)*rho_w[ii]*u_w
+#             farr[5, 0, ii] = farr[7,0,ii] - (1./2.)*(farr[2,0,ii]-farr[4,0,ii]) + (1./6.)*rho_w[ii]*u_w
+#             farr[8, 0, ii] = farr[6,0,ii] + (1./2.)*(farr[2,0,ii]-farr[4,0,ii]) + (1./6.)*rho_w[ii]*u_w
+#
+#             # OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
+#             rho_e[ii] = (1./(1.+u_e))*(farr[0,lx,ii]+farr[2,lx,ii]+farr[4,lx,ii]+2.*(farr[1,lx,ii]+farr[5,lx,ii]+farr[8,lx,ii]))
+#
+#             farr[3, lx, ii] = farr[1,lx,ii] - (2./3.)*rho_e[ii]*u_e
+#             farr[7, lx, ii] = farr[5,lx,ii] + (1./2.)*(farr[2,lx,ii]-farr[4,lx,ii]) - (1./6.)*rho_e[ii]*u_e
+#             farr[6, lx, ii] = farr[8,lx,ii] - (1./2.)*(farr[2,lx,ii]-farr[4,lx,ii]) - (1./6.)*rho_e[ii]*u_e
+#
+#         for ii in range(0,lx+1):
+#             # NORTH periodic
+#             # update the values of f at the top with those from the bottom
+#             f[4,ii,ly] = f[4,ii,0]
+#             f[8,ii,ly] = f[8,ii,0]
+#             f[7,ii,ly] = f[7,ii,0]
+#             # SOUTH periodic
+#             #update the values of f at the bottom with those from the top
+#             f[2,ii,0] = f[2,ii,ly]
+#             f[6,ii,0] = f[6,ii,ly]
+#             f[5,ii,0] = f[5,ii,ly]
+#
+#         # Now bounceback on the obstacle
+#         cdef long[:] x_list = self.obstacle_pixels[0]
+#         cdef long[:] y_list = self.obstacle_pixels[1]
+#         cdef int num_pixels = y_list.shape[0]
+#
+#         cdef float old_f0, old_f1, old_f2, old_f3, old_f4, old_f5, old_f6, old_f7, old_f8
+#         cdef int j
+#         cdef long x, y
+#
+#         with nogil:
+#             for j in range(num_pixels):
+#                 x = x_list[j]
+#                 y = y_list[j]
+#
+#                 old_f0 = f[0, x, y]
+#                 old_f1 = f[1, x, y]
+#                 old_f2 = f[2, x, y]
+#                 old_f3 = f[3, x, y]
+#                 old_f4 = f[4, x, y]
+#                 old_f5 = f[5, x, y]
+#                 old_f6 = f[6, x, y]
+#                 old_f7 = f[7, x, y]
+#                 old_f8 = f[8, x, y]
+#
+#                 # Bounce back everywhere!
+#                 # left right
+#                 f[1, x, y] = old_f3
+#                 f[3, x, y] = old_f1
+#                 # up down
+#                 f[2, x, y] = old_f4
+#                 f[4, x, y] = old_f2
+#                 # up-right
+#                 f[5, x, y] = old_f7
+#                 f[7, x, y] = old_f5
+#
+#                 # up-left
+#                 f[6, x, y] = old_f8
+#                 f[8, x, y] = old_f6
+#
+#     def init_hydro(self):
+#         """We have to initialize everything is dimensionless units!"""
+#
+#         nx = self.nx
+#         ny = self.ny
+#
+#         self.rho = np.ones((nx, ny), dtype=np.float32)
+#
+#         self.u = np.zeros((nx, ny)) #initializing the fluid velocity matrix
+#         self.v = np.zeros((nx, ny))
+#
+#         self.lb_inlet_velocity = self.dim_inlet_velocity * (self.delta_t/self.delta_x)
+#
+#         self.u[:,:]=self.lb_inlet_velocity
+#         self.v[:,:]=0
+#
+#         # Zero velocity in the obstacles...not taken care of as we don't call super
+#         self.u[self.obstacle_mask] = 0
+#         self.v[self.obstacle_mask] = 0
+#
+#     def update_hydro(self):
+#         f = self.f
+#
+#         rho = self.rho
+#         rho[:, :] = np.sum(f, axis=0)
+#         inverse_rho = 1./self.rho
+#
+#         u = self.u
+#         v = self.v
+#
+#         u[:, :] = (f[1]-f[3]+f[5]-f[6]-f[7]+f[8])*inverse_rho
+#         v[:, :] = (f[5]+f[2]+f[6]-f[7]-f[4]-f[8])*inverse_rho
+#
+#         # Deal with boundary conditions...
+#         lx = self.lx
+#         ly = self.ly
+#
+#         u_w=self.lb_inlet_velocity
+#         u_e=self.lb_inlet_velocity
+#
+#         # INLET: define the density and prescribe the velocity
+#         u[0, 1:ly] = u_w
+#         rho[0, 1:ly] = (1./(1.-u_w))*(f[0,0,1:ly]+f[2,0,1:ly]+f[4,0,1:ly]+2.*(f[3,0,1:ly]+f[6,0,1:ly]+f[7,0,1:ly]))
+#         # OUTLET: define the density and prescribe the velocity
+#         u[lx, 1:ly] =u_e
+#         rho[lx, 1:ly] = (1./(1.+u_e))*(f[0,lx,1:ly]+f[2,lx,1:ly]+f[4,lx,1:ly]+2.*(f[1,lx,1:ly]+f[5,lx,1:ly]+f[8,lx,1:ly]))
+#
+#         # Zero velocity in the obstacle
+#         self.u[self.obstacle_mask] = 0
+#         self.v[self.obstacle_mask] = 0
