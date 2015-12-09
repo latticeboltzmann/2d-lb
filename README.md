@@ -35,7 +35,7 @@ when you are in the directory with the setup.py file. Both should work.
 
 ## How to use the code
 
-To learn how to use the code, look in the "docs" folder and run the ipython notebooks there. The
+To learn how to use the code, look in the *docs* folder and run the ipython notebooks there. The
 [CS-205 movie IPython notebook](https://github.com/latticeboltzmann/2d-lb/blob/master/docs/cs205_movie.ipynb) is a
 particularly fun place to start.
 
