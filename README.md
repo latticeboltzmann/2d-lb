@@ -9,6 +9,17 @@ For more details on the project and the Lattice Boltzmann technique, see our pro
 
 http://www.latticeboltzmann.us/
 
+# Table of Contents
+
+- [2d-lb](#)
+	- [Installation](#)
+	- [How to use the code](#)
+	- [Structure of the Code](#)
+		- [Packages](#)
+			- [OLD](#)
+			- [Dimensionless](#)
+		- [Folders](#)
+
 ## Installation
 
 To install, just use
