@@ -32,6 +32,8 @@ update_feq(__global __write_only float *feq_global,
 
     const int buf_index = LS0 * ly + lx;
 
+    // u, v, and rho are 2d buffers. We don't want to read from them more than we have to.
+    // So, we read them into local memory once as appropriate.
     barrier(CLK_LOCAL_MEM_FENCE);
     if ((lz == 0) && (x < nx) && (y < ny) && (jump_id < 9)){
         local_u[buf_index] = u_global[two_d_index];
@@ -55,7 +57,6 @@ update_feq(__global __write_only float *feq_global,
 
         float inner_feq = 1.f + cur_c_dot_u/cs2 + cur_c_dot_u*cur_c_dot_u/two_cs4 - velocity_squared/two_cs2;
 
-        //The problem is that rho is one everywhere...which does not make sense!
         float new_feq =  cur_w*rho*inner_feq;
 
         feq_global[three_d_index] = new_feq;
@@ -98,7 +99,6 @@ update_hydro(__global float *f_global,
 
         //Now do the boundary conditions. It is faster to do it here so we don't have to
         //reread variables! I think two if statements are needed...I don't see a way around it.
-
         if (x==0){
             rho_global[two_d_index] = inlet_rho;
             u_global[two_d_index] = 1 - (f0+f2+f4+2*(f3+f6+f7))/inlet_rho;
