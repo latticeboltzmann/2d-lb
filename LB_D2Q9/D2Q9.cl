@@ -230,16 +230,23 @@ move_bcs(__global float *f_global,
 
         //NORTH: solid; bounce back
         if ((y == ny-1) && (x >= 1) && (x< nx-1)){
-            f_global[4*ny*nx + two_d_index] = f2;
-            f_global[8*ny*nx + two_d_index] = f6;
-            f_global[7*ny*nx + two_d_index] = f5;
+            int below = (y-1)*nx + x;
+            int below_right = (y-1)*nx + (x+1);
+            int below_left = (y-1)*nx + (x-1);
+            f_global[4*ny*nx + two_d_index] = f_global[2*ny*nx + below];
+            f_global[8*ny*nx + two_d_index] = f_global[6*ny*nx + below_right];
+            f_global[7*ny*nx + two_d_index] = f_global[5*ny*nx + below_left];
         }
 
         //SOUTH: solid; bounce back
         if ((y == 0) && (x >= 1) && (x < nx-1)){
-            f_global[2*ny*nx + two_d_index] = f4;
-            f_global[6*ny*nx + two_d_index] = f8;
-            f_global[5*ny*nx + two_d_index] = f7;
+            int above = (y+1)*nx + x;
+            int above_right = (y+1)*nx + (x+1);
+            int above_left = (y+1)*nx + (x-1);
+
+            f_global[2*ny*nx + two_d_index] = f_global[4*ny*nx + above];
+            f_global[6*ny*nx + two_d_index] = f_global[8*ny*nx + above_left];
+            f_global[5*ny*nx + two_d_index] = f_global[7*ny*nx + above_right];
         }
 
         //Corner nodes: tricky and a huge pain! And likely very slow.
