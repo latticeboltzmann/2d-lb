@@ -107,6 +107,8 @@ update_hydro(__global float *f_global,
             rho_global[two_d_index] = outlet_rho;
             u_global[two_d_index] = -1 + (f0+f2+f4+2*(f1+f5+f8))/outlet_rho;
         }
+        // I don't think we need to implement velocity BC's on the wall, actually...
+
         if (y == 0){
             u_global[two_d_index] = 0;
             v_global[two_d_index] = 0;
@@ -251,6 +253,7 @@ move_bcs(__global float *f_global,
 
         //Corner nodes: tricky and a huge pain! And likely very slow.
         // BOTTOM INLET
+        /*
         if ((x==0) && (y==0)){
             f_global[1*ny*nx + two_d_index] = f3;
             f_global[2*ny*nx + two_d_index] = f4;
@@ -282,6 +285,20 @@ move_bcs(__global float *f_global,
             f_global[7*ny*nx + two_d_index] = f5;
             f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
             f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+        }
+        */
+        // We try applying simple bounceback and see what happens...
+        if ((x==0)&&(y==ny-1)){
+            f_global[8*ny*nx + two_d_index] = f_global[6*ny*nx + (y-1)*nx + (x+1)];
+        }
+        if ((x==0)&&(y==0)){
+            f_global[5*ny*nx + two_d_index] = f_global[7*ny*nx + (y+1)*nx + (x+1)];
+        }
+        if ((x==nx-1)&&(y==ny-1)){
+            f_global[7*ny*nx + two_d_index] = f_global[5*ny*nx + (y-1)*nx + (x-1)];
+        }
+        if ((x==nx-1) && (y==0)){
+            f_global[6*ny*nx + two_d_index] = f_global[8*ny*nx + (y+1)*nx + (x-1)];
         }
     }
 }
