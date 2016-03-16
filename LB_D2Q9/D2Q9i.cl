@@ -55,7 +55,7 @@ update_feq(__global __write_only float *feq_global,
         float cur_c_dot_u = cur_cx*u + cur_cy*v;
         float velocity_squared = u*u + v*v;
 
-        float inner_feq = rho + 3*cur_c_dot_u + (9./2.)*(cur_c_dot_u)**2 - (3./2.)*velocity_squared;
+        float inner_feq = rho + 3.*cur_c_dot_u + (9./2.)*(cur_c_dot_u*cur_c_dot_u) - (3./2.)*velocity_squared;
         float new_feq =  cur_w*rho*inner_feq;
 
         feq_global[three_d_index] = new_feq;
@@ -89,7 +89,6 @@ update_hydro(__global float *f_global,
 
         float rho = f0+f1+f2+f3+f4+f5+f6+f7+f8;
         rho_global[two_d_index] = rho;
-        float inverse_rho = 1./rho;
 
         // Boundaries are handled elsewhere. This *must* be called after move_bcs
         u_global[two_d_index] = (f1 + f5 + f8 - f6 - f3 - f7);
@@ -227,7 +226,7 @@ move_bcs(__global float *f_global,
         //OUTLET: constant pressure
         if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
             float u = f0 + 2*f1 + f2 + f4 + 2*f5 + 2*f8 - outlet_rho;
-            u_global[two_d_index] = u
+            u_global[two_d_index] = u;
 
             f_global[3*ny*nx + two_d_index] = (1./3.)*(3*f1 - 2*u);
             f_global[6*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4+ 6*f8 -u);
