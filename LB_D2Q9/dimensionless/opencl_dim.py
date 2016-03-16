@@ -365,10 +365,11 @@ class Pipe_Flow(object):
         for cur_iteration in range(num_iterations):
             self.move() # Move all jumpers
             self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
-            self.collide_particles() # Relax the nonequilibrium fields.
 
             self.update_hydro() # Update the hydrodynamic variables
             self.update_feq() # Update the equilibrium fields
+
+            self.collide_particles() # Relax the nonequilibrium fields.
 
 
     def get_fields(self):
