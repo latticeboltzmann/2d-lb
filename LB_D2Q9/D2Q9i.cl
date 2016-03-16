@@ -87,32 +87,11 @@ update_hydro(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-        // Boundaries are handled elsewhere. This *must* be called after move_bcs
+        // Boundaries are handled elsewhere. This *must* be called after move_bcs,
+        // as it adjusts fi so that these rules hold!
         rho_global[two_d_index] = f0+f1+f2+f3+f4+f5+f6+f7+f8;;
         u_global[two_d_index] = (f1 + f5 + f8 -f6 -f3 -f7);
         v_global[two_d_index] = (f6 + f2 + f5 -f7 -f4 -f8);
-
-        // Now do the boundary conditions...moved to move_bcs
-        /*
-        if (x==0){ // Inlet
-            u_global[two_d_index] = -f0-f2-2*f3-f4-2*f6-2*f7 + inlet_rho;
-        }
-        if (x==nx-1){ // Outlet
-            u_global[two_d_index] = f0=2*f1+f2+f4+2*f5+2*f8 - outlet_rho;
-        }
-        */
-        // I don't think we need to implement velocity BC's on the wall, actually...
-
-        /*
-        if (y == 0){
-            u_global[two_d_index] = 0;
-            v_global[two_d_index] = 0;
-        }
-        if (y == ny - 1){
-            u_global[two_d_index] = 0;
-            v_global[two_d_index] = 0;
-        }
-        */
     }
 }
 
@@ -211,7 +190,6 @@ move_bcs(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-
         //INLET: constant pressure
         if ((x==0) && (y >= 1)&&(y < ny-1)){
             float u = -f0 -f2 -2*f3 -f4 -2*f6 -2*f7 + inlet_rho;
@@ -277,23 +255,6 @@ move_bcs(__global float *f_global,
             f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
             f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
         }
-
-
-        // We try applying simple bounceback and see what happens...
-        /*
-        if ((x==0)&&(y==ny-1)){
-            f_global[8*ny*nx + two_d_index] = f_global[6*ny*nx + (y-1)*nx + (x+1)];
-        }
-        if ((x==0)&&(y==0)){
-            f_global[5*ny*nx + two_d_index] = f_global[7*ny*nx + (y+1)*nx + (x+1)];
-        }
-        if ((x==nx-1)&&(y==ny-1)){
-            f_global[7*ny*nx + two_d_index] = f_global[5*ny*nx + (y-1)*nx + (x-1)];
-        }
-        if ((x==nx-1) && (y==0)){
-            f_global[6*ny*nx + two_d_index] = f_global[8*ny*nx + (y+1)*nx + (x-1)];
-        }
-        */
     }
 }
 // ############ Periodic BC and Inlet Velocity Code ################
