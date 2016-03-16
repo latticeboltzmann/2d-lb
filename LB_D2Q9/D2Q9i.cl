@@ -55,8 +55,7 @@ update_feq(__global __write_only float *feq_global,
         float cur_c_dot_u = cur_cx*u + cur_cy*v;
         float velocity_squared = u*u + v*v;
 
-        float inner_feq = 1.f + cur_c_dot_u/cs2 + cur_c_dot_u*cur_c_dot_u/two_cs4 - velocity_squared/two_cs2;
-
+        float inner_feq = rho + 3*cur_c_dot_u + (9./2.)*(cur_c_dot_u)**2 - (3./2.)*velocity_squared;
         float new_feq =  cur_w*rho*inner_feq;
 
         feq_global[three_d_index] = new_feq;
@@ -92,21 +91,19 @@ update_hydro(__global float *f_global,
         rho_global[two_d_index] = rho;
         float inverse_rho = 1./rho;
 
-        if ((x!=0) && (x != nx-1)){
-            u_global[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho;
-            v_global[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho;
-        }
+        // Boundaries are handled elsewhere. This *must* be called after move_bcs
+        u_global[two_d_index] = (f1 + f5 + f8 - f6 - f3 - f7);
+        v_global[two_d_index] = (f6 + f2 + f5 - f7 - f4 - f8);
 
-        //Now do the boundary conditions. It is faster to do it here so we don't have to
-        //reread variables! I think two if statements are needed...I don't see a way around it.
-        if (x==0){
-            //rho_global[two_d_index] = inlet_rho;
-            u_global[two_d_index] = 1 - (f0+f2+f4+2*(f3+f6+f7))/inlet_rho;
+        // Now do the boundary conditions...moved to move_bcs
+        /*
+        if (x==0){ // Inlet
+            u_global[two_d_index] = -f0-f2-2*f3-f4-2*f6-2*f7 + inlet_rho;
         }
-        if (x==nx-1){
-            //rho_global[two_d_index] = outlet_rho;
-            u_global[two_d_index] = -1 + (f0+f2+f4+2*(f1+f5+f8))/outlet_rho;
+        if (x==nx-1){ // Outlet
+            u_global[two_d_index] = f0=2*f1+f2+f4+2*f5+2*f8 - outlet_rho;
         }
+        */
         // I don't think we need to implement velocity BC's on the wall, actually...
 
         /*
@@ -217,19 +214,24 @@ move_bcs(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-        float u = u_global[two_d_index];
 
         //INLET: constant pressure
         if ((x==0) && (y >= 1)&&(y < ny-1)){
-            f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
-            f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
-            f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
+            float u = -f0 - f2 - 2*f3 - f4 - 2*f6 - 2*f7 + inlet_rho;
+            u_global[two_d_index] = u;
+
+            f_global[1*ny*nx + two_d_index] = (1./3.)*(3*f3 + 2*u);
+            f_global[5*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4 + 6*f7 + u);
+            f_global[8*ny*nx + two_d_index] = (1./6.)*(3*f2 - 3*f4 + 6*f6 + u);
         }
         //OUTLET: constant pressure
         if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
-            f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
-            f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
-            f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
+            float u = f0 + 2*f1 + f2 + f4 + 2*f5 + 2*f8 - outlet_rho;
+            u_global[two_d_index] = u
+
+            f_global[3*ny*nx + two_d_index] = (1./3.)*(3*f1 - 2*u);
+            f_global[6*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4+ 6*f8 -u);
+            f_global[7*ny*nx + two_d_index] = (1./6.)*(3*f2 - 3*f4 + 6*f5 -u);
         }
 
         //NORTH: solid; bounce back
@@ -255,7 +257,7 @@ move_bcs(__global float *f_global,
 
         //Corner nodes: tricky and a huge pain! And likely very slow.
         // BOTTOM INLET
-
+        /*
         if ((x==0) && (y==0)){
             f_global[1*ny*nx + two_d_index] = f3;
             f_global[2*ny*nx + two_d_index] = f4;
@@ -288,9 +290,10 @@ move_bcs(__global float *f_global,
             f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
             f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
         }
+        */
 
         // We try applying simple bounceback and see what happens...
-        /*
+
         if ((x==0)&&(y==ny-1)){
             f_global[8*ny*nx + two_d_index] = f_global[6*ny*nx + (y-1)*nx + (x+1)];
         }
@@ -303,7 +306,7 @@ move_bcs(__global float *f_global,
         if ((x==nx-1) && (y==0)){
             f_global[6*ny*nx + two_d_index] = f_global[8*ny*nx + (y+1)*nx + (x-1)];
         }
-        */
+
     }
 }
 // ############ Periodic BC and Inlet Velocity Code ################
