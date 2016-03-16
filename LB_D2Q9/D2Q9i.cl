@@ -87,12 +87,10 @@ update_hydro(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-        float rho = f0+f1+f2+f3+f4+f5+f6+f7+f8;
-        rho_global[two_d_index] = rho;
-
         // Boundaries are handled elsewhere. This *must* be called after move_bcs
-        u_global[two_d_index] = (f1 + f5 + f8 - f6 - f3 - f7);
-        v_global[two_d_index] = (f6 + f2 + f5 - f7 - f4 - f8);
+        rho_global[two_d_index] = f0+f1+f2+f3+f4+f5+f6+f7+f8;;
+        u_global[two_d_index] = (f1 + f5 + f8 -f6 -f3 -f7);
+        v_global[two_d_index] = (f6 + f2 + f5 -f7 -f4 -f8);
 
         // Now do the boundary conditions...moved to move_bcs
         /*
@@ -216,9 +214,7 @@ move_bcs(__global float *f_global,
 
         //INLET: constant pressure
         if ((x==0) && (y >= 1)&&(y < ny-1)){
-            float u = -f0 - f2 - 2*f3 - f4 - 2*f6 - 2*f7 + inlet_rho;
-            u_global[two_d_index] = u;
-
+            float u = -f0 -f2 -2*f3 -f4 -2*f6 -2*f7 + inlet_rho;
             f_global[1*ny*nx + two_d_index] = (1./3.)*(3*f3 + 2*u);
             f_global[5*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4 + 6*f7 + u);
             f_global[8*ny*nx + two_d_index] = (1./6.)*(3*f2 - 3*f4 + 6*f6 + u);
@@ -226,37 +222,29 @@ move_bcs(__global float *f_global,
         //OUTLET: constant pressure
         if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
             float u = f0 + 2*f1 + f2 + f4 + 2*f5 + 2*f8 - outlet_rho;
-            u_global[two_d_index] = u;
-
             f_global[3*ny*nx + two_d_index] = (1./3.)*(3*f1 - 2*u);
             f_global[6*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4+ 6*f8 -u);
             f_global[7*ny*nx + two_d_index] = (1./6.)*(3*f2 - 3*f4 + 6*f5 -u);
         }
 
-        //NORTH: solid; bounce back
+        //NORTH: solid
         if ((y == ny-1) && (x >= 1) && (x< nx-1)){
-            int below = (y-1)*nx + x;
-            int below_right = (y-1)*nx + (x+1);
-            int below_left = (y-1)*nx + (x-1);
-            f_global[4*ny*nx + two_d_index] = f_global[2*ny*nx + below];
-            f_global[8*ny*nx + two_d_index] = f_global[6*ny*nx + below_right];
-            f_global[7*ny*nx + two_d_index] = f_global[5*ny*nx + below_left];
+            float rho = f0 + f1 + 2*f2 + f3 + 2*f5 + 2*f6;
+            f_global[4*ny*nx + two_d_index] = f2;
+            f_global[8*ny*nx + two_d_index] = .5*(-f1+f3+2*f6);
+            f_global[7*ny*nx + two_d_index] = .5*(f1-f3+2*f5);
         }
-
-        //SOUTH: solid; bounce back
+        //SOUTH: solid
         if ((y == 0) && (x >= 1) && (x < nx-1)){
-            int above = (y+1)*nx + x;
-            int above_right = (y+1)*nx + (x+1);
-            int above_left = (y+1)*nx + (x-1);
-
-            f_global[2*ny*nx + two_d_index] = f_global[4*ny*nx + above];
-            f_global[6*ny*nx + two_d_index] = f_global[8*ny*nx + above_left];
-            f_global[5*ny*nx + two_d_index] = f_global[7*ny*nx + above_right];
+            float rho = f0 + f1 + f3 + 2*f4 + 2*f7 + 2*f8;
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[6*ny*nx + two_d_index] = .5*(f1-f3+2*f8);
+            f_global[5*ny*nx + two_d_index] = .5*(-f1+f3+2*f7);
         }
 
         //Corner nodes: tricky and a huge pain! And likely very slow.
         // BOTTOM INLET
-        /*
+
         if ((x==0) && (y==0)){
             f_global[1*ny*nx + two_d_index] = f3;
             f_global[2*ny*nx + two_d_index] = f4;
@@ -289,10 +277,10 @@ move_bcs(__global float *f_global,
             f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
             f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
         }
-        */
+
 
         // We try applying simple bounceback and see what happens...
-
+        /*
         if ((x==0)&&(y==ny-1)){
             f_global[8*ny*nx + two_d_index] = f_global[6*ny*nx + (y-1)*nx + (x+1)];
         }
@@ -305,7 +293,7 @@ move_bcs(__global float *f_global,
         if ((x==nx-1) && (y==0)){
             f_global[6*ny*nx + two_d_index] = f_global[8*ny*nx + (y+1)*nx + (x-1)];
         }
-
+        */
     }
 }
 // ############ Periodic BC and Inlet Velocity Code ################
