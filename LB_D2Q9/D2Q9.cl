@@ -194,16 +194,16 @@ move_bcs(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-        float u = u_global[two_d_index];
-
         //INLET: constant pressure
         if ((x==0) && (y >= 1)&&(y < ny-1)){
+            float u = -((f0+f2+2*f3+f4+2*f6+2*f7-inlet_rho)/inlet_rho);
             f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
             f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
             f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
         }
         //OUTLET: constant pressure
         if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
+            float u = -1 + (f0+2*f1+f2+f4+2*f5+2*f8)/outlet_rho;
             f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
             f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
             f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
