@@ -100,15 +100,16 @@ update_hydro(__global float *f_global,
         //Now do the boundary conditions. It is faster to do it here so we don't have to
         //reread variables! I think two if statements are needed...I don't see a way around it.
         if (x==0){
-            rho_global[two_d_index] = inlet_rho;
+            //rho_global[two_d_index] = inlet_rho;
             u_global[two_d_index] = 1 - (f0+f2+f4+2*(f3+f6+f7))/inlet_rho;
         }
         if (x==nx-1){
-            rho_global[two_d_index] = outlet_rho;
+            //rho_global[two_d_index] = outlet_rho;
             u_global[two_d_index] = -1 + (f0+f2+f4+2*(f1+f5+f8))/outlet_rho;
         }
         // I don't think we need to implement velocity BC's on the wall, actually...
 
+        /*
         if (y == 0){
             u_global[two_d_index] = 0;
             v_global[two_d_index] = 0;
@@ -117,6 +118,7 @@ update_hydro(__global float *f_global,
             u_global[two_d_index] = 0;
             v_global[two_d_index] = 0;
         }
+        */
     }
 }
 
