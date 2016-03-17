@@ -102,7 +102,12 @@ class Pipe_Flow(object):
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
         self.delta_x = 1./N # How many squares characteristic length is broken into
-        self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
+
+        # We keep viscosity constant...and adjust deltaT accordingly.
+        self.lb_viscosity = 1.
+
+        self.delta_t = self.delta_x**2*self.lb_viscosity*self.Re
+
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -110,8 +115,6 @@ class Pipe_Flow(object):
         self.nx = None # Number of grid points in the x direction with the boundray
         self.ny = None # Number of grid points in the y direction with the boundary
         self.initialize_grid_dims()
-
-        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re) # Viscosity of the lattice boltzmann simulation
 
         # Get omega from lb_viscosity
         self.omega = (self.lb_viscosity/cs2 + 0.5)**-1. # The relaxation time of the jumpers in the simulation
