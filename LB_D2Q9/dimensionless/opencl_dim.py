@@ -104,10 +104,15 @@ class Pipe_Flow(object):
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
+        self.ulb = self.delta_t/self.delta_x
+        print 'u_lb:', self.ulb
+
         # Get omega from lb_viscosity
+        # Note that lb_viscosity is basically constant as a function of grid size, as by default,
+        # delta_t = 1 * delta_x**2.
         self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re) # Viscosity of the lattice boltzmann simulation
 
-        self.omega = (self.lb_viscosity/cs2 + 0.5)**-1. # The relaxation time of the jumpers in the simulation
+        self.omega = (3*self.lb_viscosity + 0.5)**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
