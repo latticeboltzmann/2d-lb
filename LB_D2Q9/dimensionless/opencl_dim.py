@@ -86,6 +86,7 @@ class Pipe_Flow(object):
         self.phys_rho = rho
         self.phys_visc = viscosity
         self.phys_pressure_grad = pressure_grad
+        self.phys_pressure_grad_div_rho = self.phys_pressure_grad / self.phys_rho
         self.phys_pipe_length = pipe_length
 
         # Get the characteristic length and time scales for the flow
@@ -95,9 +96,9 @@ class Pipe_Flow(object):
         print 'Characteristic L:', self.L
         print 'Characteristic T:', self.T
 
-        # Initialize the reynolds number
-        self.Re = self.L**2/(self.phys_visc*self.T**2)
-        print 'Reynolds number:', self.Re
+        # Initialize the Weinstein (lol) number
+        self.W = (np.abs(self.phys_pressure_grad_div_rho)*self.L*self.T)/self.phys_visc
+        print 'Weinstein number:', self.W
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
@@ -108,9 +109,8 @@ class Pipe_Flow(object):
         print 'u_lb:', self.ulb
 
         # Get omega from lb_viscosity
-        # Note that lb_viscosity is basically constant as a function of grid size, as by default,
-        # delta_t = 1 * delta_x**2.
-        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re) # Viscosity of the lattice boltzmann simulation
+        # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
+        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.W) # Viscosity of the lattice boltzmann simulation
 
         self.omega = (3*self.lb_viscosity + 0.5)**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
@@ -182,7 +182,8 @@ class Pipe_Flow(object):
         theoretical maximum to to move a distance of L.
         """
         self.L = self.phys_diameter
-        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
+        zeta = np.abs(self.phys_pressure_grad)/self.phys_rho
+        self.T = np.sqrt(self.phys_diameter/zeta)
 
     def initialize_grid_dims(self):
         """
@@ -255,9 +256,10 @@ class Pipe_Flow(object):
         ny = self.ny
 
         # Create the inlet & outlet densities
-        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
+        #nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
+        nondim_gradP = self.phys_rho
         # Obtain the difference in density (pressure) at the inlet & outlet
-        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
+        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_gradP
 
         self.outlet_rho = 1.
         self.inlet_rho = 1. + np.abs(delta_rho)
