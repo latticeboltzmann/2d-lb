@@ -257,7 +257,7 @@ class Pipe_Flow(object):
 
         # Create the inlet & outlet densities
         #nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
-        nondim_gradP = self.phys_rho
+        nondim_gradP = 1.
         # Obtain the difference in density (pressure) at the inlet & outlet
         delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_gradP
 
