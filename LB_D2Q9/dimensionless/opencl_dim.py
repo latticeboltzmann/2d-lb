@@ -2,6 +2,7 @@ import numpy as np
 import os
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
+import pyopencl.tools
 import ctypes as ct
 
 # Required to draw obstacles
@@ -62,7 +63,7 @@ class Pipe_Flow(object):
 
     def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
                  N=200, time_prefactor = 1.,
-                 two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
+                 two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
 
@@ -88,6 +89,8 @@ class Pipe_Flow(object):
         self.phys_pressure_grad = pressure_grad
         self.phys_pressure_grad_div_rho = self.phys_pressure_grad / self.phys_rho
         self.phys_pipe_length = pipe_length
+
+        self.use_interop=use_interop
 
         # Get the characteristic length and time scales for the flow
         self.L = None # Characteristic length scale
@@ -224,7 +227,12 @@ class Pipe_Flow(object):
 
         # Create a context with all the devices
         devices = platforms[0].get_devices()
-        self.context = cl.Context(devices)
+        if not self.use_interop:
+            self.context = cl.Context(devices)
+        else:
+            self.context = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])]
+                                                 + cl.tools.get_gl_sharing_context_properties(),
+                                      devices= devices)
         print 'This context is associated with ', len(self.context.devices), 'devices'
 
         # Create a simple queue
