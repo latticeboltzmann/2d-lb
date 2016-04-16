@@ -1,5 +1,6 @@
 import numpy as np
 import vispy as vp
+import vispy.app
 import pyopencl as cl
 
 field_vert_shader = """
@@ -36,7 +37,7 @@ void main()
 """
 
 
-class field_visualizer_canvas(vp.app.Canvas):
+class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1):
         # Determine the size of the window
@@ -47,7 +48,7 @@ class field_visualizer_canvas(vp.app.Canvas):
 
         # Setup necessary buffers, projections, etc.
         self.I = np.zeros((self.W, self.H), dtype=np.float32, order='F')
-        cl.enqueue_copy(sim.queue, self.I, sim.u, is_blocking=True)
+        cl.enqueue_copy(sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
 
         # A simple texture quad. Basically, a rectangular viewing window.
         self.data = np.zeros(4, dtype=[('a_position', np.float32, 2),
@@ -56,7 +57,7 @@ class field_visualizer_canvas(vp.app.Canvas):
         self.data['a_texcoord'] = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
 
         self.program = vp.gloo.Program(field_vert_shader, field_frag_shader)
-        self.texture = vp.gloo.Texture2D(I, interpolation='linear')
+        self.texture = vp.gloo.Texture2D(self.I, interpolation='linear')
 
         self.program['u_texture'] = self.texture
         self.program.bind(vp.gloo.VertexBuffer(self.data))
@@ -78,8 +79,6 @@ class field_visualizer_canvas(vp.app.Canvas):
         # or else your simulation will go much much slower.
         self.num_steps_per_draw = num_steps_per_draw
         self.total_num_steps = 0
-
-        self.show()
 
     def on_resize(self, event):
         width, height = event.physical_size
@@ -103,8 +102,8 @@ class field_visualizer_canvas(vp.app.Canvas):
     def on_draw(self, event):
         vp.gloo.clear(color=True, depth=True)
         #I[...] = np.random.uniform(0, 1, (W, H)).astype(np.float32)
-        self.sim.run(self.num_points_per_draw)
-        self.num_points_run += self.num_points_per_draw
+        self.sim.run(self.num_steps_per_draw)
+        self.total_num_steps += self.num_steps_per_draw
         cl.enqueue_copy(self.sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
         self.I[:, :] = self.I/np.max(self.I)
         self.texture.set_data(self.I)
