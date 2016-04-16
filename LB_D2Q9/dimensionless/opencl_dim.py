@@ -452,7 +452,8 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
         theoretical maximum to move over the cylinder.
         """
         self.L = self.phys_cylinder_radius
-        self.T = (8*self.phys_rho*self.phys_visc*self.L)/(np.abs(self.phys_pressure_grad)*self.phys_diameter**2)
+        zeta = np.abs(self.phys_pressure_grad) / self.phys_rho
+        self.T = np.sqrt(self.phys_cylinder_radius / zeta)
 
     def initialize_grid_dims(self):
         """Initializes the grid, like the superclass, but also initializes an appropriate mask of the obstacle."""
@@ -502,16 +503,6 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
                                        hostbuf=self.obstacle_mask_host)
 
         # Based on where the obstacle mask is, set velocity to zero, as appropriate.
-        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                                   self.obstacle_mask, self.u, self.v,
-                                                   np.int32(self.nx), np.int32(self.ny)).wait()
-
-    def update_hydro(self):
-        """
-        Overrides the init_hydro method in Pipe_Flow.
-        """
-        super(Pipe_Flow_Cylinder, self).update_hydro()
-        # The velocity inside the obstacle must be zero.
         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                                    self.obstacle_mask, self.u, self.v,
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
