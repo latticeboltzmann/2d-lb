@@ -2,6 +2,7 @@ import numpy as np
 import vispy as vp
 import vispy.app
 import pyopencl as cl
+import matplotlib.pyplot as plt
 
 field_vert_shader = """
 // Uniforms
@@ -28,10 +29,10 @@ void main (void)
 field_frag_shader = """
 uniform sampler2D u_texture;
 varying vec2 v_texcoord;
+
 void main()
 {
     gl_FragColor = texture2D(u_texture, v_texcoord);
-    gl_FragColor.a = 1.0;
 }
 
 """
@@ -39,7 +40,8 @@ void main()
 
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
-    def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1):
+    def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.,
+                 min_field_val=-1, max_field_val=1):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
@@ -50,6 +52,15 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.I = np.zeros((self.W, self.H), dtype=np.float32, order='F')
         cl.enqueue_copy(sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
 
+        self.scaling_factor = scaling_factor
+        self.min_field_val = min_field_val
+        self.max_field_val = max_field_val
+
+        self.cmap = plt.cm.coolwarm
+        self.norm = plt.Normalize(self.min_field_val, self.max_field_val)
+        self.I_colors = np.zeros((self.W, self.H, 4), dtype=np.float32, order='F')
+        self.set_I_colors()
+
         # A simple texture quad. Basically, a rectangular viewing window.
         self.data = np.zeros(4, dtype=[('a_position', np.float32, 2),
                                   ('a_texcoord', np.float32, 2)])
@@ -57,7 +68,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.data['a_texcoord'] = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
 
         self.program = vp.gloo.Program(field_vert_shader, field_frag_shader)
-        self.texture = vp.gloo.Texture2D(self.I, interpolation='linear')
+        self.texture = vp.gloo.Texture2D(self.I_colors, interpolation='linear')
 
         self.program['u_texture'] = self.texture
         self.program.bind(vp.gloo.VertexBuffer(self.data))
@@ -80,6 +91,9 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.num_steps_per_draw = num_steps_per_draw
         self.total_num_steps = 0
 
+    def set_I_colors(self):
+        self.I_colors[:, :, :] = self.cmap(self.norm(self.I*self.scaling_factor))
+
     def on_resize(self, event):
         width, height = event.physical_size
         vp.gloo.set_viewport(0, 0, width, height)
@@ -101,10 +115,9 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def on_draw(self, event):
         vp.gloo.clear(color=True, depth=True)
-        #I[...] = np.random.uniform(0, 1, (W, H)).astype(np.float32)
         self.sim.run(self.num_steps_per_draw)
         self.total_num_steps += self.num_steps_per_draw
         cl.enqueue_copy(self.sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
-        self.I[:, :] = self.I/np.max(self.I)
-        self.texture.set_data(self.I)
+        self.set_I_colors()
+        self.texture.set_data(self.I_colors)
         self.program.draw('triangle_strip')
