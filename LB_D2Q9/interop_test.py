@@ -117,8 +117,10 @@ class Canvas(app.Canvas):
         self.sim = lb_cl.Pipe_Flow(diameter=D, rho=rho, viscosity=nu, pressure_grad=pressure_grad, pipe_length=pipe_length,
                               N=N, time_prefactor=1,
                               two_d_local_size=(32, 32), three_d_local_size=(32, 32, 1), use_interop=True)
+        print self.texture.id
+        self.texture.glir
         gl_textureBuf = cl.GLTexture(self.sim.context, cl.mem_flags.READ_WRITE,
-                                     gloo.gl.GL_TEXTURE_2D, 0, int(self.texture.id), 2)
+                                     gloo.gl.GL_TEXTURE_2D, 0, self.texture.id)
         # Replace "v" with the GL texture
         self.sim.v = gl_textureBuf
 

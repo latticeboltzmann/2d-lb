@@ -30,9 +30,39 @@ field_frag_shader = """
 uniform sampler2D u_texture;
 varying vec2 v_texcoord;
 
+uniform float scale_factor;
+uniform float max_magnitude;
+
+
+vec4 coolwarm(float i_value){
+    i_value *= scale_factor
+    bool is_positive;
+
+    // We want i_value to store the magnitude now
+    if (i_value < 0){
+        is_positive = false;
+        i_value *= -1;
+    }
+    if (i_value > 0){
+        is_positive = true;
+    }
+    if (i_value > max_magnitude) i_value = 1;
+
+    vec4 color;
+
+    if (is_positive){
+        color = vec4(i_value, 0, 0, 1.0);
+    }
+    else {
+        color = vec4(0, i_value, 0, 1.0);
+    }
+    return color
+}
+
 void main()
 {
-    gl_FragColor = texture2D(u_texture, v_texcoord);
+    float i_value = texture2D(u_texture, v_texcoord);
+    gl_FragColor = coolwarm(i_value);
 }
 
 """
