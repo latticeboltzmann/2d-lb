@@ -33,36 +33,41 @@ varying vec2 v_texcoord;
 uniform float scale_factor;
 uniform float max_magnitude;
 
-
 vec4 coolwarm(float i_value){
-    i_value *= scale_factor
+    i_value *= scale_factor;
     bool is_positive;
 
     // We want i_value to store the magnitude now
+    if (i_value > 0){
+        is_positive = true;
+    }
     if (i_value < 0){
         is_positive = false;
         i_value *= -1;
     }
-    if (i_value > 0){
-        is_positive = true;
-    }
-    if (i_value > max_magnitude) i_value = 1;
+
+    if (i_value > max_magnitude) i_value = 1.0;
 
     vec4 color;
 
     if (is_positive){
-        color = vec4(i_value, 0, 0, 1.0);
+        color = vec4(i_value, 1., 0, 1.0);
     }
     else {
-        color = vec4(0, i_value, 0, 1.0);
+        color = vec4(0, i_value, 1., 1.0);
     }
-    return color
+    return color;
 }
 
 void main()
 {
-    float i_value = texture2D(u_texture, v_texcoord);
-    gl_FragColor = coolwarm(i_value);
+    float i_value = texture2D(u_texture, v_texcoord).r;
+    if (i_value > 1.0) {
+        gl_FragColor = vec4(0, 0, 0, 0);
+    }
+    else{
+        gl_FragColor = coolwarm(i_value);
+    }
 }
 
 """
@@ -70,8 +75,7 @@ void main()
 
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
-    def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.,
-                 min_field_val=-1, max_field_val=1):
+    def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
@@ -83,13 +87,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         cl.enqueue_copy(sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
 
         self.scaling_factor = scaling_factor
-        self.min_field_val = min_field_val
-        self.max_field_val = max_field_val
-
-        self.cmap = plt.cm.coolwarm
-        self.norm = plt.Normalize(self.min_field_val, self.max_field_val)
-        self.I_colors = np.zeros((self.W, self.H, 4), dtype=np.float32, order='F')
-        self.set_I_colors()
+        self.max_magnitude = max_magnitude
 
         # A simple texture quad. Basically, a rectangular viewing window.
         self.data = np.zeros(4, dtype=[('a_position', np.float32, 2),
@@ -98,7 +96,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.data['a_texcoord'] = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
 
         self.program = vp.gloo.Program(field_vert_shader, field_frag_shader)
-        self.texture = vp.gloo.Texture2D(self.I_colors, interpolation='linear')
+        self.texture = vp.gloo.Texture2D(self.I, interpolation='linear', internalformat='r32f')
 
         self.program['u_texture'] = self.texture
         self.program.bind(vp.gloo.VertexBuffer(self.data))
@@ -112,6 +110,9 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.projection = vp.util.transforms.ortho(0, self.W, 0, self.H, -1, 1)
         self.program['u_projection'] = self.projection
 
+        self.program['scale_factor'] = self.scaling_factor
+        self.program['max_magnitude'] = self.max_magnitude
+
         vp.gloo.set_clear_color('white')
 
         self._timer = vp.app.Timer('auto', connect=self.update, start=True)
@@ -120,9 +121,6 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         # or else your simulation will go much much slower.
         self.num_steps_per_draw = num_steps_per_draw
         self.total_num_steps = 0
-
-    def set_I_colors(self):
-        self.I_colors[:, :, :] = self.cmap(self.norm(self.I*self.scaling_factor))
 
     def on_resize(self, event):
         width, height = event.physical_size
@@ -148,6 +146,5 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.sim.run(self.num_steps_per_draw)
         self.total_num_steps += self.num_steps_per_draw
         cl.enqueue_copy(self.sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
-        self.set_I_colors()
-        self.texture.set_data(self.I_colors)
+        self.texture.set_data(self.I)
         self.program.draw('triangle_strip')
