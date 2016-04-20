@@ -59,7 +59,7 @@ void main()
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
-                 num_colors=512):
+                 num_colors=1024):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
@@ -102,7 +102,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.num_colors = num_colors
         color_step = (2*self.max_magnitude)/float(self.num_colors)
         possible_values = np.arange(-self.max_magnitude, self.max_magnitude + color_step, color_step)
-        self.colormap_array = np.zeros((1, possible_values.shape[0], 4)).astype(np.float32)
+        self.colormap_array = np.zeros((1, possible_values.shape[0], 4), dtype=np.float32)
         self.colormap_array[0, :, :] = self.cmap(norm(possible_values)).astype(np.float32)
 
         self.program['colormap_array'] = self.colormap_array
