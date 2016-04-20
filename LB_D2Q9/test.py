@@ -51,10 +51,11 @@ varying vec2 v_texcoord;
 void main()
 {
     gl_FragColor = texture2D(u_texture, v_texcoord);
-//    gl_FragColor.r = 0.0;
-//    gl_FragColor.g = 0.0;
-//    gl_FragColor.b = 0.0;
-    gl_FragColor.a = 1.0;
+    if(gl_FragColor.r ==69){
+        gl_FragColor.r = 0;
+        gl_FragColor.g = 1;
+        gl_FragColor.b = 0;
+    }
 }
 
 """
@@ -66,7 +67,7 @@ class Canvas(app.Canvas):
         app.Canvas.__init__(self, keys='interactive', size=((W * 5), (H * 5)))
 
         self.program = gloo.Program(VERT_SHADER, FRAG_SHADER)
-        self.texture = gloo.Texture2D(I, interpolation='linear', internalformat='r16f')
+        self.texture = gloo.Texture2D(I, interpolation='linear', internalformat='r32f')
 
         self.program['u_texture'] = self.texture
         self.program.bind(gloo.VertexBuffer(data))
@@ -107,7 +108,8 @@ class Canvas(app.Canvas):
 
     def on_draw(self, event):
         gloo.clear(color=True, depth=True)
-        I[...] = np.random.uniform(0, 1, (W, H)).astype(np.float32)
+        #I[...] = np.random.uniform(0, 1, (W, H)).astype(np.float32)
+        I[...] = 70.
         self.texture.set_data(I)
         self.program.draw('triangle_strip')
 

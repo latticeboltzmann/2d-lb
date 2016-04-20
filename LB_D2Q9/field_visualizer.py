@@ -32,42 +32,29 @@ varying vec2 v_texcoord;
 
 uniform float scale_factor;
 uniform float max_magnitude;
-
-vec4 coolwarm(float i_value){
-    i_value *= scale_factor;
-    bool is_positive;
-
-    // We want i_value to store the magnitude now
-    if (i_value > 0){
-        is_positive = true;
-    }
-    if (i_value < 0){
-        is_positive = false;
-        i_value *= -1;
-    }
-
-    if (i_value > max_magnitude) i_value = 1.0;
-
-    vec4 color;
-
-    if (is_positive){
-        color = vec4(i_value, 1., 0, 1.0);
-    }
-    else {
-        color = vec4(0, i_value, 1., 1.0);
-    }
-    return color;
-}
+uniform sampler2D colormap_array;
 
 void main()
 {
     float i_value = texture2D(u_texture, v_texcoord).r;
-    if (i_value > 1.0) {
-        gl_FragColor = vec4(0, 0, 0, 0);
+    float original = i_value;
+    i_value *= scale_factor;
+    // Calculate the position of i in the colormap
+    if (i_value < -max_magnitude){
+        gl_FragColor = texture2D(colormap_array, vec2(0.0, 0));
+    }
+    else if (i_value > max_magnitude){
+        gl_FragColor = texture2D(colormap_array, vec2(1.0, 0));
     }
     else{
-        gl_FragColor = coolwarm(i_value);
+        float color_value = (i_value - max_magnitude)/(2*max_magnitude);
+        gl_FragColor = texture2D(colormap_array, vec2(color_value, 0));
     }
+
+    if (original < 0.){
+        gl_FragColor= vec4(0, 0, 0, 0);
+    }
+
 }
 
 """
@@ -75,7 +62,8 @@ void main()
 
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
-    def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0):
+    def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
+                 num_colors=1024):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
@@ -113,6 +101,17 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.program['scale_factor'] = self.scaling_factor
         self.program['max_magnitude'] = self.max_magnitude
 
+        self.cmap = plt.cm.coolwarm
+        norm = plt.Normalize(-self.max_magnitude, self.max_magnitude)
+        self.num_colors = num_colors
+        color_step = (2*self.max_magnitude)/float(self.num_colors)
+        possible_values = np.arange(-self.max_magnitude, self.max_magnitude + color_step, color_step)
+        self.colormap_array = np.zeros((1, possible_values.shape[0], 4)).astype(np.float32)
+        self.colormap_array[0, :, :] = self.cmap(norm(possible_values)).astype(np.float32)
+
+        self.program['colormap_array'] = self.colormap_array
+        self.program['colormap_array'].interpolation = 'linear'
+
         vp.gloo.set_clear_color('white')
 
         self._timer = vp.app.Timer('auto', connect=self.update, start=True)
@@ -121,6 +120,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         # or else your simulation will go much much slower.
         self.num_steps_per_draw = num_steps_per_draw
         self.total_num_steps = 0
+
 
     def on_resize(self, event):
         width, height = event.physical_size
