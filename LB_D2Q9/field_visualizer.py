@@ -42,10 +42,10 @@ void main()
 
     // Calculate the position of i in the colormap
     if (i_value < -max_magnitude){
-        gl_FragColor = texture1D(colormap_array, 0.0);
+        gl_FragColor = texture1D(colormap_array, 0.000001);
     }
     else if (i_value > max_magnitude){
-        gl_FragColor = texture1D(colormap_array, 1.0);
+        gl_FragColor = texture1D(colormap_array, 0.9999999);
     }
     else {
         float color_value = (i_value + max_magnitude)/(2*max_magnitude);
@@ -80,7 +80,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.data['a_texcoord'] = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
 
         self.program = vp.gloo.Program(field_vert_shader, field_frag_shader)
-        self.texture = vp.gloo.Texture2D(self.I, interpolation='linear', internalformat='r32f')
+        self.texture = vp.gloo.Texture2D(self.I, interpolation='nearest', internalformat='r32f')
 
         self.program['u_texture'] = self.texture
         self.program.bind(vp.gloo.VertexBuffer(self.data))
@@ -104,7 +104,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.colormap_array = self.cmap(norm(possible_values)).astype(np.float32)
 
         self.program['colormap_array'] = self.colormap_array
-        self.program['colormap_array'].interpolation = 'linear'
+        self.program['colormap_array'].interpolation = 'nearest'
 
         vp.gloo.set_clear_color('white')
 
