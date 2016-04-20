@@ -32,7 +32,7 @@ varying vec2 v_texcoord;
 
 uniform float scale_factor;
 uniform float max_magnitude;
-uniform sampler2D colormap_array;
+uniform sampler1D colormap_array;
 
 void main()
 {
@@ -42,14 +42,14 @@ void main()
 
     // Calculate the position of i in the colormap
     if (i_value < -max_magnitude){
-        gl_FragColor = texture2D(colormap_array, vec2(0.0, 0));
+        gl_FragColor = texture1D(colormap_array, 0.0);
     }
     else if (i_value > max_magnitude){
-        gl_FragColor = texture2D(colormap_array, vec2(1.0, 0));
+        gl_FragColor = texture1D(colormap_array, 1.0);
     }
     else {
         float color_value = (i_value + max_magnitude)/(2*max_magnitude);
-        gl_FragColor = texture2D(colormap_array, vec2(color_value, 0));
+        gl_FragColor = texture1D(colormap_array, color_value);
     }
 }
 
@@ -100,10 +100,8 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.cmap = plt.cm.coolwarm
         norm = plt.Normalize(-self.max_magnitude, self.max_magnitude)
         self.num_colors = num_colors
-        color_step = (2*self.max_magnitude)/float(self.num_colors)
-        possible_values = np.arange(-self.max_magnitude, self.max_magnitude + color_step, color_step)
-        self.colormap_array = np.zeros((1, possible_values.shape[0], 4), dtype=np.float32)
-        self.colormap_array[0, :, :] = self.cmap(norm(possible_values)).astype(np.float32)
+        possible_values = np.linspace(-self.max_magnitude, self.max_magnitude, num_colors)
+        self.colormap_array = self.cmap(norm(possible_values)).astype(np.float32)
 
         self.program['colormap_array'] = self.colormap_array
         self.program['colormap_array'].interpolation = 'linear'
@@ -116,7 +114,6 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         # or else your simulation will go much much slower.
         self.num_steps_per_draw = num_steps_per_draw
         self.total_num_steps = 0
-
 
     def on_resize(self, event):
         width, height = event.physical_size
