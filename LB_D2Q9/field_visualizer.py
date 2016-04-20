@@ -39,6 +39,7 @@ void main()
     float i_value = texture2D(u_texture, v_texcoord).r;
     float original = i_value;
     i_value *= scale_factor;
+
     // Calculate the position of i in the colormap
     if (i_value < -max_magnitude){
         gl_FragColor = texture2D(colormap_array, vec2(0.0, 0));
@@ -46,15 +47,10 @@ void main()
     else if (i_value > max_magnitude){
         gl_FragColor = texture2D(colormap_array, vec2(1.0, 0));
     }
-    else{
-        float color_value = (i_value - max_magnitude)/(2*max_magnitude);
+    else {
+        float color_value = (i_value + max_magnitude)/(2*max_magnitude);
         gl_FragColor = texture2D(colormap_array, vec2(color_value, 0));
     }
-
-    if (original < 0.){
-        gl_FragColor= vec4(0, 0, 0, 0);
-    }
-
 }
 
 """
@@ -63,7 +59,7 @@ void main()
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
-                 num_colors=1024):
+                 num_colors=512):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
