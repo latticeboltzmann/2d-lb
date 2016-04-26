@@ -2,6 +2,8 @@
 __kernel void
 update_feq_diffusion(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
+           __global __read_only float *u_global,
+           __global __read_only float *v_global,
            __local float *local_u,
            __local float *local_v,
            __local float *local_rho,
@@ -61,7 +63,6 @@ update_hydro_diffusion(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
-             const float inlet_rho, const float outlet_rho,
              const int nx, const int ny)
 {
     // Assumes that u and v are imposed.

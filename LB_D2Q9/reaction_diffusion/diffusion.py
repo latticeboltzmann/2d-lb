@@ -330,7 +330,6 @@ class Diffusion(object):
         """
         self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u, self.v, self.rho,
-                                np.float32(self.inlet_rho), np.float32(self.outlet_rho),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def collide_particles(self):
