@@ -104,7 +104,7 @@ class Diffusion(object):
         # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
         self.lb_D = self.delta_t/self.delta_x**2
 
-        self.omega = (self.delta_t/2. + self.lb_D)**-1. # The relaxation time of the jumpers in the simulation
+        self.omega = (0.5 + 1/(cs**2 * self.delta_x**2))**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -225,7 +225,7 @@ class Diffusion(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_diffusion.cl').read()).build(options='')
 
     def allocate_constants(self):
         """
@@ -249,16 +249,18 @@ class Diffusion(object):
         nx = self.nx
         ny = self.ny
 
-        # No density
+        # Only density in the innoculated region.
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
-        rho_host[0, :] = self.inlet_rho
-        rho_host[self.lx, :] = self.outlet_rho # Is there a shock in this case? We'll see...
-        for i in range(rho_host.shape[0]):
-            rho_host[i, :] = self.inlet_rho - i*(self.inlet_rho - self.outlet_rho)/float(rho_host.shape[0])
 
-        u_host = .0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
+        x_center = self.N * (self.phys_Lx/2.) / self.L
+        y_center = self.N * (self.phys_Ly/2.) / self.L
+
+        circle = ski.draw.circle(x_center, y_center, self.N)
+        rho_host[circle[0], circle[1]] = 1
+
+        u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
-        v_host = .0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
+        v_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         v_host = v_host.astype(np.float32, order='F')
 
         # Transfer arrays to the device
@@ -276,8 +278,7 @@ class Diffusion(object):
                                 self.u, self.v, self.rho,
                                 self.local_u, self.local_v, self.local_rho,
                                 self.w, self.cx, self.cy,
-                                np.float32(cs), np.float32(cs2), np.float32(cs22), np.float32(two_cs4),
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                np.float32(cs), np.int32(self.nx), np.int32(self.ny)).wait()
 
     def init_pop(self):
         """Based on feq, create the initial population of jumpers."""
