@@ -256,7 +256,7 @@ class Diffusion(object):
         y_center = self.N * (self.phys_Ly/2.) / self.L
 
         circle = ski.draw.circle(x_center, y_center, self.N)
-        rho_host[circle[0], circle[1]] = 1
+        rho_host[circle[0], circle[1]] = 1.0
 
         u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
