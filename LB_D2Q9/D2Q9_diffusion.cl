@@ -57,13 +57,14 @@ update_feq_diffusion(__global __write_only float *feq_global,
 
 
 __kernel void
-update_hydro(__global float *f_global,
+update_hydro_diffusion(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
              const float inlet_rho, const float outlet_rho,
              const int nx, const int ny)
 {
+    // Assumes that u and v are imposed.
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -81,13 +82,7 @@ update_hydro(__global float *f_global,
         float f8 = f_global[8*ny*nx + two_d_index];
 
         //This *MUST* be run after move_bc's, as that takes care of BC's
-        float rho = f0+f1+f2+f3+f4+f5+f6+f7+f8;
-        rho_global[two_d_index] = rho;
-        float inverse_rho = 1./rho;
-
-        u_global[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho;
-        v_global[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho;
-
+        rho_global[two_d_index] = f0+f1+f2+f3+f4+f5+f6+f7+f8;
     }
 }
 
@@ -162,208 +157,6 @@ move(__global __read_only float *f_global,
     }
 }
 
-__kernel void
-move_bcs(__global float *f_global,
-         __global float *u_global,
-         const float inlet_rho, const float outlet_rho,
-         const int nx, const int ny)
-{
-    //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    int two_d_index = y*nx + x;
-
-    if ((x < nx) && (y < ny)){
-
-        float f0 = f_global[0*ny*nx + two_d_index];
-        float f1 = f_global[1*ny*nx + two_d_index];
-        float f2 = f_global[2*ny*nx + two_d_index];
-        float f3 = f_global[3*ny*nx + two_d_index];
-        float f4 = f_global[4*ny*nx + two_d_index];
-        float f5 = f_global[5*ny*nx + two_d_index];
-        float f6 = f_global[6*ny*nx + two_d_index];
-        float f7 = f_global[7*ny*nx + two_d_index];
-        float f8 = f_global[8*ny*nx + two_d_index];
-
-        //INLET: constant pressure
-        if ((x==0) && (y >= 1)&&(y < ny-1)){
-            float u = -((f0+f2+2*f3+f4+2*f6+2*f7-inlet_rho)/inlet_rho);
-            f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
-            f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
-            f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
-        }
-        //OUTLET: constant pressure
-        if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
-            float u = -1 + (f0+2*f1+f2+f4+2*f5+2*f8)/outlet_rho;
-            f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
-            f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
-            f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
-        }
-
-        //NORTH: solid
-        if ((y == ny-1) && (x >= 1) && (x< nx-1)){
-            f_global[4*ny*nx + two_d_index] = f2;
-            f_global[8*ny*nx + two_d_index] = .5*(-f1+f3+2*f6);
-            f_global[7*ny*nx + two_d_index] = .5*(f1-f3+2*f5);
-        }
-        //SOUTH: solid
-        if ((y == 0) && (x >= 1) && (x < nx-1)){
-            f_global[2*ny*nx + two_d_index] = f4;
-            f_global[6*ny*nx + two_d_index] = .5*(f1-f3+2*f8);
-            f_global[5*ny*nx + two_d_index] = .5*(-f1+f3+2*f7);
-        }
-
-        //Corner nodes: tricky and a huge pain! And likely very slow.
-        // BOTTOM INLET
-
-        if ((x==0) && (y==0)){
-            f_global[1*ny*nx + two_d_index] = f3;
-            f_global[2*ny*nx + two_d_index] = f4;
-            f_global[5*ny*nx + two_d_index] = f7;
-            f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
-            f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
-        }
-        // TOP INLET
-        if ((x==0)&&(y==ny-1)){
-            f_global[1*ny*nx + two_d_index] = f3;
-            f_global[4*ny*nx + two_d_index] = f2;
-            f_global[8*ny*nx + two_d_index] = f6;
-            f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
-            f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
-        }
-
-        // BOTTOM OUTLET
-        if ((x==nx-1)&&(y==0)){
-            f_global[3*ny*nx + two_d_index] = f1;
-            f_global[2*ny*nx + two_d_index] = f4;
-            f_global[6*ny*nx + two_d_index] = f8;
-            f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
-            f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
-        }
-        // TOP OUTLET
-        if ((x==nx-1)&&(y==ny-1)){
-            f_global[3*ny*nx + two_d_index] = f1;
-            f_global[4*ny*nx + two_d_index] = f2;
-            f_global[7*ny*nx + two_d_index] = f5;
-            f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
-            f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
-        }
-    }
-}
-// ############ Periodic BC and Inlet Velocity Code ################
-__kernel void
-move_bcs_PeriodicBC_VelocityInlet(
-         __global float *f_global,
-         __global float *u_global,
-         const float u_w, 
-         const float u_e,
-         const int nx, 
-         const int ny)
-{   
-    //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    int two_d_index = y*nx + x;
-
-    if ((x < nx) && (y < ny)){
-
-        float f0 = f_global[0*ny*nx + two_d_index];
-        float f1 = f_global[1*ny*nx + two_d_index];
-        float f2 = f_global[2*ny*nx + two_d_index];
-        float f3 = f_global[3*ny*nx + two_d_index];
-        float f4 = f_global[4*ny*nx + two_d_index];
-        float f5 = f_global[5*ny*nx + two_d_index];
-        float f6 = f_global[6*ny*nx + two_d_index];
-        float f7 = f_global[7*ny*nx + two_d_index];
-        float f8 = f_global[8*ny*nx + two_d_index];
-
-        // INLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        if ((x==0) && (y >= 1)&&(y < ny-1)){
-            float rho_w = (1./(1.-u_w))*(f0+f2+f4+2*(f3+f6+f7));
-            f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*rho_w*u_w;
-            f_global[5*ny*nx + two_d_index] = f7 - (1./2.)*(f2-f4) + (1./6.)*rho_w*u_w;
-            f_global[8*ny*nx + two_d_index] = f6 + (1./2.)*(f2-f4) + (1./6.)*rho_w*u_w;
-        }
-        // OUTLET: imposed velocity of u_w in the x direction and 0 in the y direction
-        if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
-            float rho_e = (1./(1.+u_e))*(f0+f2+f4+2.*(f1+f5+f8));
-            f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*rho_e*u_e;
-            f_global[6*ny*nx + two_d_index] = f5 + (1./2.)*(f2-f4) - (1./6.)*rho_e*u_e;
-            f_global[7*ny*nx + two_d_index] = f8 - (1./2.)*(f2-f4) - (1./6.)*rho_e*u_e;
-        }
-
-        //NORTH: solid; bounce back
-        if ((y == ny-1) && (x >= 0) && (x< nx)){
-
-            f_global[4*ny*nx + two_d_index] = f_global[4*ny*nx + x];
-            f_global[8*ny*nx + two_d_index] = f_global[8*ny*nx + x];
-            f_global[7*ny*nx + two_d_index] = f_global[7*ny*nx + x];
-        }
-
-        //SOUTH: solid; bounce back
-        if ((y == 0) && (x >= 0) && (x < nx)){
-            f_global[2*ny*nx + two_d_index] = f_global[2*ny*nx + (ny-1)*nx + x];
-            f_global[6*ny*nx + two_d_index] = f_global[6*ny*nx + (ny-1)*nx + x];
-            f_global[5*ny*nx + two_d_index] = f_global[5*ny*nx + (ny-1)*nx + x];
-        }
-
-    }
-}
-
-__kernel void
-update_hydro_PeriodicBC_VelocityInlet(
-             __global float *f_global,
-             __global float *u_global,
-             __global float *v_global,
-             __global float *rho_global,
-             const float u_w, 
-             const float u_e,
-             const int nx, 
-             const int ny)
-{
-    //Input should be a 2d workgroup!
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        int two_d_index = y*nx + x;
-        float f0 = f_global[0*ny*nx + two_d_index];
-        float f1 = f_global[1*ny*nx + two_d_index];
-        float f2 = f_global[2*ny*nx + two_d_index];
-        float f3 = f_global[3*ny*nx + two_d_index];
-        float f4 = f_global[4*ny*nx + two_d_index];
-        float f5 = f_global[5*ny*nx + two_d_index];
-        float f6 = f_global[6*ny*nx + two_d_index];
-        float f7 = f_global[7*ny*nx + two_d_index];
-        float f8 = f_global[8*ny*nx + two_d_index];
-
-        float rho = f0+f1+f2+f3+f4+f5+f6+f7+f8;
-        rho_global[two_d_index] = rho;
-        float inverse_rho = 1./rho;
-
-        if ((x!=0) && (x != nx-1)){
-            u_global[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho;
-            v_global[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho;
-        }
-
-        //Now do the boundary conditions. It is faster to do it here so we don't have to
-        //reread variables! I think two if statements are needed...I don't see a way around it.
-
-        // updating at the inlet
-        if ((x==0) && (y!=0) && (y<ny-1)){
-            rho_global[two_d_index] = (1./(1.-u_w))*(f0+f2+f4+2.*(f3+f6+f7));
-            u_global[two_d_index] = u_w;
-        }
-        // updating at the outlet
-        if ((x==nx-1) && (y!=0) && (y<ny-1)){
-            rho_global[two_d_index] = (1./(1.+u_e))*(f0+f2+f4+2.*(f1+f5+f8));
-            u_global[two_d_index] = u_e;
-        }
-        
-    }
-}
 // ############ Obstacle Code ################
 
 __kernel void
