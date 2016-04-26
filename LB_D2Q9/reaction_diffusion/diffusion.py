@@ -275,7 +275,7 @@ class Diffusion(object):
         """
         self.kernels.update_feq_diffusion(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.feq,
-                                self.u, self.v, self.rho,
+                                self.rho, self.u, self.v,
                                 self.local_u, self.local_v, self.local_rho,
                                 self.w, self.cx, self.cy,
                                 np.float32(cs), np.int32(self.nx), np.int32(self.ny)).wait()
