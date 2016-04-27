@@ -104,7 +104,7 @@ class Diffusion(object):
         # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
         self.lb_D = self.delta_t/self.delta_x**2
 
-        self.omega = (0.5 + 1/(cs**2 * self.delta_x**2))**-1. # The relaxation time of the jumpers in the simulation
+        self.omega = (0.5 + self.delta_t/(cs**2 * self.delta_x**2))**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
