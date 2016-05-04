@@ -57,7 +57,7 @@ class Diffusion(object):
     For usage, see the docs folder.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, D=1.0, Ro=0.1, time_prefactor = 1., N=50,
+    def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1, time_prefactor = 1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -81,7 +81,7 @@ class Diffusion(object):
         self.phys_Lx = Lx
         self.phys_Ly = Ly
         self.phys_D = D
-        self.phys_Ro = Ro
+        self.phys_z = z # The size of the box that is going to diffuse
 
         self.use_interop=use_interop
 
@@ -171,8 +171,8 @@ class Diffusion(object):
         For pipe flow, L is the physical diameter of the pipe, and T is the time it takes the fluid moving at its
         theoretical maximum to to move a distance of L.
         """
-        self.L = self.phys_Ro
-        self.T = self.phys_Ro**2/self.phys_D
+        self.L = self.phys_z
+        self.T = self.phys_z**2/self.phys_D
 
     def initialize_grid_dims(self):
         """
@@ -255,12 +255,13 @@ class Diffusion(object):
         x_center = self.N * (self.phys_Lx/2.) / self.L
         y_center = self.N * (self.phys_Ly/2.) / self.L
 
-        circle = ski.draw.circle(x_center, y_center, self.N)
-        rho_host[circle[0], circle[1]] = 1.0
+        # Now draw the rectangle
+
+        rho_host[(x_center-self.N):(x_center+self.N), (y_center-self.N):(y_center+self.N)] = 1.0
 
         u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
-        v_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
+        v_host = 0.0*np.ones((nx, ny), dtype=np.float32, order='F') # Fluctuations in the fluid; small
         v_host = v_host.astype(np.float32, order='F')
 
         # Transfer arrays to the device
