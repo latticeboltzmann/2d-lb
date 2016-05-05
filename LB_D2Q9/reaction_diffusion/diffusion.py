@@ -104,7 +104,7 @@ class Diffusion(object):
         # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
         self.lb_D = self.delta_t/self.delta_x**2
 
-        self.omega = (0.5 + self.delta_t/(cs**2 * self.delta_x**2))**-1. # The relaxation time of the jumpers in the simulation
+        self.omega = (0.5*self.delta_t + self.delta_t/(cs**2 * self.delta_x**2))**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -146,6 +146,10 @@ class Diffusion(object):
         self.rho = None # The simulation's density field
         self.u = None # The simulation's velocity in the x direction (horizontal)
         self.v = None # The simulation's velocity in the y direction (vertical)
+
+        self.x_center = None
+        self.y_center = None
+
         self.init_hydro() # Create the hydrodynamic fields
 
         # Intitialize the underlying feq equilibrium field
@@ -252,12 +256,12 @@ class Diffusion(object):
         # Only density in the innoculated region.
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
 
-        x_center = self.N * (self.phys_Lx/2.) / self.L
-        y_center = self.N * (self.phys_Ly/2.) / self.L
+        self.x_center = self.N * (self.phys_Lx/2.) / self.L
+        self.y_center = self.N * (self.phys_Ly/2.) / self.L
 
         # Now draw the rectangle
 
-        rho_host[(x_center-self.N):(x_center+self.N), (y_center-self.N):(y_center+self.N)] = 1.0
+        rho_host[(self.x_center-self.N):(self.x_center+self.N), (self.y_center-self.N):(self.y_center+self.N)] = 1.0
 
         u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
