@@ -104,7 +104,7 @@ class Diffusion(object):
         # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
         self.lb_D = self.delta_t/self.delta_x**2
 
-        self.omega = (0.5 + self.delta_t/(cs**2 * self.delta_x**2))**-1. # The relaxation time of the jumpers in the simulation
+        self.omega = (.5 + self.lb_D/cs**2)**-1. # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -149,6 +149,8 @@ class Diffusion(object):
 
         self.x_center = None
         self.y_center = None
+        self.X_dim = None
+        self.Y_dim = None
 
         self.init_hydro() # Create the hydrodynamic fields
 
@@ -259,9 +261,22 @@ class Diffusion(object):
         self.x_center = nx/2
         self.y_center = ny/2
 
-        # Now draw the rectangle
+        # Now initialize the gaussian
+        xvalues = np.arange(nx)
+        yvalues = np.arange(ny)
+        X, Y = np.meshgrid(xvalues, yvalues)
+        X = X.astype(np.float)
+        Y = Y.astype(np.float)
 
-        rho_host[(self.x_center-self.N):(self.x_center+self.N), (self.y_center-self.N):(self.y_center+self.N)] = 1.0
+        deltaX = X - self.x_center
+        deltaY = Y - self.y_center
+
+        # Convert to dimensionless coordinates
+
+        self.X_dim = deltaX / self.N
+        self.Y_dim = deltaY / self.N
+
+        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2))
 
         u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
