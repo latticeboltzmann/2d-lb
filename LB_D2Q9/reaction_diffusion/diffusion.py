@@ -187,8 +187,8 @@ class Diffusion(object):
         self.lx = self.N*int(self.phys_Lx/self.L)
         self.ly = self.N*int(self.phys_Ly/self.L)
 
-        self.nx = self.lx + 1 # Total size of grid in x including boundary
-        self.ny = self.ly + 1 # Total size of grid in y including boundary
+        self.nx = self.lx + 2 # Total size of grid in x including boundaries
+        self.ny = self.ly + 2 # Total size of grid in y including boundaries
 
     def init_opencl(self):
         """
@@ -256,8 +256,8 @@ class Diffusion(object):
         # Only density in the innoculated region.
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
 
-        self.x_center = self.N * (self.phys_Lx/2.) / self.L
-        self.y_center = self.N * (self.phys_Ly/2.) / self.L
+        self.x_center = nx/2
+        self.y_center = ny/2
 
         # Now draw the rectangle
 
