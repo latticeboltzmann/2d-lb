@@ -100,13 +100,9 @@ class Diffusion(object):
         self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
 
-        # Get omega from lb_viscosity
-        # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
-        self.lb_D = self.delta_t/self.delta_x**2
-
-        self.omega = (.5 + self.lb_D/cs**2)**-1. # The relaxation time of the jumpers in the simulation
-        print 'omega', self.omega
-        assert self.omega < 2.
+        self.lb_D = None
+        self.omega = None
+        self.set_D_and_omega()
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -169,6 +165,15 @@ class Diffusion(object):
         self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+
+    def set_D_and_omega(self):
+        # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
+        self.lb_D = self.delta_t / self.delta_x ** 2
+
+        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        print 'omega', self.omega
+        assert self.omega < 2.
+
 
     def set_characteristic_length_time(self):
         """
@@ -430,8 +435,52 @@ class Diffusion(object):
 
 class Advection_Diffusion(Diffusion):
 
-    def __init__(self, **kwargs):
+    def __init__(self, phys_vx=1.0, phys_vy=1.0, **kwargs):
+        self.phys_vx = phys_vx
+        self.phys_vy = phys_vy
+        self.phys_vc = np.sqrt(self.phys_vx ** 2 + self.phys_vy ** 2)
+
+        self.Pe = None
+
         super(Advection_Diffusion, self).__init__(**kwargs) # Initialize the superclass
+
+    def set_characteristic_length_time(self):
+        self.L = self.phys_z
+        self.T = self.phys_z/self.phys_vc
+
+    def set_D_and_omega(self):
+        # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
+
+        self.Pe = self.phys_z * self.phys_vc / self.phys_D
+        print 'Pe:', self.Pe
+
+        self.lb_D = (self.delta_t / self.delta_x**2)*(1./self.Pe)
+
+        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        print 'omega', self.omega
+        assert self.omega < 2.
+
+    def init_hydro(self):
+
+        super(Advection_Diffusion, self).init_hydro()
+
+        nx = self.nx
+        ny = self.ny
+
+        dim_vx = self.phys_vx/self.phys_vc
+        dim_vy = self.phys_vy/self.phys_vc
+
+        lb_vx = (self.delta_t/self.delta_x)*dim_vx
+        lb_vy = (self.delta_t/self.delta_x)*dim_vy
+
+        u_host = lb_vx * np.ones(nx, ny)  # Fluctuations in the fluid; small
+        u_host = u_host.astype(np.float32, order='F')
+        v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
+        v_host = v_host.astype(np.float32, order='F')
+
+        # Transfer arrays to the device
+        self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
+        self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
 
 # class Pipe_Flow_Cylinder(Pipe_Flow):
 #     """
