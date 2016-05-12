@@ -428,6 +428,10 @@ class Diffusion(object):
 
         return fields
 
+class Advection_Diffusion(Diffusion):
+
+    def __init__(self, **kwargs):
+        super(Advection_Diffusion, self).__init__(**kwargs) # Initialize the superclass
 
 # class Pipe_Flow_Cylinder(Pipe_Flow):
 #     """
