@@ -435,10 +435,10 @@ class Diffusion(object):
 
 class Advection_Diffusion(Diffusion):
 
-    def __init__(self, phys_vx=1.0, phys_vy=1.0, **kwargs):
-        self.phys_vx = phys_vx
-        self.phys_vy = phys_vy
-        self.phys_vc = np.sqrt(self.phys_vx ** 2 + self.phys_vy ** 2)
+    def __init__(self, vx=1.0, vy=1.0, vc=1.0, **kwargs):
+        self.phys_vx = vx
+        self.phys_vy = vy
+        self.phys_vc = vc
 
         self.Pe = None
 
@@ -473,7 +473,7 @@ class Advection_Diffusion(Diffusion):
         lb_vx = (self.delta_t/self.delta_x)*dim_vx
         lb_vy = (self.delta_t/self.delta_x)*dim_vy
 
-        u_host = lb_vx * np.ones(nx, ny)  # Fluctuations in the fluid; small
+        u_host = lb_vx * np.ones((nx, ny))  # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
         v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
         v_host = v_host.astype(np.float32, order='F')
