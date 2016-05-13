@@ -486,27 +486,26 @@ class Reaction_Diffusion(Diffusion):
     """Implements a fisher-wave reaction diffusion model."""
 
     def __init__(self, g=1.0, **kwargs):
-        self.tau_g = 1./g
         self.g = g
+        self.tau_g = 1./self.g
         self.G = None
 
         super(Reaction_Diffusion, self).__init__(**kwargs)  # Initialize the superclass
 
     def set_characteristic_length_time(self):
-        self.L = np.sqrt(self.phys_D/self.g)
+        self.L = self.phys_z
         self.T = self.tau_g
-
-        print
-        print 'Fisher wave width:', self.L
-        print 'Initial Droplet Size:', self.phys_z
-        print
 
     def set_D_and_omega(self):
         # The growth constant is one in this system
         self.G = np.float32(1.0)
 
-        # The dimensionless diffusion constant is one.
-        self.lb_D = self.delta_t / self.delta_x ** 2
+        # The dimensionless diffusion constant is no longer one
+        D_dim = (self.tau_g/self.phys_z**2)*self.phys_D
+
+        print 'D_growth:', D_dim
+
+        self.lb_D = D_dim*(self.delta_t / self.delta_x**2)
 
         self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
