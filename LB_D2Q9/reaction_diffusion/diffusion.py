@@ -496,6 +496,11 @@ class Reaction_Diffusion(Diffusion):
         self.L = np.sqrt(self.phys_D/self.g)
         self.T = self.tau_g
 
+        print
+        print 'Fisher wave width:', self.L
+        print 'Initial Droplet Size:', self.phys_z
+        print
+
     def set_D_and_omega(self):
         # The growth constant is one in this system
         self.G = np.float32(1.0)
