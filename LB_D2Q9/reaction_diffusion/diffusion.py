@@ -482,6 +482,39 @@ class Advection_Diffusion(Diffusion):
         self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
         self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
 
+class Reaction_Diffusion(Diffusion):
+    """Implements a fisher-wave reaction diffusion model."""
+
+    def __init__(self, g=1.0, **kwargs):
+        self.tau_g = 1./g
+        self.g = g
+        self.G = None
+
+        super(Reaction_Diffusion, self).__init__(**kwargs)  # Initialize the superclass
+
+    def set_characteristic_length_time(self):
+        self.L = np.sqrt(self.phys_D/self.g)
+        self.T = self.tau_g
+
+    def set_D_and_omega(self):
+        # The growth constant is one in this system
+        self.G = np.float32(1.0)
+
+        # The dimensionless diffusion constant is one.
+        self.lb_D = self.delta_t / self.delta_x ** 2
+
+        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        print 'omega', self.omega
+        assert self.omega < 2.
+
+    def collide_particles(self):
+        """
+        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
+        """
+        self.kernels.collide_particles_fisher(self.queue, self.three_d_global_size, self.three_d_local_size,
+                                       self.f, self.feq, np.float32(self.omega), np.float32(self.G),
+                                       np.int32(self.nx), np.int32(self.ny)).wait()
+
 # class Pipe_Flow_Cylinder(Pipe_Flow):
 #     """
 #     A subclass of the Pipe Flow class that simulates fluid flow around a cylinder. This class can also be "hacked"

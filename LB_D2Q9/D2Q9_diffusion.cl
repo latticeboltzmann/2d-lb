@@ -109,6 +109,27 @@ collide_particles(__global float *f_global,
 }
 
 __kernel void
+collide_particles_fisher(__global float *f_global,
+                         __global float *feq_global,
+                         const float omega, const float G,
+                         const int nx, const int ny)
+{
+    //Input should be a 3d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+    const int jump_id = get_global_id(2);
+
+    if ((x < nx) && (y < ny) && (jump_id < 9)){
+        int three_d_index = jump_id*nx*ny + y*nx + x;
+
+        float f = f_global[three_d_index];
+        float feq = feq_global[three_d_index];
+
+        f_global[three_d_index] = f*(1-omega) + omega*feq + G*f*(1-f);
+    }
+}
+
+__kernel void
 copy_buffer(__global __read_only float *copy_from,
             __global __write_only float *copy_to,
             const int nx, const int ny)
