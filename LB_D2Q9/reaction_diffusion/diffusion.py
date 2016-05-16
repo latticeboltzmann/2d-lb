@@ -494,16 +494,17 @@ class Reaction_Diffusion(Diffusion):
 
     def set_characteristic_length_time(self):
         self.L = self.phys_z
-        self.T = self.tau_g
+        self.T = self.phys_z**2/self.phys_D
 
     def set_D_and_omega(self):
         # The growth constant is one in this system
-        self.G = np.float32(1.0)
+        G_dim = self.T * self.g
+        print 'Gd_dim:', G_dim
+        self.G = G_dim * self.delta_t
+        print 'G_lb:', self.G
 
-        # The dimensionless diffusion constant is no longer one
-        D_dim = (self.tau_g/self.phys_z**2)*self.phys_D
-
-        print 'D_growth:', D_dim
+        # The dimensionless diffusion constant is one now
+        D_dim = 1.0
 
         self.lb_D = D_dim*(self.delta_t / self.delta_x**2)
 
