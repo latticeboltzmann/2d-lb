@@ -487,7 +487,8 @@ class Reaction_Diffusion(Diffusion):
 
     def __init__(self, g=1.0, **kwargs):
         self.g = g
-        self.tau_g = 1./self.g
+
+        self.G_dim = None
         self.G = None
 
         super(Reaction_Diffusion, self).__init__(**kwargs)  # Initialize the superclass
@@ -498,9 +499,9 @@ class Reaction_Diffusion(Diffusion):
 
     def set_D_and_omega(self):
         # The growth constant is one in this system
-        G_dim = self.T * self.g
-        print 'Gd_dim:', G_dim
-        self.G = G_dim * self.delta_t
+        self.G_dim = self.T * self.g
+        print 'Gd_dim:', self.G_dim
+        self.G = self.G_dim * self.delta_t
         print 'G_lb:', self.G
 
         # The dimensionless diffusion constant is one now
