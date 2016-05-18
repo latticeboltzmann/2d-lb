@@ -283,6 +283,9 @@ class Diffusion(object):
 
         rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2))
 
+        # For testing
+        # rho_host[rho_host > 0.001] = 1.0
+
         u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
         v_host = 0.0*np.ones((nx, ny), dtype=np.float32, order='F') # Fluctuations in the fluid; small
@@ -487,7 +490,6 @@ class Reaction_Diffusion(Diffusion):
 
     def __init__(self, g=1.0, **kwargs):
         self.g = g
-
         self.G_dim = None
         self.G = None
 
