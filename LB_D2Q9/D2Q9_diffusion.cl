@@ -112,6 +112,7 @@ __kernel void
 collide_particles_fisher(__global float *f_global,
                          __global float *feq_global,
                          const float omega, const float G,
+                         __constant float *w,
                          const int nx, const int ny)
 {
     //Input should be a 3d workgroup!
@@ -124,8 +125,9 @@ collide_particles_fisher(__global float *f_global,
 
         float f = f_global[three_d_index];
         float feq = feq_global[three_d_index];
+        float cur_w = w[jump_id];
 
-        f_global[three_d_index] = f*(1-omega) + omega*feq + G*f*(1-f);
+        f_global[three_d_index] = f*(1-omega) + omega*feq + cur_w*G*f*(1-f);
     }
 }
 

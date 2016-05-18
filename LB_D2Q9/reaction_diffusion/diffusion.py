@@ -518,8 +518,9 @@ class Reaction_Diffusion(Diffusion):
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
         self.kernels.collide_particles_fisher(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                       self.f, self.feq, np.float32(self.omega), np.float32(self.G),
-                                       np.int32(self.nx), np.int32(self.ny)).wait()
+                                              self.f, self.feq, np.float32(self.omega),
+                                              np.float32(self.G), self.w,
+                                              np.int32(self.nx), np.int32(self.ny)).wait()
 
 # class Pipe_Flow_Cylinder(Pipe_Flow):
 #     """
