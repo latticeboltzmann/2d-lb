@@ -127,6 +127,11 @@ collide_particles_fisher(__global float *f_global,
         float feq = feq_global[three_d_index];
         float cur_w = w[jump_id];
 
+        //Be careful with the reaction term! We actually need to calculate
+        //the sum of all f...a 3d workgroup is consequently not appropriate
+        //anymore.
+
+
         f_global[three_d_index] = f*(1-omega) + omega*feq + cur_w*G*f*(1-f);
     }
 }
