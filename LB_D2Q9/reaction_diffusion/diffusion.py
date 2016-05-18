@@ -284,7 +284,8 @@ class Diffusion(object):
         rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2))
 
         # For testing
-        # rho_host[rho_host > 0.001] = 1.0
+        #rho_host[rho_host > 0.001] = 1.0
+        #rho_host[rho_host <= 0.001] = 0.0
 
         u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
         u_host = u_host.astype(np.float32, order='F')
@@ -304,7 +305,6 @@ class Diffusion(object):
         self.kernels.update_feq_diffusion(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.feq,
                                 self.rho, self.u, self.v,
-                                self.local_u, self.local_v, self.local_rho,
                                 self.w, self.cx, self.cy,
                                 np.float32(cs), np.int32(self.nx), np.int32(self.ny)).wait()
 

@@ -4,56 +4,37 @@ update_feq_diffusion(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
-           __local float *local_u,
-           __local float *local_v,
-           __local float *local_rho,
            __constant float *w,
            __constant int *cx,
            __constant int *cy,
            const float cs,
            const int nx, const int ny)
 {
-    //Input should be a 3d workgroup.
+    //Input should be a 2d workgroup.
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int jump_id = get_global_id(2);
 
     const int two_d_index = y*nx + x;
-    const int three_d_index = jump_id*nx*ny + two_d_index;
 
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-    const int lz = get_local_id(2);
+    if ((x < nx) && (y < ny)){
 
-    const int LS0 = get_local_size(0);
+        const u = u_global[two_d_index];
+        const v = v_global[two_d_index];
+        const rho = rho_global[two_d_index];
 
-    const int buf_index = LS0 * ly + lx;
+        for(int i=0; i < 9; i++){
+            int three_d_index = jump_id*nx*ny + two_d_index;
 
-    // u, v, and rho are 2d buffers. We don't want to read from them more than we have to.
-    // So, we read them into local memory once as appropriate.
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if ((lz == 0) && (x < nx) && (y < ny) && (jump_id < 9)){
-        local_u[buf_index] = u_global[two_d_index];
-        local_v[buf_index] = v_global[two_d_index];
-        local_rho[buf_index] = rho_global[two_d_index];
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
+            float cur_w = w[jump_id];
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
 
-    if ((x < nx) && (y < ny) && (jump_id < 9)){
+            float cur_c_dot_u = cur_cx*u + cur_cy*v;
 
-        float u = local_u[buf_index];
-        float v = local_v[buf_index];
-        float rho = local_rho[buf_index];
+            float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
 
-        float cur_w = w[jump_id];
-        int cur_cx = cx[jump_id];
-        int cur_cy = cy[jump_id];
-
-        float cur_c_dot_u = cur_cx*u + cur_cy*v;
-
-        float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
-
-        feq_global[three_d_index] = new_feq;
+            feq_global[three_d_index] = new_feq;
+        }
     }
 }
 
