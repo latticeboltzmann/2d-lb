@@ -18,11 +18,11 @@ update_feq_diffusion(__global __write_only float *feq_global,
 
     if ((x < nx) && (y < ny)){
 
-        const u = u_global[two_d_index];
-        const v = v_global[two_d_index];
-        const rho = rho_global[two_d_index];
+        const float u = u_global[two_d_index];
+        const float v = v_global[two_d_index];
+        const float rho = rho_global[two_d_index];
 
-        for(int i=0; i < 9; i++){
+        for(int jump_id=0; jump_id < 9; jump_id++){
             int three_d_index = jump_id*nx*ny + two_d_index;
 
             float cur_w = w[jump_id];
@@ -70,22 +70,26 @@ update_hydro_diffusion(__global float *f_global,
 
 __kernel void
 collide_particles(__global float *f_global,
-                  __global float *feq_global,
-                  const float omega,
-                  const int nx, const int ny)
+                         __global float *feq_global,
+                         const float omega,
+                         const int nx, const int ny)
 {
-    //Input should be a 3d workgroup!
+    //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int jump_id = get_global_id(2);
 
-    if ((x < nx) && (y < ny) && (jump_id < 9)){
-        int three_d_index = jump_id*nx*ny + y*nx + x;
+    if ((x < nx) && (y < ny)){
 
-        float f = f_global[three_d_index];
-        float feq = feq_global[three_d_index];
+        const int two_d_index = y*nx + x;
 
-        f_global[three_d_index] = f*(1-omega) + omega*feq;
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            int three_d_index = jump_id*nx*ny + two_d_index;
+
+            float f = f_global[three_d_index];
+            float feq = feq_global[three_d_index];
+
+            f_global[three_d_index] = f*(1-omega) + omega*feq;
+        }
     }
 }
 

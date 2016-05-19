@@ -302,7 +302,7 @@ class Diffusion(object):
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
         Implemented in OpenCL.
         """
-        self.kernels.update_feq_diffusion(self.queue, self.three_d_global_size, self.three_d_local_size,
+        self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.feq,
                                 self.rho, self.u, self.v,
                                 self.w, self.cx, self.cy,
@@ -364,7 +364,7 @@ class Diffusion(object):
         """
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
-        self.kernels.collide_particles(self.queue, self.three_d_global_size, self.three_d_local_size,
+        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, np.float32(self.omega),
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
