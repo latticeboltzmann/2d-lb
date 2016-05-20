@@ -3,6 +3,8 @@ import os
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
 import pyopencl.tools
+import pyopencl.clrandom
+import pyopencl.array
 import ctypes as ct
 
 # Required to draw obstacles
@@ -133,9 +135,6 @@ class Diffusion(object):
         self.w = None
         self.cx = None
         self.cy = None
-        self.local_u = None
-        self.local_v = None
-        self.local_rho = None
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
@@ -242,14 +241,9 @@ class Diffusion(object):
         """
         Allocates constants and local memory to be used by OpenCL.
         """
-
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
-
-        self.local_u = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
-        self.local_v = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
-        self.local_rho = cl.LocalMemory(float_size * self.two_d_local_size[0]*self.two_d_local_size[1])
 
 
     def init_hydro(self):
@@ -556,6 +550,50 @@ class Reaction_Advection_Diffusion(Advection_Diffusion):
                                               self.f, self.feq, np.float32(self.omega),
                                               np.float32(self.G), self.w, self.rho,
                                               np.int32(self.nx), np.int32(self.ny)).wait()
+
+class Reaction_Advection_Diffusion_Stochastic(Reaction_Advection_Diffusion):
+    def __init__(self, Dg=1.0, **kwargs):
+
+        self.Dg_phys = Dg
+
+        self.random_normal = None
+        self.random_generator = None
+
+        super(Reaction_Advection_Diffusion_Stochastic, self).__init__(**kwargs)
+
+    def allocate_constants(self):
+        super(Reaction_Advection_Diffusion_Stochastic, self).allocate_constants()
+
+        # We need one random draw per space
+        random_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
+        # Create a buffer out of this
+        #self.random_normal = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=random_host)
+        self.random_normal = cl.array.to_device(self.queue, random_host)
+
+        # Create a random generator
+        self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
+
+        self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+
+    def run(self, num_iterations):
+        """
+        Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
+        to the same non-dimensional time passing, as delta_t, the time discretization, will change depending on
+        your resolution.
+
+        :param num_iterations: The number of iterations to run
+        """
+        for cur_iteration in range(num_iterations):
+            self.move()  # Move all jumpers
+            self.move_bcs()  # Our BC's rely on streaming before applying the BC, actually
+
+            self.update_hydro()  # Update the hydrodynamic variables
+            self.update_feq()  # Update the equilibrium fields
+
+            self.collide_particles()  # Relax the nonequilibrium fields.
+            # Regenerate random fields
+            self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+            self.random_normal.finish()
 
 
 # class Pipe_Flow_Cylinder(Pipe_Flow):
