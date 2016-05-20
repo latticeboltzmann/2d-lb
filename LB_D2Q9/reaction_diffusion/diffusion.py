@@ -524,6 +524,40 @@ class Reaction_Diffusion(Diffusion):
                                               np.float32(self.G), self.w, self.rho,
                                               np.int32(self.nx), np.int32(self.ny)).wait()
 
+class Reaction_Advection_Diffusion(Advection_Diffusion):
+
+    def __init__(self, g=1.0, **kwargs):
+        self.g = g
+        self.G_dim = None
+        self.G = None
+
+        self.vf_dim = None
+
+        super(Reaction_Advection_Diffusion, self).__init__(**kwargs)  # Initialize the superclass
+
+    def set_D_and_omega(self):
+
+        super(Reaction_Advection_Diffusion, self).set_D_and_omega()
+
+        self.G_dim = self.T * self.g
+        print 'Gd_dim:', self.G_dim
+        self.G = self.G_dim * self.delta_t
+        print 'G_lb:', self.G
+
+        # Initialize the fisher velocity, as it is an important parameter in the system
+        self.vf_dim = 2*np.sqrt((1./self.Pe)*self.G_dim)
+        print 'Dimensionless Fisher Wave Velocity:' , self.vf_dim
+
+    def collide_particles(self):
+        """
+        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
+        """
+        self.kernels.collide_particles_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                              self.f, self.feq, np.float32(self.omega),
+                                              np.float32(self.G), self.w, self.rho,
+                                              np.int32(self.nx), np.int32(self.ny)).wait()
+
+
 # class Pipe_Flow_Cylinder(Pipe_Flow):
 #     """
 #     A subclass of the Pipe Flow class that simulates fluid flow around a cylinder. This class can also be "hacked"
