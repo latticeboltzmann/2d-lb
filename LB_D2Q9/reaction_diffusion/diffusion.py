@@ -554,7 +554,7 @@ class Reaction_Advection_Diffusion(Advection_Diffusion):
 class Reaction_Advection_Diffusion_Stochastic(Reaction_Advection_Diffusion):
     def __init__(self, Dg=1.0, **kwargs):
 
-        self.Dg_phys = Dg
+        self.Dg_phys = np.float32(Dg)
 
         self.random_normal = None
         self.random_generator = None
@@ -574,6 +574,17 @@ class Reaction_Advection_Diffusion_Stochastic(Reaction_Advection_Diffusion):
         self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
 
         self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+
+    def collide_particles(self):
+        """
+        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
+        """
+        self.kernels.collide_particles_fisher_stochastic(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                         self.f, self.feq, np.float32(self.omega),
+                                                         np.float32(self.G), self.w, self.rho,
+                                                         self.random_normal.data, self.Dg_phys,
+                                                         np.int32(self.nx), np.int32(self.ny)).wait()
+
 
     def run(self, num_iterations):
         """
