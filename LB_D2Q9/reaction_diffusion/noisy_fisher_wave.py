@@ -11,8 +11,6 @@ import ctypes as ct
 import skimage as ski
 import skimage.draw
 
-float_size = ct.sizeof(ct.c_float)
-
 # Get path to *this* file. Necessary when reading in opencl code.
 full_path = os.path.realpath(__file__)
 file_dir = os.path.dirname(full_path)
@@ -53,13 +51,16 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
-class Diffusion(object):
+class Noisy_Advected_Fisher_Wave(object):
     """
     Simulates pipe flow using the D2Q9 lattice. Generally used to verify that our simulations were working correctly.
     For usage, see the docs folder.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1, time_prefactor = 1., N=50,
+    def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
+                 vx=0., vy=0., vc=0.,
+                 g = 1.0, Nc=10.,
+                 time_prefactor=1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -85,7 +86,15 @@ class Diffusion(object):
         self.phys_D = D
         self.phys_z = z # The size of the box that is going to diffuse
 
-        self.use_interop=use_interop
+        self.phys_vx = vx
+        self.phys_vy = vy
+        self.phys_vc = vc
+
+        self.g = g
+        self.Nc = Nc
+
+        # Interop with OpenGL?
+        self.use_interop = use_interop
 
         # Get the characteristic length and time scales for the flow
         self.L = None # Characteristic length scale
@@ -104,7 +113,11 @@ class Diffusion(object):
 
         self.lb_D = None
         self.omega = None
-        self.set_D_and_omega()
+        self.D_dim = None
+        self.Pe = None
+        self.Gd = None
+        self.Dg = None
+        self.set_pde_constants()
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -135,6 +148,8 @@ class Diffusion(object):
         self.w = None
         self.cx = None
         self.cy = None
+        self.random_generator = None
+        self.random_normal = None
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
@@ -165,11 +180,19 @@ class Diffusion(object):
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
-    def set_D_and_omega(self):
+    def set_pde_constants(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
-        self.lb_D = self.delta_t / self.delta_x ** 2
 
-        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        self.D_dim = 1.0 # Diffusion constant is one
+        self.Pe = self.phys_z*self.vc/self.phys_D
+        print 'Pe:', self.Pe
+        self.Gd = self.g*self.phys_z**2/self.phys_D
+        print 'Gd:', self.Gd
+        self.Dg = (1./self.Nc)*(self.phys_z/self.phys_D)
+        print 'Dg:', self.Dg
+
+        self.lb_D = self.D_dim*(self.delta_t/self.delta_x**2)
+        self.omega = (.5 + self.lb_D/cs**2)**-1.  # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -245,6 +268,14 @@ class Diffusion(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
+        # We need one random draw per space
+        random_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
+        self.random_normal = cl.array.to_device(self.queue, random_host)
+
+        # Create a random generator
+        self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
+        self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+
 
     def init_hydro(self):
         """
@@ -254,9 +285,7 @@ class Diffusion(object):
         nx = self.nx
         ny = self.ny
 
-        # Only density in the innoculated region.
-        rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
-
+        #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
         self.x_center = nx/2
         self.y_center = ny/2
 
@@ -271,23 +300,29 @@ class Diffusion(object):
         deltaY = Y - self.y_center
 
         # Convert to dimensionless coordinates
-
         self.X_dim = deltaX / self.N
         self.Y_dim = deltaY / self.N
 
+        #### DENSITY #####
+        rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
         rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2))
+        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
 
         # For testing
         #rho_host[rho_host > 0.001] = 1.0
         #rho_host[rho_host <= 0.001] = 0.0
 
-        u_host = 0.0*np.random.randn(nx, ny) # Fluctuations in the fluid; small
-        u_host = u_host.astype(np.float32, order='F')
-        v_host = 0.0*np.ones((nx, ny), dtype=np.float32, order='F') # Fluctuations in the fluid; small
-        v_host = v_host.astype(np.float32, order='F')
+        #### VELOCITY ####
+        dim_vx = self.phys_vx / self.phys_vc
+        dim_vy = self.phys_vy / self.phys_vc
+
+        lb_vx = (self.delta_t / self.delta_x) * dim_vx * self.Pe
+        lb_vy = (self.delta_t / self.delta_x) * dim_vy * self.Pe
+
+        u_host = lb_vx * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
+        v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
 
         # Transfer arrays to the device
-        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
         self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
         self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
 

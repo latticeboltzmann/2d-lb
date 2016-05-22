@@ -125,7 +125,7 @@ collide_particles_fisher(__global float *f_global,
 }
 
 __kernel void
-collide_particles_fisher_stochastic(__global float *f_global,
+collide_particles_noisy_fisher(__global float *f_global,
                                     __global float *feq_global,
                                     const float omega, const float G,
                                     __constant float *w,
