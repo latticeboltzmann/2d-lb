@@ -188,7 +188,7 @@ class Noisy_Advected_Fisher_Wave(object):
     def set_pde_constants(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
 
-        self.Pe = self.phys_z*self.vc/self.phys_D
+        self.Pe = self.phys_z*self.phys_vc/self.phys_D
         print 'Pe:', self.Pe
         self.dim_Gd = self.phys_g * self.phys_z ** 2 / self.phys_D
         self.lb_Gd = np.float32(self.dim_Gd * self.delta_t)
@@ -404,7 +404,7 @@ class Noisy_Advected_Fisher_Wave(object):
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
         self.kernels.collide_particles_noisy_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, self.rho, self.random_normal,
+                                self.f, self.feq, self.rho, self.random_normal.data,
                                 self.omega, self.lb_Gd, self.lb_Dg,
                                 self.w,
                                 self.nx, self.ny).wait()
