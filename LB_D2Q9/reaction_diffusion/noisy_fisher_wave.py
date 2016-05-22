@@ -23,7 +23,7 @@ w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
             1./36.,1./36.,1./36.], order='F', dtype=np.float32)      # weights for directions
 cx=np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=np.int32)     # direction vector for the x direction
 cy=np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=np.int32)     # direction vector for the y direction
-cs=1./np.sqrt(3)                         # Speed of sound on the lattice
+cs=np.float32(1./np.sqrt(3))                         # Speed of sound on the lattice
 
 w0 = 4./9.                              # Weight of stationary jumpers
 w1 = 1./9.                              # Weight of horizontal and vertical jumpers
@@ -90,8 +90,8 @@ class Noisy_Advected_Fisher_Wave(object):
         self.phys_vy = vy
         self.phys_vc = vc
 
-        self.g = g
-        self.Nc = Nc
+        self.phys_g = g
+        self.phys_Nc = Nc
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -113,10 +113,15 @@ class Noisy_Advected_Fisher_Wave(object):
 
         self.lb_D = None
         self.omega = None
-        self.D_dim = None
+        self.dim_D = None
         self.Pe = None
-        self.Gd = None
+
+        self.dim_Gd = None
+        self.lb_Gd = None
+
         self.Dg = None
+        self.lb_Dg = None
+
         self.set_pde_constants()
 
         # Initialize grid dimensions
@@ -183,16 +188,21 @@ class Noisy_Advected_Fisher_Wave(object):
     def set_pde_constants(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
 
-        self.D_dim = 1.0 # Diffusion constant is one
         self.Pe = self.phys_z*self.vc/self.phys_D
         print 'Pe:', self.Pe
-        self.Gd = self.g*self.phys_z**2/self.phys_D
-        print 'Gd:', self.Gd
-        self.Dg = (1./self.Nc)*(self.phys_z/self.phys_D)
+        self.dim_Gd = self.phys_g * self.phys_z ** 2 / self.phys_D
+        self.lb_Gd = np.float32(self.dim_Gd * self.delta_t)
+        print 'dim_Gd:', self.dim_Gd
+        self.Dg = (1. / self.phys_Nc) * (self.phys_z / self.phys_D)
+        self.lb_Dg = np.float32(self.Dg * self.delta_t / self.delta_x)
         print 'Dg:', self.Dg
 
-        self.lb_D = self.D_dim*(self.delta_t/self.delta_x**2)
+        self.dim_D = 1.0 # Diffusion constant is one in this non-dimensionalization
+        self.lb_D = self.dim_D * (self.delta_t / self.delta_x ** 2)
+        self.lb_D = np.float32(self.lb_D)
+
         self.omega = (.5 + self.lb_D/cs**2)**-1.  # The relaxation time of the jumpers in the simulation
+        self.omega = np.float32(self.omega)
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -213,11 +223,11 @@ class Noisy_Advected_Fisher_Wave(object):
         will depend on both the physical geometry of the input system and the desired resolution N.
         """
 
-        self.lx = self.N*int(self.phys_Lx/self.L)
-        self.ly = self.N*int(self.phys_Ly/self.L)
+        self.lx = np.int32(self.N*int(self.phys_Lx/self.L))
+        self.ly = np.int32(self.N*int(self.phys_Ly/self.L))
 
-        self.nx = self.lx + 2 # Total size of grid in x including boundaries
-        self.ny = self.ly + 2 # Total size of grid in y including boundaries
+        self.nx = np.int32(self.lx + 2) # Total size of grid in x including boundaries
+        self.ny = np.int32(self.ly + 2) # Total size of grid in y including boundaries
 
     def init_opencl(self):
         """
@@ -313,11 +323,11 @@ class Noisy_Advected_Fisher_Wave(object):
         #rho_host[rho_host <= 0.001] = 0.0
 
         #### VELOCITY ####
-        dim_vx = self.phys_vx / self.phys_vc
-        dim_vy = self.phys_vy / self.phys_vc
+        dim_vx = self.Pe * self.phys_vx / self.phys_vc
+        dim_vy = self.Pe * self.phys_vy / self.phys_vc
 
-        lb_vx = (self.delta_t / self.delta_x) * dim_vx * self.Pe
-        lb_vy = (self.delta_t / self.delta_x) * dim_vy * self.Pe
+        lb_vx = (self.delta_t / self.delta_x) * dim_vx
+        lb_vy = (self.delta_t / self.delta_x) * dim_vy
 
         u_host = lb_vx * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
         v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
@@ -335,7 +345,7 @@ class Noisy_Advected_Fisher_Wave(object):
                                 self.feq,
                                 self.rho, self.u, self.v,
                                 self.w, self.cx, self.cy,
-                                np.float32(cs), np.int32(self.nx), np.int32(self.ny)).wait()
+                                cs, self.nx, self.ny).wait()
 
     def init_pop(self):
         """Based on feq, create the initial population of jumpers."""
@@ -374,12 +384,12 @@ class Noisy_Advected_Fisher_Wave(object):
         self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
                                 self.cx, self.cy,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.nx, self.ny).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f_streamed, self.f,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.nx, self.ny).wait()
 
     def update_hydro(self):
         """
@@ -387,15 +397,17 @@ class Noisy_Advected_Fisher_Wave(object):
         """
         self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u, self.v, self.rho,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.nx, self.ny).wait()
 
     def collide_particles(self):
         """
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
-        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, np.float32(self.omega),
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+        self.kernels.collide_particles_noisy_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f, self.feq, self.rho, self.random_normal,
+                                self.omega, self.lb_Gd, self.lb_Dg,
+                                self.w,
+                                self.nx, self.ny).wait()
 
     def run(self, num_iterations):
         """
@@ -411,8 +423,11 @@ class Noisy_Advected_Fisher_Wave(object):
 
             self.update_hydro() # Update the hydrodynamic variables
             self.update_feq() # Update the equilibrium fields
-
             self.collide_particles() # Relax the nonequilibrium fields.
+
+            # Regenerate random fields
+            self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+            self.random_normal.finish()
 
 
     def get_fields(self):
@@ -464,259 +479,3 @@ class Noisy_Advected_Fisher_Wave(object):
         fields['v'] *= (self.L/self.T)
 
         return fields
-
-class Advection_Diffusion(Diffusion):
-
-    def __init__(self, vx=1.0, vy=1.0, vc=1.0, **kwargs):
-        self.phys_vx = vx
-        self.phys_vy = vy
-        self.phys_vc = vc
-
-        self.Pe = None
-
-        super(Advection_Diffusion, self).__init__(**kwargs) # Initialize the superclass
-
-    def set_characteristic_length_time(self):
-        self.L = self.phys_z
-        self.T = self.phys_z/self.phys_vc
-
-    def set_D_and_omega(self):
-        # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
-
-        self.Pe = self.phys_z * self.phys_vc / self.phys_D
-        print 'Pe:', self.Pe
-
-        self.lb_D = (self.delta_t / self.delta_x**2)*(1./self.Pe)
-
-        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        print 'omega', self.omega
-        assert self.omega < 2.
-
-    def init_hydro(self):
-
-        super(Advection_Diffusion, self).init_hydro()
-
-        nx = self.nx
-        ny = self.ny
-
-        dim_vx = self.phys_vx/self.phys_vc
-        dim_vy = self.phys_vy/self.phys_vc
-
-        lb_vx = (self.delta_t/self.delta_x)*dim_vx
-        lb_vy = (self.delta_t/self.delta_x)*dim_vy
-
-        u_host = lb_vx * np.ones((nx, ny))  # Fluctuations in the fluid; small
-        u_host = u_host.astype(np.float32, order='F')
-        v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
-        v_host = v_host.astype(np.float32, order='F')
-
-        # Transfer arrays to the device
-        self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
-        self.v = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=v_host)
-
-class Reaction_Diffusion(Diffusion):
-    """Implements a fisher-wave reaction diffusion model."""
-
-    def __init__(self, g=1.0, **kwargs):
-        self.g = g
-        self.G_dim = None
-        self.G = None
-
-        super(Reaction_Diffusion, self).__init__(**kwargs)  # Initialize the superclass
-
-    def set_characteristic_length_time(self):
-        self.L = self.phys_z
-        self.T = self.phys_z**2/self.phys_D
-
-    def set_D_and_omega(self):
-        # The growth constant is one in this system
-        self.G_dim = self.T * self.g
-        print 'Gd_dim:', self.G_dim
-        self.G = self.G_dim * self.delta_t
-        print 'G_lb:', self.G
-
-        # The dimensionless diffusion constant is one now
-        D_dim = 1.0
-
-        self.lb_D = D_dim*(self.delta_t / self.delta_x**2)
-
-        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        print 'omega', self.omega
-        assert self.omega < 2.
-
-    def collide_particles(self):
-        """
-        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
-        """
-        self.kernels.collide_particles_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                              self.f, self.feq, np.float32(self.omega),
-                                              np.float32(self.G), self.w, self.rho,
-                                              np.int32(self.nx), np.int32(self.ny)).wait()
-
-class Reaction_Advection_Diffusion(Advection_Diffusion):
-
-    def __init__(self, g=1.0, **kwargs):
-        self.g = g
-        self.G_dim = None
-        self.G = None
-
-        self.vf_dim = None
-
-        super(Reaction_Advection_Diffusion, self).__init__(**kwargs)  # Initialize the superclass
-
-    def set_D_and_omega(self):
-
-        super(Reaction_Advection_Diffusion, self).set_D_and_omega()
-
-        self.G_dim = self.T * self.g
-        print 'Gd_dim:', self.G_dim
-        self.G = self.G_dim * self.delta_t
-        print 'G_lb:', self.G
-
-        # Initialize the fisher velocity, as it is an important parameter in the system
-        self.vf_dim = 2*np.sqrt((1./self.Pe)*self.G_dim)
-        print 'Dimensionless Fisher Wave Velocity:' , self.vf_dim
-
-    def collide_particles(self):
-        """
-        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
-        """
-        self.kernels.collide_particles_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                              self.f, self.feq, np.float32(self.omega),
-                                              np.float32(self.G), self.w, self.rho,
-                                              np.int32(self.nx), np.int32(self.ny)).wait()
-
-class Reaction_Advection_Diffusion_Stochastic(Reaction_Advection_Diffusion):
-    def __init__(self, Dg=1.0, **kwargs):
-
-        self.Dg_phys = np.float32(Dg)
-
-        self.random_normal = None
-        self.random_generator = None
-
-        super(Reaction_Advection_Diffusion_Stochastic, self).__init__(**kwargs)
-
-    def allocate_constants(self):
-        super(Reaction_Advection_Diffusion_Stochastic, self).allocate_constants()
-
-        # We need one random draw per space
-        random_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
-        # Create a buffer out of this
-        #self.random_normal = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=random_host)
-        self.random_normal = cl.array.to_device(self.queue, random_host)
-
-        # Create a random generator
-        self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
-
-        self.random_generator.fill_normal(self.random_normal, queue=self.queue)
-
-    def collide_particles(self):
-        """
-        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
-        """
-        self.kernels.collide_particles_fisher_stochastic(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                                         self.f, self.feq, np.float32(self.omega),
-                                                         np.float32(self.G), self.w, self.rho,
-                                                         self.random_normal.data, self.Dg_phys,
-                                                         np.int32(self.nx), np.int32(self.ny)).wait()
-
-
-    def run(self, num_iterations):
-        """
-        Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
-        to the same non-dimensional time passing, as delta_t, the time discretization, will change depending on
-        your resolution.
-
-        :param num_iterations: The number of iterations to run
-        """
-        for cur_iteration in range(num_iterations):
-            self.move()  # Move all jumpers
-            self.move_bcs()  # Our BC's rely on streaming before applying the BC, actually
-
-            self.update_hydro()  # Update the hydrodynamic variables
-            self.update_feq()  # Update the equilibrium fields
-
-            self.collide_particles()  # Relax the nonequilibrium fields.
-            # Regenerate random fields
-            self.random_generator.fill_normal(self.random_normal, queue=self.queue)
-            self.random_normal.finish()
-
-
-# class Pipe_Flow_Cylinder(Pipe_Flow):
-#     """
-#     A subclass of the Pipe Flow class that simulates fluid flow around a cylinder. This class can also be "hacked"
-#     in its current state to simulate flow around arbitrary obstacles. See
-#     https://github.com/latticeboltzmann/2d-lb/blob/master/docs/cs205_movie.ipynb for an example of how to do so.
-#     """
-#
-#     def set_characteristic_length_time(self):
-#         """
-#         Sets the characteristic length and time scale. For the cylinder, the characteristic length scale is
-#         the cylinder radius. The characteristic time scale is the time it takes the fluid in the pipe moving at its
-#         theoretical maximum to move over the cylinder.
-#         """
-#         self.L = self.phys_cylinder_radius
-#         zeta = np.abs(self.phys_pressure_grad) / self.phys_rho
-#         self.T = np.sqrt(self.phys_cylinder_radius / zeta)
-#
-#     def initialize_grid_dims(self):
-#         """Initializes the grid, like the superclass, but also initializes an appropriate mask of the obstacle."""
-#
-#         self.lx = int(np.ceil((self.phys_pipe_length / self.L)*self.N))
-#         self.ly = int(np.ceil((self.phys_diameter / self.L)*self.N))
-#
-#         self.nx = self.lx + 1 # Total size of grid in x including boundary
-#         self.ny = self.ly + 1 # Total size of grid in y including boundary
-#
-#         ## Initialize the obstacle mask
-#         self.obstacle_mask_host = np.zeros((self.nx, self.ny), dtype=np.int32, order='F')
-#
-#         # Initialize the obstacle in the correct place
-#         x_cylinder = self.N * self.phys_cylinder_center[0]/self.L
-#         y_cylinder = self.N * self.phys_cylinder_center[1]/self.L
-#
-#         circle = ski.draw.circle(x_cylinder, y_cylinder, self.N)
-#         self.obstacle_mask_host[circle[0], circle[1]] = 1
-#
-#
-#     def __init__(self, cylinder_center = None, cylinder_radius=None, **kwargs):
-#         """
-#         :param cylinder_center: The center of the cylinder in physical units.
-#         :param cylinder_radius: The raidus of the cylinder in physical units.
-#         :param kwargs: All keyword arguments required to initialize the pipe-flow class.
-#         """
-#
-#         assert (cylinder_center is not None) # If the cylinder does not have a center, this code will explode
-#         assert (cylinder_radius is not None) # If there are no obstacles, this will definitely not run.
-#
-#         self.phys_cylinder_center = cylinder_center # Center of the cylinder in physical units
-#         self.phys_cylinder_radius = cylinder_radius # Radius of the cylinder in physical units
-#
-#         self.obstacle_mask_host = None # A boolean mask of the location of the obstacle
-#         self.obstacle_mask = None   # A buffer of the boolean mask of the obstacle
-#         super(Pipe_Flow_Cylinder, self).__init__(**kwargs) # Initialize the superclass
-#
-#     def init_hydro(self):
-#         """
-#         Overrides the init_hydro method in Pipe_Flow.
-#         """
-#         super(Pipe_Flow_Cylinder, self).init_hydro()
-#
-#         # Now create the obstacle mask on the device
-#         self.obstacle_mask = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-#                                        hostbuf=self.obstacle_mask_host)
-#
-#         # Based on where the obstacle mask is, set velocity to zero, as appropriate.
-#         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
-#                                                    self.obstacle_mask, self.u, self.v,
-#                                                    np.int32(self.nx), np.int32(self.ny)).wait()
-#
-#     def move_bcs(self):
-#         """
-#         Overrides the move_bcs method in Pipe_Flow
-#         """
-#         super(Pipe_Flow_Cylinder, self).move_bcs()
-#         # Now bounceback on the obstacle
-#         self.kernels.bounceback_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
-#                                             self.obstacle_mask, self.f,
-#                                             np.int32(self.nx), np.int32(self.ny)).wait()

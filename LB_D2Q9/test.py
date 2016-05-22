@@ -53,7 +53,7 @@ void main()
     gl_FragColor = texture2D(u_texture, v_texcoord);
     if(gl_FragColor.r ==69){
         gl_FragColor.r = 0;
-        gl_FragColor.g = 1;
+        gl_FragColor.phys_g = 1;
         gl_FragColor.b = 0;
     }
 }

@@ -127,11 +127,12 @@ collide_particles_fisher(__global float *f_global,
 __kernel void
 collide_particles_noisy_fisher(__global float *f_global,
                                     __global float *feq_global,
-                                    const float omega, const float G,
-                                    __constant float *w,
                                     __global __read_only float *rho_global,
                                     __global __read_only float *random_normal,
+                                    const float omega,
+                                    const float G,
                                     const float Dg,
+                                    __constant float *w,
                                     const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
