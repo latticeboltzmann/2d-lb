@@ -54,7 +54,7 @@ def get_divisible_global(global_size, local_size):
 class Field(object):
     """The master class for fields in the simulation."""
 
-    def __init__(self, name=None, delta_t=None, delta_x=None, dim_D=None):
+    def __init__(self, name=None, delta_t=None, delta_x=None, dim_D=None, dim_Pe = None):
         self.name = name
         self.delta_t = delta_t
         self.delta_x = delta_x
@@ -66,14 +66,19 @@ class Field(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
+        self.dim_Pe = dim_Pe
+
+        # Initialize internal fields
+
+        self.rho = None
+        self.f = None
+        self.feq = None
+
 class Population_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
 
-    def __init__(self, dim_Pe=1.0, dim_G=1.0, dim_Dg=1.0, **kwargs):
-        super(Population_Field).__init__(**kwargs)
-
-
-        self.dim_Pe = dim_Pe
+    def __init__(self, dim_G=1.0, dim_Dg=1.0, **kwargs):
+        super(Population_Field, self).__init__(**kwargs)
 
         self.dim_G = dim_G
         self.lb_G = np.float32(self.dim_G * self.delta_t)
@@ -81,52 +86,15 @@ class Population_Field(Field):
         self.dim_Dg = dim_Dg
         self.lb_Dg = np.float32(self.dim_Dg * (self.delta_t / self.delta_x ** 2))
 
-        # Initialize constants appropriately
 
-        self.rho = None
-        self.u = None
-        self.v = None
-
-        self.f = None
-        self.feq = None
-
-        self.dim_D = None
-        self.omega = None
-        self.lb_D = None
-
-        self.dim_Pe = None
-
-        self.dim_G = None
-        self.lb_G = None
-
-        self.dim_Dg = None
-        self.lb_Dg = None
-
-
-class Nutrient_Field(object):
+class Nutrient_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, population_list = None, **kwargs):
+        super(Nutrient_Field, self).__init__(**kwargs)
 
-        self.rho = None
-        self.u = None
-        self.v = None
+        self.population_list = population_list  # A list of all populations.
 
-        self.f = None
-        self.feq = None
-
-        self.dim_D = None
-        self.omega = None
-        self.lb_D = None
-
-        self.dim_Pe = None
-
-        self.dim_G = None
-        self.lb_G = None
-
-        self.dim_Dg = None
-        self.lb_Dg = None
 
 class Expansion(object):
     """
@@ -273,8 +241,19 @@ class Expansion(object):
 
         dim_D_population = 1.0
         print 'dim_D_populations:', dim_D_population
+
+        pop1 = Population_Field(name='f1',delta_t=self.delta_t, delta_x=self.delta_x,
+                                dim_D = dim_D_population, dim_Pe = dim_Pe,
+                                dim_G = dim_G1, dim_Dg = Dg1)
+
+        pop2 = Population_Field(name='f2', delta_t=self.delta_t, delta_x=self.delta_x,
+                                dim_D=dim_D_population, dim_Pe=dim_Pe,
+                                dim_G=dim_G2, dim_Dg=Dg2)
+
         dim_D_concentration = self.phys_Dc/self.phys_D
         print 'dim_D_concentration:', dim_D_concentration
+
+        pop_list = [pop1, pop2]
 
 
 
