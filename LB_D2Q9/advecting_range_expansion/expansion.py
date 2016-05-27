@@ -51,11 +51,35 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
-class Population_Field(object):
+class Field(object):
+    """The master class for fields in the simulation."""
+
+    def __init__(self, name=None, delta_t=None, delta_x=None, dim_D=None):
+        self.name = name
+        self.delta_t = delta_t
+        self.delta_x = delta_x
+
+        self.dim_D = dim_D
+        self.lb_D = np.float32(self.dim_D*(self.delta_t / self.delta_x ** 2))
+        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        self.omega = np.float32(self.omega)
+        print 'omega', self.omega
+        assert self.omega < 2.
+
+class Population_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
 
-    def __init__(self, name, delta_t, delta_x, dim_D=1.0, dim_Pe=1.0, dim_G=1.0, dim_Dg=1.0):
-        self.name = name
+    def __init__(self, dim_Pe=1.0, dim_G=1.0, dim_Dg=1.0, **kwargs):
+        super(Population_Field).__init__(**kwargs)
+
+
+        self.dim_Pe = dim_Pe
+
+        self.dim_G = dim_G
+        self.lb_G = np.float32(self.dim_G * self.delta_t)
+
+        self.dim_Dg = dim_Dg
+        self.lb_Dg = np.float32(self.dim_Dg * (self.delta_t / self.delta_x ** 2))
 
         # Initialize constants appropriately
 
@@ -167,11 +191,8 @@ class Expansion(object):
         print 'u_lb:', self.ulb
 
         self.field_dict = {}
-        self.field_dict['f1'] = Field('f1')
-        self.field_dict['f2'] = Field('f2')
-        self.field_dict['c']  = Field('c')
 
-        self.set_field_constants()
+        self.create_fields()
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -234,53 +255,27 @@ class Expansion(object):
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
-    def set_field_constants(self):
+    def create_fields(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
 
-        self.Pe = self.phys_z*self.phys_vc/self.phys_D
-        print 'Pe:', self.Pe
+        dim_Pe = self.phys_z*self.phys_vc/self.phys_D
+        print 'Pe:', dim_Pe
 
-        self.field_dict['f1'].dim_Pe = self.Pe
-        self.field_dict['f2'].dim_Pe = self.Pe
-        self.field_dict['c'].dim_Pe = self.Pe
-
-        G1 = (self.phys_z**2/self.phys_D)*self.phys_mu1
-        print 'G1:', G1
-        G2 = (self.phys_z**2/self.phys_D)*self.phys_mu2
-        print 'G2:', G2
-
-        self.field_dict['f1'].dim_G = G1
-        self.field_dict['f2'].dim_G = G2
-
-        self.field_dict['f1'].lb_G = np.float32(G1 * self.delta_t)
-        self.field_dict['f2'].lb_G = np.float32(G2 * self.delta_t)
+        dim_G1 = (self.phys_z**2/self.phys_D)*self.phys_mu1
+        print 'G1:', dim_G1
+        dim_G2 = (self.phys_z**2/self.phys_D)*self.phys_mu2
+        print 'G2:', dim_G2
 
         Dg1 = (self.phys_mu1/self.phys_Nb)*(1./self.phys_D)
         print 'Dg1:', Dg1
         Dg2 = (self.phys_mu2/self.phys_Nb)*(1./self.phys_D)
         print 'Dg2:', Dg2
 
-        self.field_dict['f1'].dim_Dg = Dg1
-        self.field_dict['f2'].dim_Dg = Dg2
+        dim_D_population = 1.0
+        print 'dim_D_populations:', dim_D_population
+        dim_D_concentration = self.phys_Dc/self.phys_D
+        print 'dim_D_concentration:', dim_D_concentration
 
-        self.field_dict['f1'].lb_Dg = np.float32(Dg1 * (self.delta_t/self.delta_x**2))
-        self.field_dict['f2'].lb_Dg = np.float32(Dg2 * (self.delta_t/self.delta_x**2))
-
-
-        self.field_dict['f1'].dim_D = 1.0 # Diffusion constant is one in this non-dimensionalization
-        self.field_dict['f2'].dim_D = 1.0
-
-        self.field_dict['f1'].lb_D = np.float32(1.0*(self.delta_t / self.delta_x ** 2))
-        self.field_dict['f2'].lb_D = np.float32(1.0*(self.delta_t / self.delta_x ** 2))
-
-        # Now set the diffusion constant of the nutrient field
-        self.field_dict['c'].dim_D = self.phys_Dc/self.phys_D
-        self.field_dict['c'].lb_D = np.float32((self.phys_Dc / self.phys_D)*(self.delta_t/self.delta_x**2))
-
-        self.omega = (.5 + self.lb_D/cs**2)**-1.  # The relaxation time of the jumpers in the simulation
-        self.omega = np.float32(self.omega)
-        print 'omega', self.omega
-        assert self.omega < 2.
 
 
     def set_characteristic_length_time(self):
