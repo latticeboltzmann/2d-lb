@@ -10,6 +10,7 @@ import ctypes as ct
 # Required to draw obstacles
 import skimage as ski
 import skimage.draw
+import skimage.morphology
 
 # Get path to *this* file. Necessary when reading in opencl code.
 full_path = os.path.realpath(__file__)
@@ -104,6 +105,28 @@ class Nutrient_Field(Field):
         super(Nutrient_Field, self).__init__(**kwargs)
 
         self.pop_list = pop_list # A list of all populations.
+        self.num_populations = np.int32(len(pop_list))
+
+        self.lb_G_buffer = None
+        self.lb_Dg_buffer = None
+
+    def create_constants_from_pops(self, context):
+        """Creates openCL constants."""
+
+        # Initialize non-dimensional growth rates
+        lb_G_list = []
+        for cur_pop in self.pop_list:
+            lb_G_list.append(cur_pop.lb_G)
+        lb_G_list = np.array(lb_G_list, order='F', dtype=np.float32)
+        self.lb_G_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=lb_G_list)
+
+        # Initialize stochasticity
+        lb_Dg_list = []
+        for cur_pop in self.pop_list:
+            lb_Dg_list.append(cur_pop.lb_Dg)
+        lb_Dg_list = np.array(lb_Dg_list, order='F', dtype=np.float32)
+        self.lb_Dg_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=lb_Dg_list)
+
 
 
 class Expansion(object):
@@ -206,7 +229,7 @@ class Expansion(object):
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
-        self.rho = None # The simulation's density field
+        # Assumes the same velocity field is shared by each component of the simulation
         self.u = None # The simulation's velocity in the x direction (horizontal)
         self.v = None # The simulation's velocity in the y direction (vertical)
 
@@ -337,10 +360,11 @@ class Expansion(object):
 
         # Create a random generator
         self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
-
         # Draw random normals for each population
         for cur_pop in self.pop_list:
             cur_pop.draw_random_normal(self.random_generator, self.queue)
+
+        self.nutrient_field.create_constants_from_pops(self.context)
 
     def init_hydro(self):
         """
@@ -369,13 +393,31 @@ class Expansion(object):
         self.Y_dim = deltaY / self.N
 
         #### DENSITY #####
-        rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
-        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2))
-        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
 
-        # For testing
-        #rho_host[rho_host > 0.001] = 1.0
-        #rho_host[rho_host <= 0.001] = 0.0
+        # We must initialize each population density now. Just create an appropriate random array, and then take a
+        # slice of it. For N populations, you need N-1 random fields.
+        random_saturated_fields = np.zeros((self.num_populations, self.nx, self.ny), dtype=np.float32, order='F')
+        random_saturated_fields[:, :, :] = np.random.rand(self.num_populations,self.nx, self.ny)
+        # Normalize to one...it is saturated.
+        random_saturated_fields /= np.sum(random_saturated_fields, axis=0)
+
+        circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        rr, cc = ski.draw.circle(self.nx/2, self.ny/2, self.N, shape=circular_mask.shape)
+        circular_mask[rr, cc] = 1.0
+
+        random_saturated_fields *= circular_mask
+
+        # Loop over and initialize each population
+        for count in range(self.num_populations):
+            cur_pop = self.pop_list[count]
+            cur_rho_host = random_saturated_fields[count]
+            rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=cur_rho_host)
+            cur_pop.rho = rho
+
+        # Initialize the concentration field to one
+        cur_concentration_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
+        self.nutrient_field.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                            hostbuf=cur_concentration_host)
 
         #### VELOCITY ####
         dim_vx = self.Pe * self.phys_vx / self.phys_vc
