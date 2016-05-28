@@ -86,14 +86,24 @@ class Population_Field(Field):
         self.dim_Dg = dim_Dg
         self.lb_Dg = np.float32(self.dim_Dg * (self.delta_t / self.delta_x ** 2))
 
+        self.random_normal = None
+
+    def draw_random_normal(self, random_generator, queue):
+        if self.random_normal is None:
+            random_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
+            self.random_normal = cl.array.to_device(self.queue, random_host)
+
+        random_generator.fill_normal(self.random_normal, queue=queue)
+        self.random_normal.finish()
+
 
 class Nutrient_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
 
-    def __init__(self, population_list = None, **kwargs):
+    def __init__(self, pop_list=None, **kwargs):
         super(Nutrient_Field, self).__init__(**kwargs)
 
-        self.population_list = population_list  # A list of all populations.
+        self.pop_list = pop_list # A list of all populations.
 
 
 class Expansion(object):
@@ -104,7 +114,7 @@ class Expansion(object):
 
     def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
                  vx=0., vy=0., vc=0.,
-                 mu1=1.0, mu2=1.0, Nb=10., Dc=1.0,
+                 mu_list=None, Nb=10., Dc=1.0,
                  time_prefactor=1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
@@ -129,16 +139,17 @@ class Expansion(object):
         self.phys_Lx = Lx
         self.phys_Ly = Ly
         self.phys_D = D
-        self.phys_z = z # The size of the box that is going to diffuse
+        self.phys_z = z # The size of the droplet
 
         self.phys_vx = vx
         self.phys_vy = vy
         self.phys_vc = vc
 
-        self.phys_mu1 = mu1
-        self.phys_mu2 = mu2
         self.phys_Nb = Nb
         self.phys_Dc = Dc
+
+        self.phys_mu_list = np.array(mu_list)
+        self.num_populations = len(self.phys_mu_list)
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -158,8 +169,8 @@ class Expansion(object):
         self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
 
-        self.field_dict = {}
-
+        self.pop_list = []
+        self.nutrient_field = None
         self.create_fields()
 
         # Initialize grid dimensions
@@ -192,7 +203,6 @@ class Expansion(object):
         self.cx = None
         self.cy = None
         self.random_generator = None
-        self.random_normal = None
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
@@ -229,33 +239,30 @@ class Expansion(object):
         dim_Pe = self.phys_z*self.phys_vc/self.phys_D
         print 'Pe:', dim_Pe
 
-        dim_G1 = (self.phys_z**2/self.phys_D)*self.phys_mu1
-        print 'G1:', dim_G1
-        dim_G2 = (self.phys_z**2/self.phys_D)*self.phys_mu2
-        print 'G2:', dim_G2
+        dim_G = (self.phys_z**2/self.phys_D)*self.phys_mu_list
+        print 'G:', dim_G
 
-        Dg1 = (self.phys_mu1/self.phys_Nb)*(1./self.phys_D)
-        print 'Dg1:', Dg1
-        Dg2 = (self.phys_mu2/self.phys_Nb)*(1./self.phys_D)
-        print 'Dg2:', Dg2
+        dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1./self.phys_D)
+        print 'Dg:', dim_Dg
 
         dim_D_population = 1.0
         print 'dim_D_populations:', dim_D_population
 
-        pop1 = Population_Field(name='f1',delta_t=self.delta_t, delta_x=self.delta_x,
-                                dim_D = dim_D_population, dim_Pe = dim_Pe,
-                                dim_G = dim_G1, dim_Dg = Dg1)
-
-        pop2 = Population_Field(name='f2', delta_t=self.delta_t, delta_x=self.delta_x,
-                                dim_D=dim_D_population, dim_Pe=dim_Pe,
-                                dim_G=dim_G2, dim_Dg=Dg2)
+        count = 0
+        for cur_G, cur_Dg in zip(dim_G, dim_Dg):
+            cur_name = 'f' + str(count)
+            cur_pop = Population_Field(name=cur_name, delta_t=self.delta_t, delta_x=self.delta_x,
+                                    dim_D=dim_D_population, dim_Pe=dim_Pe,
+                                    dim_G=cur_G, dim_Dg=cur_Dg)
+            self.pop_list.append(cur_pop)
+            count += 1
 
         dim_D_concentration = self.phys_Dc/self.phys_D
         print 'dim_D_concentration:', dim_D_concentration
 
-        pop_list = [pop1, pop2]
-
-
+        self.nutrient_field = Nutrient_Field(name='c', delta_t=self.delta_t, delta_x=self.delta_x,
+                                             dim_D=dim_D_concentration, dim_Pe=dim_Pe,
+                                             pop_list=self.pop_list)
 
     def set_characteristic_length_time(self):
         """
@@ -328,14 +335,12 @@ class Expansion(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
-        # We need one random draw per space
-        random_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
-        self.random_normal = cl.array.to_device(self.queue, random_host)
-
         # Create a random generator
         self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
-        self.random_generator.fill_normal(self.random_normal, queue=self.queue)
 
+        # Draw random normals for each population
+        for cur_pop in self.pop_list:
+            cur_pop.draw_random_normal(self.random_generator, self.queue)
 
     def init_hydro(self):
         """
@@ -477,7 +482,6 @@ class Expansion(object):
 
             # Regenerate random fields
             self.random_generator.fill_normal(self.random_normal, queue=self.queue)
-            self.random_normal.finish()
 
 
     def get_fields(self):
