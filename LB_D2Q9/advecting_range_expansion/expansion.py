@@ -55,8 +55,11 @@ def get_divisible_global(global_size, local_size):
 class Field(object):
     """The master class for fields in the simulation."""
 
-    def __init__(self, name=None, delta_t=None, delta_x=None, dim_D=None, dim_Pe = None):
+    def __init__(self, name=None, delta_t=None, delta_x=None, nx=None, ny=None, dim_D=None, dim_Pe = None):
         self.name = name
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
+
         self.delta_t = delta_t
         self.delta_x = delta_x
 
@@ -74,6 +77,23 @@ class Field(object):
         self.rho = None
         self.f = None
         self.feq = None
+
+    def init_feq(self, context):
+        # Intitialize the underlying feq equilibrium field
+        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
+        self.feq = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
+
+    def init_f(self, context, queue, amplitude = 0.001):
+        """Requires init_feq to be run first."""
+        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
+        cl.enqueue_copy(queue, f, self.feq, is_blocking=True)
+
+        # We now slightly perturb f
+        perturb = (1. + amplitude * np.random.randn(self.nx, self.ny, NUM_JUMPERS))
+        f *= perturb
+
+        # Now send f to the GPU
+        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
 class Population_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
@@ -240,21 +260,26 @@ class Expansion(object):
 
         self.init_hydro() # Create the hydrodynamic fields
 
-        # Intitialize the underlying feq equilibrium field
-        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
+        # Allocate the equilibrium distribution fields
+        for cur_pop in self.pop_list:
+            cur_pop.init_feq(self.context)
+        self.nutrient_field.init_feq(self.context)
 
-        self.update_feq() # Based on the hydrodynamic fields, create feq
+        # Create feq based on the initial hydrodynamic variables
+        self.update_feq()
 
-        # Now initialize the nonequilibrium f
-        f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        # In order to stream in parallel without communication between workgroups, we need two buffers (as far as the
-        # authors can see at least). f will be the usual field of hopping particles and f_streamed will be the field
-        # after the particles have streamed.
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
-        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
+        # Now that feq is created, make the streaming fields
+        for cur_pop in self.pop_list:
+            cur_pop.init_f(self.context, self.queue)
+        self.nutrient_field.init_f(self.context, self.queue)
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+
+        # Create a temporary buffer for streaming in parallel. Only need one.
+        f_temp_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
+        self.f_temporary = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                     hostbuf=f_temp_host)
+
 
     def create_fields(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
@@ -275,8 +300,9 @@ class Expansion(object):
         for cur_G, cur_Dg in zip(dim_G, dim_Dg):
             cur_name = 'f' + str(count)
             cur_pop = Population_Field(name=cur_name, delta_t=self.delta_t, delta_x=self.delta_x,
-                                    dim_D=dim_D_population, dim_Pe=dim_Pe,
-                                    dim_G=cur_G, dim_Dg=cur_Dg)
+                                       nx=self.nx, ny=self.ny,
+                                       dim_D=dim_D_population, dim_Pe=dim_Pe,
+                                       dim_G=cur_G, dim_Dg=cur_Dg)
             self.pop_list.append(cur_pop)
             count += 1
 
@@ -284,6 +310,7 @@ class Expansion(object):
         print 'dim_D_concentration:', dim_D_concentration
 
         self.nutrient_field = Nutrient_Field(name='c', delta_t=self.delta_t, delta_x=self.delta_x,
+                                             nx=self.nx, ny=self.ny,
                                              dim_D=dim_D_concentration, dim_Pe=dim_Pe,
                                              pop_list=self.pop_list)
 
@@ -435,35 +462,20 @@ class Expansion(object):
 
     def update_feq(self):
         """
-        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
-        Implemented in OpenCL.
+        Loop over and update feq for each field.
         """
+        for cur_pop in self.pop_list:
+            self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                              cur_pop.feq, cur_pop.rho,
+                                              self.u, self.v,
+                                              self.w, self.cx, self.cy,
+                                              cs, self.nx, self.ny).wait()
+        # Update nutrient field
         self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.feq,
-                                self.rho, self.u, self.v,
-                                self.w, self.cx, self.cy,
-                                cs, self.nx, self.ny).wait()
-
-    def init_pop(self):
-        """Based on feq, create the initial population of jumpers."""
-
-        nx = self.nx
-        ny = self.ny
-
-        # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
-        f = np.zeros((nx, ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
-
-        # We now slightly perturb f
-        amplitude = .001
-        perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
-        f *= perturb
-
-        # Now send f to the GPU
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
-
-        # f_streamed will be the buffer that f moves into in parallel.
-        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
+                                          self.nutrient_field.feq, self.nutrient_field.rho,
+                                          self.u, self.v,
+                                          self.w, self.cx, self.cy,
+                                          cs, self.nx, self.ny).wait()
 
     def move_bcs(self):
         """
@@ -479,14 +491,14 @@ class Expansion(object):
         in parallel without copying the temporary buffer back onto f.
         """
         self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.f, self.f_streamed,
-                                self.cx, self.cy,
-                                self.nx, self.ny).wait()
+                          self.f, self.f_temporary,
+                          self.cx, self.cy,
+                          self.nx, self.ny).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.f_streamed, self.f,
-                                self.nx, self.ny).wait()
+                                 self.f_temporary, self.f,
+                                 self.nx, self.ny).wait()
 
     def update_hydro(self):
         """
