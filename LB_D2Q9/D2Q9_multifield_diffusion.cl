@@ -73,9 +73,15 @@ update_hydro(__global float *f_global,
 
 __kernel void
 collide_particles(__global float *f_global,
-                         __global float *feq_global,
-                         const float omega,
-                         const int nx, const int ny)
+                  __global __read_only float *feq_global,
+                  __global __read_only float *rho_global,
+                  __global __read_only float *random_normal,
+                  __constant float *omega,
+                  __constant float *G,
+                  __constant float *Dg,
+                  const float omega_nutrient,
+                  __constant float *w,
+                  const int nx, const int ny, const int num_populations)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -85,13 +91,64 @@ collide_particles(__global float *f_global,
 
         const int two_d_index = y*nx + x;
 
-        for(int jump_id = 0; jump_id < 9; jump_id++){
-            int three_d_index = jump_id*nx*ny + two_d_index;
+        const int three_d_nutrient_index = (num_populations)*ny*nx + two_d_index;
+        const float c = rho_global[three_d_nutrient_index];
+
+        float deterministic_sum = 0;
+        float stochastic_sum = 0;
+
+        for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first
+            int three_d_index = field_num*ny*nx + two_d_index;
+
+            float cur_rho = rho_global[three_d_index];
+            float cur_rand = random_normal[three_d_index];
+
+            float cur_G = G[field_num];
+            float cur_Dg = Dg[field_num];
+
+            float growth = cur_G * cur_rho * c;
+            deterministic_sum += growth;
+
+            float fluctuate = sqrt(cur_Dg*cur_rho*c)*cur_rand;
+            stochastic_sum += fluctuate;
+
+            float react = growth + fluctuate;
+
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*field_num*ny*nx + three_d_index;
+
+                float f = f_global[three_d_index];
+                float feq = feq_global[three_d_index];
+                float cur_w = w[jump_id];
+
+                float relax = f*(1-omega) + omega*feq;
+
+                float new_f = relax + cur_w*react;
+                // If new_f < 0, set to zero.
+                if(new_f < 0) new_f = 0;
+
+                f_global[four_d_index] = new_f;
+            }
+        }
+
+        // Now act on the nutrient field
+
+        float nutrient_react = -deterministic_sum - stochastic_sum;
+
+        for(int jump_id=0; jump_id < 9; jump_id++){
+            int four_d_index = jump_id*num_populations*ny*nx + three_d_nutrient_index;
 
             float f = f_global[three_d_index];
             float feq = feq_global[three_d_index];
+            float cur_w = w[jump_id];
 
-            f_global[three_d_index] = f*(1-omega) + omega*feq;
+            float relax = f*(1-omega) + omega*feq;
+
+            float new_f = relax + cur_w*nutrient_react;
+            // If new_f < 0, set to zero.
+            if(new_f < 0) new_f = 0;
+
+            f_global[three_d_index] = new_f;
         }
     }
 }

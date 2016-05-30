@@ -389,7 +389,7 @@ class Expansion(object):
                                           self.feq, self.rho,
                                           self.u, self.v,
                                           self.w, self.cx, self.cy,
-                                          cs, self.nx, self.ny).wait()
+                                          cs, self.nx, self.ny, self.num_populations).wait()
 
     def init_f(self, amplitude = 0.001):
         """Requires init_feq to be run first."""
@@ -422,12 +422,12 @@ class Expansion(object):
         self.kernels.move(self.queue, self.two_d_global_size, self.two_d_local_size,
                           self.f, self.f_temporary,
                           self.cx, self.cy,
-                          self.nx, self.ny).wait()
+                          self.nx, self.ny, self.num_populations).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.kernels.copy_buffer(self.queue, self.two_d_global_size, self.two_d_local_size,
                                  self.f_temporary, self.f,
-                                 self.nx, self.ny).wait()
+                                 self.nx, self.ny, self.num_populations).wait()
 
     def update_hydro(self):
         """
@@ -435,7 +435,7 @@ class Expansion(object):
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u, self.v, self.rho,
-                                self.nx, self.ny).wait()
+                                self.nx, self.ny, self.num_populations).wait()
 
     def collide_particles(self):
         """
@@ -444,11 +444,11 @@ class Expansion(object):
 
         # We need to deal with the subpopulations and the concentration field separately.
 
-        for cur_pop in self.pop_list:
-            self.kernels.collide_particles_subpopulation(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    cur_pop.f, cur_pop.feq, cur_pop.rho, cur_pop.random_normal.data,
-                                    cur_pop.omega, cur_pop.lb_G, cur_pop.lb_Dg,
-                                    self.w, self.nx, self.ny).wait()
+        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f, self.feq, self.rho, self.random_normal.data,
+                                self.omega_buf, self.lb_G_buf, self.lb_Dg_buf,
+                                self.omega_nutrient,
+                                self.w, self.nx, self.ny, self.num_populations).wait()
 
     def run(self, num_iterations):
         """
@@ -462,9 +462,9 @@ class Expansion(object):
             self.move() # Move all jumpers
             self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
 
-            self.update_hydro() # Update the hydrodynamic variables
+            self.update_hydro() # Update the hydrodynamic variables based on values of f
             self.update_feq() # Update the equilibrium fields
-            self.collide_particles() # Relax the nonequilibrium fields.
+            self.collide_particles() # Relax the nonequilibrium fields. Reaction takes place here.
 
             # Regenerate random fields in each subpopulation
             self.random_generator.fill_normal(self.random_normal, queue=self.queue)
