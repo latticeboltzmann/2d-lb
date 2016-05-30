@@ -93,7 +93,7 @@ class Field(object):
         f *= perturb
 
         # Now send f to the GPU
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
+        self.f = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
 class Population_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
@@ -216,6 +216,8 @@ class Expansion(object):
         self.nutrient_field = None
         self.create_fields()
 
+        self.all_fields = self.pop_list + [self.nutrient_field]
+
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
         self.ly = None # Number of grid points in the y direction, ignoring the boundary
@@ -261,25 +263,20 @@ class Expansion(object):
         self.init_hydro() # Create the hydrodynamic fields
 
         # Allocate the equilibrium distribution fields
-        for cur_pop in self.pop_list:
-            cur_pop.init_feq(self.context)
-        self.nutrient_field.init_feq(self.context)
+        for cur_field in self.all_fields:
+            cur_field.init_feq(self.context)
 
         # Create feq based on the initial hydrodynamic variables
         self.update_feq()
 
         # Now that feq is created, make the streaming fields
-        for cur_pop in self.pop_list:
-            cur_pop.init_f(self.context, self.queue)
-        self.nutrient_field.init_f(self.context, self.queue)
-
-        self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+        for cur_field in self.all_fields:
+            cur_field.init_f(self.context, self.queue)
 
         # Create a temporary buffer for streaming in parallel. Only need one.
         f_temp_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         self.f_temporary = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                      hostbuf=f_temp_host)
-
 
     def create_fields(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
@@ -464,25 +461,19 @@ class Expansion(object):
         """
         Loop over and update feq for each field.
         """
-        for cur_pop in self.pop_list:
+        for cur_field in self.all_fields:
             self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                              cur_pop.feq, cur_pop.rho,
+                                              cur_field.feq, cur_field.rho,
                                               self.u, self.v,
                                               self.w, self.cx, self.cy,
                                               cs, self.nx, self.ny).wait()
-        # Update nutrient field
-        self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                          self.nutrient_field.feq, self.nutrient_field.rho,
-                                          self.u, self.v,
-                                          self.w, self.cx, self.cy,
-                                          cs, self.nx, self.ny).wait()
 
     def move_bcs(self):
         """
         Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
         Implemented in OpenCL.
         """
-        pass
+        pass # A placeholder, needs to be fixed in the future...
 
     def move(self):
         """
@@ -490,28 +481,34 @@ class Expansion(object):
         streaming f into a new buffer, and then copying that new buffer onto f. We could not think of a way to stream
         in parallel without copying the temporary buffer back onto f.
         """
-        self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
-                          self.f, self.f_temporary,
-                          self.cx, self.cy,
-                          self.nx, self.ny).wait()
 
-        # Copy the streamed buffer into f so that it is correctly updated.
-        self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                 self.f_temporary, self.f,
-                                 self.nx, self.ny).wait()
+        for cur_field in self.all_fields:
+            self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
+                              cur_field.f, self.f_temporary,
+                              self.cx, self.cy,
+                              self.nx, self.ny).wait()
+
+            # Copy the streamed buffer into f so that it is correctly updated.
+            self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
+                                     self.f_temporary, cur_field.f,
+                                     self.nx, self.ny).wait()
 
     def update_hydro(self):
         """
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
-        self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.u, self.v, self.rho,
-                                self.nx, self.ny).wait()
+        for cur_field in self.all_fields:
+            self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                    cur_field.f, self.u, self.v, cur_field.rho,
+                                    self.nx, self.ny).wait()
 
     def collide_particles(self):
         """
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
+
+        # We need to deal with the subpopulations and the concentration field separately.
+
         self.kernels.collide_particles_noisy_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, self.rho, self.random_normal.data,
                                 self.omega, self.lb_Gd, self.lb_Dg,
@@ -534,9 +531,9 @@ class Expansion(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields.
 
-            # Regenerate random fields
-            self.random_generator.fill_normal(self.random_normal, queue=self.queue)
-
+            # Regenerate random fields in each subpopulation
+            for cur_pop in self.pop_list:
+                cur_pop.draw_random_normal(self.random_generator, self.queue)
 
     def get_fields(self):
         """

@@ -168,6 +168,49 @@ collide_particles_noisy_fisher(__global float *f_global,
 }
 
 __kernel void
+collide_particles_subpopulation(__global float *f_global,
+                                    __global float *feq_global,
+                                    __global __read_only float *rho_global,
+                                    __global __read_only float *random_normal,
+                                    const float omega,
+                                    const float G,
+                                    const float Dg,
+                                    __constant float *w,
+                                    const int nx, const int ny)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+
+        const int two_d_index = y*nx + x;
+        const float cur_rho = rho_global[two_d_index];
+        const float normal = random_normal[two_d_index];
+
+        const float deterministic_grow = G*cur_rho;
+        const float stochastic_grow = sqrt(Dg*cur_rho)*normal;
+        const float react = deterministic_grow + stochastic_grow;
+
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            int three_d_index = jump_id*nx*ny + two_d_index;
+
+            float f = f_global[three_d_index];
+            float feq = feq_global[three_d_index];
+            float cur_w = w[jump_id];
+
+            float relax = f*(1-omega) + omega*feq;
+
+            float new_f = relax + cur_w*react;
+            // If new_f < 0, set to zero.
+            if(new_f < 0) new_f = 0;
+
+            f_global[three_d_index] = new_f;
+        }
+    }
+}
+
+__kernel void
 copy_buffer(__global __read_only float *copy_from,
             __global __write_only float *copy_to,
             const int nx, const int ny)
