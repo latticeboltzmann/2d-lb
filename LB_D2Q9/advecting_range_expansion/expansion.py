@@ -385,7 +385,7 @@ class Expansion(object):
         Loop over and update feq for each field.
         """
         # feq is the same for populations and nutrients...updated together
-        self.kernels.update_feq_multifield_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
+        self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
                                           self.feq, self.rho,
                                           self.u, self.v,
                                           self.w, self.cx, self.cy,
@@ -433,10 +433,9 @@ class Expansion(object):
         """
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
-        for cur_field in self.all_fields:
-            self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    cur_field.f, self.u, self.v, cur_field.rho,
-                                    self.nx, self.ny).wait()
+        self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f, self.u, self.v, self.rho,
+                                self.nx, self.ny).wait()
 
     def collide_particles(self):
         """
@@ -468,8 +467,8 @@ class Expansion(object):
             self.collide_particles() # Relax the nonequilibrium fields.
 
             # Regenerate random fields in each subpopulation
-            for cur_pop in self.pop_list:
-                cur_pop.draw_random_normal(self.random_generator, self.queue)
+            self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+            self.random_normal.finish()
 
     def get_fields(self):
         """

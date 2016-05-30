@@ -1,5 +1,5 @@
 __kernel void
-update_feq_multifield_diffusion(__global __write_only float *feq_global,
+update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
@@ -44,31 +44,30 @@ update_feq_multifield_diffusion(__global __write_only float *feq_global,
 
 
 __kernel void
-update_hydro_diffusion(__global float *f_global,
+update_hydro(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
-             const int nx, const int ny)
+             const int nx, const int ny, const int num_populations)
 {
-    // Assumes that u and v are imposed.
+    // Assumes that u and v are imposed. Can be changed later.
+    //This *MUST* be run after move_bc's, as that takes care of BC's
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
     if ((x < nx) && (y < ny)){
-        int two_d_index = y*nx + x;
-        float f0 = f_global[0*ny*nx + two_d_index];
-        float f1 = f_global[1*ny*nx + two_d_index];
-        float f2 = f_global[2*ny*nx + two_d_index];
-        float f3 = f_global[3*ny*nx + two_d_index];
-        float f4 = f_global[4*ny*nx + two_d_index];
-        float f5 = f_global[5*ny*nx + two_d_index];
-        float f6 = f_global[6*ny*nx + two_d_index];
-        float f7 = f_global[7*ny*nx + two_d_index];
-        float f8 = f_global[8*ny*nx + two_d_index];
+        const int two_d_index = y*nx + x;
+        // Loop over fields.
+        for(int field_num = 0; field_num < num_populations + 1, field_num++){
+            int three_d_index = field_num*nx*ny + two_d_index;
 
-        //This *MUST* be run after move_bc's, as that takes care of BC's
-        rho_global[two_d_index] = f0+f1+f2+f3+f4+f5+f6+f7+f8;
+            float f_sum = 0;
+            for(int jump_id = 0; jump_id < 9; jump_id++){
+                f_sum += f_global[jump_id*field_num*nx*ny + three_d_index];
+            }
+            rho_global[three_d_index] = f_sum;
+        }
     }
 }
 
