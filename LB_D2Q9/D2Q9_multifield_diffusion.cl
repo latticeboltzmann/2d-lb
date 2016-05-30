@@ -105,6 +105,7 @@ collide_particles(__global float *f_global,
 
             float cur_G = G[field_num];
             float cur_Dg = Dg[field_num];
+            float cur_omega = omega[field_num];
 
             float growth = cur_G * cur_rho * c;
             deterministic_sum += growth;
@@ -121,7 +122,7 @@ collide_particles(__global float *f_global,
                 float feq = feq_global[three_d_index];
                 float cur_w = w[jump_id];
 
-                float relax = f*(1-omega) + omega*feq;
+                float relax = f*(1-cur_omega) + cur_omega*feq;
 
                 float new_f = relax + cur_w*react;
                 // If new_f < 0, set to zero.
@@ -133,26 +134,25 @@ collide_particles(__global float *f_global,
 
         // Now act on the nutrient field
 
-        float nutrient_react = -deterministic_sum - stochastic_sum;
+        float nutrient_react = -deterministic_sum -stochastic_sum;
 
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_nutrient_index;
 
-            float f = f_global[three_d_index];
-            float feq = feq_global[three_d_index];
+            float f = f_global[three_d_nutrient_index];
+            float feq = feq_global[three_d_nutrient_index];
             float cur_w = w[jump_id];
 
-            float relax = f*(1-omega) + omega*feq;
+            float relax = f*(1-omega_nutrient) + omega_nutrient*feq;
 
             float new_f = relax + cur_w*nutrient_react;
             // If new_f < 0, set to zero.
             if(new_f < 0) new_f = 0;
 
-            f_global[three_d_index] = new_f;
+            f_global[four_d_index] = new_f;
         }
     }
 }
-
 
 
 __kernel void
