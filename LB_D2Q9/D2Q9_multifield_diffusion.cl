@@ -59,7 +59,7 @@ update_hydro(__global float *f_global,
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
         // Loop over fields.
-        for(int field_num = 0; field_num < num_populations + 1, field_num++){
+        for(int field_num = 0; field_num < num_populations + 1; field_num++){
             int three_d_index = field_num*nx*ny + two_d_index;
 
             float f_sum = 0;

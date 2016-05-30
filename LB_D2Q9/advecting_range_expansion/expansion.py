@@ -228,7 +228,7 @@ class Expansion(object):
         print 'dim_D_concentration:', self.dim_D_nutrient
 
         self.lb_D_nutrient = self.dim_D_nutrient * (self.delta_t / self.delta_x ** 2)
-        self.omega_nutrient = (.5 + self.lb_D_nutrient/cs**2)**-1.
+        self.omega_nutrient = np.float32((.5 + self.lb_D_nutrient/cs**2)**-1.)
 
     def set_characteristic_length_time(self):
         """
@@ -351,18 +351,21 @@ class Expansion(object):
         random_saturated_fields = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
         random_saturated_fields[:, :, :] = np.random.rand(self.nx, self.ny, self.num_populations)
         # Normalize to one...it is saturated.
-        random_saturated_fields /= np.sum(random_saturated_fields, axis=0)
+        sum_of_fields = random_saturated_fields.sum(axis = 2)
+
+        random_saturated_fields /= sum_of_fields[:, :, np.newaxis]
+
 
         circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         rr, cc = ski.draw.circle(self.nx/2, self.ny/2, self.N, shape=circular_mask.shape)
         circular_mask[rr, cc] = 1.0
 
-        random_saturated_fields *= circular_mask
+        random_saturated_fields *= circular_mask[:, :, np.newaxis]
 
         rho[:, :, 0:self.num_populations] = random_saturated_fields
 
         # Initialize nutrient field to one for now
-        rho[:, :, self.num_populations + 1] = 1.0
+        rho[:, :, self.num_populations] = 1.0
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=rho)
 
@@ -474,10 +477,10 @@ class Expansion(object):
         """
         :return: Returns a dictionary of all fields. Transfers data from the GPU to the CPU.
         """
-        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
+        f = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
 
-        feq = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
+        feq = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
 
         u = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
@@ -486,7 +489,7 @@ class Expansion(object):
         v = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, v, self.v, is_blocking=True)
 
-        rho = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        rho = np.zeros((self.nx, self.ny, self.num_populations + 1), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, rho, self.rho, is_blocking=True)
 
         results={}
