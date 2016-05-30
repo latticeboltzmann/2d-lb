@@ -102,16 +102,25 @@ collide_particles(__global float *f_global,
 __kernel void
 copy_buffer(__global __read_only float *copy_from,
             __global __write_only float *copy_to,
-            const int nx, const int ny)
+            const int nx, const int ny, const int num_populations)
 {
-    //Assumes a 3d workgroup
+    //Used to copy the streaming buffer back to the original
+    //Assumes a 2d workgroup
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int jump_id = get_global_id(2);
 
-    if ((x < nx) && (y < ny) && (jump_id < 9)){
-        int three_d_index = jump_id*nx*ny + y*nx + x;
-        copy_to[three_d_index] = copy_from[three_d_index];
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+
+        for(int field_num=0; field_num < num_populations + 1; field_num++){
+            int three_d_index = field_num*nx*ny + two_d_index;
+
+            for (int jump_id = 0; jump_id < 9; jump_id++){
+
+                int four_d_index = jump_id*field_num*nx*ny + three_d_index;
+                copy_to[four_d_index] = copy_from[four_d_index];
+            }
+        }
     }
 }
 
@@ -149,64 +158,3 @@ move(__global __read_only float *f_global,
         }
     }
 }
-
-// ############ Obstacle Code ################
-
-__kernel void
-set_zero_velocity_in_obstacle(
-    __global int *obstacle_mask,
-    __global float *u_global,
-    __global float *v_global,
-    const int nx, const int ny)
-{
-    // Input should be a 2d workgroup.
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        const int two_d_index = y*nx + x;
-
-        if (obstacle_mask[two_d_index] ==  1){
-            u_global[two_d_index] = 0;
-            v_global[two_d_index] = 0;
-        }
-    }
-}
-
-__kernel void
-bounceback_in_obstacle(
-    __global int *obstacle_mask,
-    __global float *f_global,
-    const int nx, const int ny)
-{
-    // Input should be a 2d workgroup.
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        const int two_d_index = y*nx + x;
-        if (obstacle_mask[two_d_index] == 1){ // Bounce back on the obstacle
-            float f1 = f_global[1*ny*nx + two_d_index];
-            float f2 = f_global[2*ny*nx + two_d_index];
-            float f3 = f_global[3*ny*nx + two_d_index];
-            float f4 = f_global[4*ny*nx + two_d_index];
-            float f5 = f_global[5*ny*nx + two_d_index];
-            float f6 = f_global[6*ny*nx + two_d_index];
-            float f7 = f_global[7*ny*nx + two_d_index];
-            float f8 = f_global[8*ny*nx + two_d_index];
-
-            // Bounce back everywhere!
-
-            // Coalesce reads
-            f_global[1*ny*nx + two_d_index] = f3;
-            f_global[2*ny*nx + two_d_index] = f4;
-            f_global[3*ny*nx + two_d_index] = f1;
-            f_global[4*ny*nx + two_d_index] = f2;
-            f_global[5*ny*nx + two_d_index] = f7;
-            f_global[6*ny*nx + two_d_index] = f8;
-            f_global[7*ny*nx + two_d_index] = f5;
-            f_global[8*ny*nx + two_d_index] = f6;
-        }
-    }
-}
-
