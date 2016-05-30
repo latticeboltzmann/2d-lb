@@ -158,7 +158,7 @@ class Diffusion(object):
         # Now initialize the nonequilibrium f
         f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         # In order to stream in parallel without communication between workgroups, we need two buffers (as far as the
-        # authors can see at least). f will be the usual field of hopping particles and f_streamed will be the field
+        # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
         # after the particles have streamed.
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
         self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
@@ -320,7 +320,7 @@ class Diffusion(object):
         # Now send f to the GPU
         self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
-        # f_streamed will be the buffer that f moves into in parallel.
+        # f_temporary will be the buffer that f moves into in parallel.
         self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
     def move_bcs(self):
