@@ -52,64 +52,6 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
-class Field(object):
-    """The master class for fields in the simulation."""
-
-    def __init__(self, name=None, delta_t=None, delta_x=None, nx=None, ny=None, dim_D=None, dim_Pe = None):
-        self.name = name
-        self.nx = np.int32(nx)
-        self.ny = np.int32(ny)
-
-        self.delta_t = delta_t
-        self.delta_x = delta_x
-
-        self.dim_D = dim_D
-        self.lb_D = np.float32(self.dim_D*(self.delta_t / self.delta_x ** 2))
-        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        self.omega = np.float32(self.omega)
-        print 'omega', self.omega
-        assert self.omega < 2.
-
-        self.dim_Pe = dim_Pe
-
-        # Initialize internal fields
-
-        self.rho = None
-        self.f = None
-        self.feq = None
-
-    def init_feq(self, context):
-        # Intitialize the underlying feq equilibrium field
-        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        self.feq = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
-
-    def init_f(self, context, queue, amplitude = 0.001):
-        """Requires init_feq to be run first."""
-        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        cl.enqueue_copy(queue, f, self.feq, is_blocking=True)
-
-        # We now slightly perturb f
-        perturb = (1. + amplitude * np.random.randn(self.nx, self.ny, NUM_JUMPERS))
-        f *= perturb
-
-        # Now send f to the GPU
-        self.f = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
-
-
-class Nutrient_Field(Field):
-    """Contains all of the information for a field in our PDE simulation."""
-
-    def __init__(self, pop_list=None, **kwargs):
-        super(Nutrient_Field, self).__init__(**kwargs)
-
-        self.pop_list = pop_list # A list of all populations.
-        self.num_populations = np.int32(len(pop_list))
-
-        self.lb_G_buffer = None
-        self.lb_Dg_buffer = None
-
-
-
 class Expansion(object):
     """
     Simulates pipe flow using the D2Q9 lattice. Generally used to verify that our simulations were working correctly.
@@ -153,7 +95,7 @@ class Expansion(object):
         self.phys_Dc = Dc
 
         self.phys_mu_list = np.array(mu_list)
-        self.num_populations = len(self.phys_mu_list)
+        self.num_populations = np.int32(len(self.phys_mu_list))
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -238,22 +180,22 @@ class Expansion(object):
         self.X_dim = None
         self.Y_dim = None
 
-        self.rho_pop = None
-        self.rho_nutrient = None
+        # The last index is the nutrient field concentration
+        self.rho = None
         self.init_hydro() # Create the hydrodynamic fields
 
         # Allocate the equilibrium distribution fields...the same for populations and nutrient fields
-        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS, self.num_populations + 1), dtype=np.float32, order='F')
+        feq_host = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
         # Create feq based on the initial hydrodynamic variables
         self.update_feq()
 
         # Now that feq is created, make the streaming fields
-        for cur_field in self.all_fields:
-            cur_field.init_f(self.context, self.queue)
+        self.f = None
+        self.init_f()
 
         # Create a temporary buffer for streaming in parallel. Only need one.
-        f_temp_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
+        f_temp_host = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
         self.f_temporary = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                      hostbuf=f_temp_host)
 
@@ -401,6 +343,9 @@ class Expansion(object):
 
         #### DENSITY #####
 
+        # Last density is the nutrient field, always.
+        rho = np.zeros((self.nx, self.ny, self.num_populations + 1), dtype=np.float32, order='F')
+
         # We must initialize each population density now. Just create an appropriate random array, and then take a
         # slice of it. For N populations, you need N-1 random fields.
         random_saturated_fields = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
@@ -414,12 +359,12 @@ class Expansion(object):
 
         random_saturated_fields *= circular_mask
 
-        self.rho_pop = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=random_saturated_fields)
+        rho[:, :, 0:self.num_populations] = random_saturated_fields
 
-        # Initialize the concentration field to one
-        nutrient_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
-        self.rho_nutrient = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                      hostbuf=nutrient_host)
+        # Initialize nutrient field to one for now
+        rho[:, :, self.num_populations + 1] = 1.0
+        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                      hostbuf=rho)
 
         #### VELOCITY ####
         dim_vx = self.dim_Pe * self.phys_vx / self.phys_vc
@@ -441,10 +386,24 @@ class Expansion(object):
         """
         # feq is the same for populations and nutrients...updated together
         self.kernels.update_feq_multifield_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                          self.feq, self.rho_pop,
+                                          self.feq, self.rho,
                                           self.u, self.v,
                                           self.w, self.cx, self.cy,
                                           cs, self.nx, self.ny).wait()
+
+
+    def init_f(self, amplitude = 0.001):
+        """Requires init_feq to be run first."""
+        f = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
+        cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
+
+        # We now slightly perturb f
+        perturb = (1. + amplitude * np.random.randn(self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS))
+        f *= perturb
+
+        # Now send f to the GPU
+        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
+
 
     def move_bcs(self):
         """

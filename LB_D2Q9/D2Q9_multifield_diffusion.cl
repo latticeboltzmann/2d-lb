@@ -7,7 +7,7 @@ update_feq_diffusion(__global __write_only float *feq_global,
            __constant int *cx,
            __constant int *cy,
            const float cs,
-           const int nx, const int ny)
+           const int nx, const int ny, const int num_populations)
 {
     //Input should be a 2d workgroup. But, we loop over a 4d array...
     const int x = get_global_id(0);
@@ -19,20 +19,25 @@ update_feq_diffusion(__global __write_only float *feq_global,
 
         const float u = u_global[two_d_index];
         const float v = v_global[two_d_index];
-        const float rho = rho_global[two_d_index];
 
-        for(int jump_id=0; jump_id < 9; jump_id++){
-            int three_d_index = jump_id*nx*ny + two_d_index;
+        // rho is three-dimensional now...have to loop over every field.
+        for (int field_num=0; field_num < num_populations + 1; field_num++){
+            int three_d_index = field_num*nx*ny + two_d_index;
+            float rho = rho_global[three_d_index];
+            // Now loop over every jumper
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*field_num*nx*ny + three_d_index;
 
-            float cur_w = w[jump_id];
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
+                float cur_w = w[jump_id];
+                int cur_cx = cx[jump_id];
+                int cur_cy = cy[jump_id];
 
-            float cur_c_dot_u = cur_cx*u + cur_cy*v;
+                float cur_c_dot_u = cur_cx*u + cur_cy*v;
 
-            float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
+                float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
 
-            feq_global[three_d_index] = new_feq;
+                feq_global[three_d_index] = new_feq;
+            }
         }
     }
 }
