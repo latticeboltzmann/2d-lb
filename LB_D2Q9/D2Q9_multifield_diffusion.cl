@@ -9,7 +9,7 @@ update_feq_diffusion(__global __write_only float *feq_global,
            const float cs,
            const int nx, const int ny)
 {
-    //Input should be a 2d workgroup.
+    //Input should be a 2d workgroup. But, we loop over a 4d array...
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 

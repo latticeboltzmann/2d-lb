@@ -238,12 +238,13 @@ class Expansion(object):
         self.X_dim = None
         self.Y_dim = None
 
+        self.rho_pop = None
+        self.rho_nutrient = None
         self.init_hydro() # Create the hydrodynamic fields
 
-        # Allocate the equilibrium distribution fields
-        for cur_field in self.all_fields:
-            cur_field.init_feq(self.context)
-
+        # Allocate the equilibrium distribution fields...the same for populations and nutrient fields
+        feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS, self.num_populations + 1), dtype=np.float32, order='F')
+        self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
         # Create feq based on the initial hydrodynamic variables
         self.update_feq()
 
@@ -348,7 +349,7 @@ class Expansion(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_diffusion.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_multifield_diffusion.cl').read()).build(options='')
 
     def allocate_constants(self):
         """
@@ -402,8 +403,8 @@ class Expansion(object):
 
         # We must initialize each population density now. Just create an appropriate random array, and then take a
         # slice of it. For N populations, you need N-1 random fields.
-        random_saturated_fields = np.zeros((self.num_populations, self.nx, self.ny), dtype=np.float32, order='F')
-        random_saturated_fields[:, :, :] = np.random.rand(self.num_populations,self.nx, self.ny)
+        random_saturated_fields = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        random_saturated_fields[:, :, :] = np.random.rand(self.nx, self.ny, self.num_populations)
         # Normalize to one...it is saturated.
         random_saturated_fields /= np.sum(random_saturated_fields, axis=0)
 
@@ -413,27 +414,22 @@ class Expansion(object):
 
         random_saturated_fields *= circular_mask
 
-        # Loop over and initialize each population
-        for count in range(self.num_populations):
-            cur_pop = self.pop_list[count]
-            cur_rho_host = random_saturated_fields[count]
-            rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=cur_rho_host)
-            cur_pop.rho = rho
+        self.rho_pop = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=random_saturated_fields)
 
         # Initialize the concentration field to one
-        cur_concentration_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
-        self.nutrient_field.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                            hostbuf=cur_concentration_host)
+        nutrient_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
+        self.rho_nutrient = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                      hostbuf=nutrient_host)
 
         #### VELOCITY ####
-        dim_vx = self.Pe * self.phys_vx / self.phys_vc
-        dim_vy = self.Pe * self.phys_vy / self.phys_vc
+        dim_vx = self.dim_Pe * self.phys_vx / self.phys_vc
+        dim_vy = self.dim_Pe * self.phys_vy / self.phys_vc
 
         lb_vx = (self.delta_t / self.delta_x) * dim_vx
         lb_vy = (self.delta_t / self.delta_x) * dim_vy
 
-        u_host = lb_vx * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
-        v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')  # Fluctuations in the fluid; small
+        u_host = lb_vx * np.ones((nx, ny), dtype=np.float32, order='F')  # Constant fluid motion for now
+        v_host = lb_vy * np.ones((nx, ny), dtype=np.float32, order='F')
 
         # Transfer arrays to the device
         self.u = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=u_host)
@@ -443,12 +439,12 @@ class Expansion(object):
         """
         Loop over and update feq for each field.
         """
-        for cur_field in self.all_fields:
-            self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                              cur_field.feq, cur_field.rho,
-                                              self.u, self.v,
-                                              self.w, self.cx, self.cy,
-                                              cs, self.nx, self.ny).wait()
+        # feq is the same for populations and nutrients...updated together
+        self.kernels.update_feq_multifield_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                          self.feq, self.rho_pop,
+                                          self.u, self.v,
+                                          self.w, self.cx, self.cy,
+                                          cs, self.nx, self.ny).wait()
 
     def move_bcs(self):
         """
