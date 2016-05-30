@@ -509,11 +509,11 @@ class Expansion(object):
 
         # We need to deal with the subpopulations and the concentration field separately.
 
-        self.kernels.collide_particles_noisy_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, self.rho, self.random_normal.data,
-                                self.omega, self.lb_Gd, self.lb_Dg,
-                                self.w,
-                                self.nx, self.ny).wait()
+        for cur_pop in self.pop_list:
+            self.kernels.collide_particles_subpopulation(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                    cur_pop.f, cur_pop.feq, cur_pop.rho, cur_pop.random_normal.data,
+                                    cur_pop.omega, cur_pop.lb_G, cur_pop.lb_Dg,
+                                    self.w, self.nx, self.ny).wait()
 
     def run(self, num_iterations):
         """
