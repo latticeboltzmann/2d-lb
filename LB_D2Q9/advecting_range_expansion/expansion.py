@@ -391,7 +391,6 @@ class Expansion(object):
                                           self.w, self.cx, self.cy,
                                           cs, self.nx, self.ny).wait()
 
-
     def init_f(self, amplitude = 0.001):
         """Requires init_feq to be run first."""
         f = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
@@ -419,16 +418,16 @@ class Expansion(object):
         in parallel without copying the temporary buffer back onto f.
         """
 
-        for cur_field in self.all_fields:
-            self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
-                              cur_field.f, self.f_temporary,
-                              self.cx, self.cy,
-                              self.nx, self.ny).wait()
+        # Annoyingly, f is now four-dimensional. (nx, ny, num_populations +1, NUM_JUMPERS)
+        self.kernels.move(self.queue, self.two_d_global_size, self.two_d_local_size,
+                          self.f, self.f_temporary,
+                          self.cx, self.cy,
+                          self.nx, self.ny).wait()
 
-            # Copy the streamed buffer into f so that it is correctly updated.
-            self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                     self.f_temporary, cur_field.f,
-                                     self.nx, self.ny).wait()
+        # Copy the streamed buffer into f so that it is correctly updated.
+        self.kernels.copy_buffer(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                 self.f_temporary, self.f,
+                                 self.nx, self.ny).wait()
 
     def update_hydro(self):
         """
