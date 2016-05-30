@@ -95,28 +95,6 @@ class Field(object):
         # Now send f to the GPU
         self.f = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
 
-class Population_Field(Field):
-    """Contains all of the information for a field in our PDE simulation."""
-
-    def __init__(self, dim_G=1.0, dim_Dg=1.0, **kwargs):
-        super(Population_Field, self).__init__(**kwargs)
-
-        self.dim_G = dim_G
-        self.lb_G = np.float32(self.dim_G * self.delta_t)
-
-        self.dim_Dg = dim_Dg
-        self.lb_Dg = np.float32(self.dim_Dg * (self.delta_t / self.delta_x ** 2))
-
-        self.random_normal = None
-
-    def draw_random_normal(self, random_generator, queue):
-        if self.random_normal is None:
-            random_host = np.ones((self.nx, self.ny), dtype=np.float32, order='F')
-            self.random_normal = cl.array.to_device(self.queue, random_host)
-
-        random_generator.fill_normal(self.random_normal, queue=queue)
-        self.random_normal.finish()
-
 
 class Nutrient_Field(Field):
     """Contains all of the information for a field in our PDE simulation."""
@@ -129,23 +107,6 @@ class Nutrient_Field(Field):
 
         self.lb_G_buffer = None
         self.lb_Dg_buffer = None
-
-    def create_constants_from_pops(self, context):
-        """Creates openCL constants."""
-
-        # Initialize non-dimensional growth rates
-        lb_G_list = []
-        for cur_pop in self.pop_list:
-            lb_G_list.append(cur_pop.lb_G)
-        lb_G_list = np.array(lb_G_list, order='F', dtype=np.float32)
-        self.lb_G_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=lb_G_list)
-
-        # Initialize stochasticity
-        lb_Dg_list = []
-        for cur_pop in self.pop_list:
-            lb_Dg_list.append(cur_pop.lb_Dg)
-        lb_Dg_list = np.array(lb_Dg_list, order='F', dtype=np.float32)
-        self.lb_Dg_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=lb_Dg_list)
 
 
 
@@ -212,11 +173,21 @@ class Expansion(object):
         self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
 
-        self.pop_list = []
-        self.nutrient_field = None
-        self.create_fields()
+        self.dim_Pe = None # One number
+        self.dim_G = None # An array
+        self.dim_Dg = None # An array
+        self.dim_D_population = None # An array as well
+        self.dim_D_nutrient = None # A single number
 
-        self.all_fields = self.pop_list + [self.nutrient_field]
+        self.lb_G = None
+        self.lb_Dg = None
+        self.lb_D_population = None
+        self.lb_D_nutrient = None
+
+        self.omega = None
+        self.omega_nutrient = None
+
+        self.set_field_constants()
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -248,6 +219,13 @@ class Expansion(object):
         self.cx = None
         self.cy = None
         self.random_generator = None
+        self.random_normal = None
+
+        self.lb_G_buf = None
+        self.lb_Dg_buf = None
+        self.lb_D_population_buf = None
+        self.omega_buf = None
+
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
@@ -278,38 +256,36 @@ class Expansion(object):
         self.f_temporary = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                      hostbuf=f_temp_host)
 
-    def create_fields(self):
+    def set_field_constants(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
 
-        dim_Pe = self.phys_z*self.phys_vc/self.phys_D
-        print 'Pe:', dim_Pe
+        self.dim_Pe = self.phys_z*self.phys_vc/self.phys_D
+        print 'Pe:', self.dim_Pe
 
-        dim_G = (self.phys_z**2/self.phys_D)*self.phys_mu_list
-        print 'G:', dim_G
+        self.dim_G = (self.phys_z**2/self.phys_D)*self.phys_mu_list
+        print 'G:', self.dim_G
+        self.lb_G = self.dim_G * self.delta_t
+        self.lb_G = self.lb_G.astype(np.float32, order='F')
 
-        dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1./self.phys_D)
-        print 'Dg:', dim_Dg
+        self.dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1./self.phys_D)
+        print 'Dg:', self.dim_Dg
+        self.lb_Dg = self.dim_Dg * (self.delta_t / self.delta_x ** 2)
+        self.lb_Dg = self.lb_Dg.astype(np.float32, order='F')
 
-        dim_D_population = 1.0
-        print 'dim_D_populations:', dim_D_population
+        self.dim_D_population = 1.0 * np.ones_like(self.phys_mu_list, dtype=np.float, order='F')
+        print 'dim_D_populations:', self.dim_D_population
+        self.lb_D_population = self.dim_D_population * (self.delta_t / self.delta_x ** 2)
+        self.lb_D_population = self.lb_D_population.astype(np.float32, order='F')
 
-        count = 0
-        for cur_G, cur_Dg in zip(dim_G, dim_Dg):
-            cur_name = 'f' + str(count)
-            cur_pop = Population_Field(name=cur_name, delta_t=self.delta_t, delta_x=self.delta_x,
-                                       nx=self.nx, ny=self.ny,
-                                       dim_D=dim_D_population, dim_Pe=dim_Pe,
-                                       dim_G=cur_G, dim_Dg=cur_Dg)
-            self.pop_list.append(cur_pop)
-            count += 1
+        self.omega = (.5 + self.lb_D_population/cs**2)**-1.  # The relaxation time of the jumpers in the simulation
+        self.omega = self.omega.astype(np.float32, order='F')
+        print 'omega populations:', self.omega
 
-        dim_D_concentration = self.phys_Dc/self.phys_D
-        print 'dim_D_concentration:', dim_D_concentration
+        self.dim_D_nutrient = self.phys_Dc/self.phys_D
+        print 'dim_D_concentration:', self.dim_D_nutrient
 
-        self.nutrient_field = Nutrient_Field(name='c', delta_t=self.delta_t, delta_x=self.delta_x,
-                                             nx=self.nx, ny=self.ny,
-                                             dim_D=dim_D_concentration, dim_Pe=dim_Pe,
-                                             pop_list=self.pop_list)
+        self.lb_D_nutrient = self.dim_D_nutrient * (self.delta_t / self.delta_x ** 2)
+        self.omega_nutrient = (.5 + self.lb_D_nutrient/cs**2)**-1.
 
     def set_characteristic_length_time(self):
         """
@@ -382,13 +358,19 @@ class Expansion(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
+        self.lb_G_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.lb_G)
+        self.lb_Dg_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.lb_Dg)
+        self.lb_D_population_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.lb_D_population)
+        self.omega_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.omega)
+
         # Create a random generator
         self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
         # Draw random normals for each population
-        for cur_pop in self.pop_list:
-            cur_pop.draw_random_normal(self.random_generator, self.queue)
+        random_host = np.ones((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        self.random_normal = cl.array.to_device(self.queue, random_host)
 
-        self.nutrient_field.create_constants_from_pops(self.context)
+        self.random_generator.fill_normal(self.random_normal, queue=self.queue)
+        self.random_normal.finish()
 
     def init_hydro(self):
         """
