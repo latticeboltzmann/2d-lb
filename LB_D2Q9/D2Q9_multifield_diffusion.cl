@@ -118,8 +118,8 @@ collide_particles(__global float *f_global,
             for(int jump_id=0; jump_id < 9; jump_id++){
                 int four_d_index = jump_id*field_num*ny*nx + three_d_index;
 
-                float f = f_global[three_d_index];
-                float feq = feq_global[three_d_index];
+                float f = f_global[four_d_index];
+                float feq = feq_global[four_d_index];
                 float cur_w = w[jump_id];
 
                 float relax = f*(1-cur_omega) + cur_omega*feq;
@@ -139,8 +139,8 @@ collide_particles(__global float *f_global,
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_nutrient_index;
 
-            float f = f_global[three_d_nutrient_index];
-            float feq = feq_global[three_d_nutrient_index];
+            float f = f_global[four_d_index];
+            float feq = feq_global[four_d_index];
             float cur_w = w[jump_id];
 
             float relax = f*(1-omega_nutrient) + omega_nutrient*feq;
