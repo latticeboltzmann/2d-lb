@@ -366,6 +366,7 @@ class Expansion(object):
 
         # Initialize nutrient field to one for now
         rho[:, :, self.num_populations] = 1.0
+        rho = rho.astype(np.float32, order='F')
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=rho)
 

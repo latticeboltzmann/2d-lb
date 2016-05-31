@@ -36,7 +36,7 @@ update_feq(__global __write_only float *feq_global,
 
                 float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
 
-                feq_global[three_d_index] = new_feq;
+                feq_global[four_d_index] = new_feq;
             }
         }
     }
