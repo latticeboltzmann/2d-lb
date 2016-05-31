@@ -209,11 +209,14 @@ class Expansion(object):
         print 'G:', self.dim_G
         self.lb_G = self.dim_G * self.delta_t
         self.lb_G = self.lb_G.astype(np.float32, order='F')
+        print 'lb_G:', self.lb_G
 
         self.dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1./self.phys_D)
         print 'Dg:', self.dim_Dg
         self.lb_Dg = self.dim_Dg * (self.delta_t / self.delta_x ** 2)
         self.lb_Dg = self.lb_Dg.astype(np.float32, order='F')
+        print 'lb_Dg:', self.lb_Dg
+        print 'sqrt(lb_Dg):', np.sqrt(self.lb_Dg)
 
         self.dim_D_population = 1.0 * np.ones_like(self.phys_mu_list, dtype=np.float, order='F')
         print 'dim_D_populations:', self.dim_D_population
@@ -229,6 +232,7 @@ class Expansion(object):
 
         self.lb_D_nutrient = self.dim_D_nutrient * (self.delta_t / self.delta_x ** 2)
         self.omega_nutrient = np.float32((.5 + self.lb_D_nutrient/cs**2)**-1.)
+        print 'omega nutrient:', self.omega_nutrient
 
     def set_characteristic_length_time(self):
         """
