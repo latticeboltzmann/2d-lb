@@ -360,21 +360,22 @@ class Expansion(object):
 
         # We must initialize each population density now. Just create an appropriate random array, and then take a
         # slice of it. For N populations, you need N-1 random fields.
-        random_saturated_fields = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
-        random_saturated_fields[:, :, :] = np.random.rand(self.nx, self.ny, self.num_populations)
-        # Normalize to one...it is saturated.
-        sum_of_fields = random_saturated_fields.sum(axis = 2)
+        # random_saturated_fields = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        # random_saturated_fields[:, :, :] = np.random.rand(self.nx, self.ny, self.num_populations)
+        # # Normalize to one...it is saturated.
+        # sum_of_fields = random_saturated_fields.sum(axis = 2)
+        #
+        # random_saturated_fields /= sum_of_fields[:, :, np.newaxis]
+        # random_saturated_fields *= self.rho_amp
 
-        random_saturated_fields /= sum_of_fields[:, :, np.newaxis]
-        random_saturated_fields *= self.rho_amp
+        # Actually, inoculate well mixed fractions initially to show the effects of stochasticity
+        rho[:, :, 0:self.num_populations] = self.rho_amp
 
         circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         rr, cc = ski.draw.circle(self.nx/2, self.ny/2, self.N, shape=circular_mask.shape)
         circular_mask[rr, cc] = 1.0
 
-        random_saturated_fields *= circular_mask[:, :, np.newaxis]
-
-        rho[:, :, 0:self.num_populations] = random_saturated_fields
+        rho[:, :, 0:self.num_populations] *= circular_mask[:, :, np.newaxis]
 
         # Initialize nutrient field to one for now
         rho[:, :, self.num_populations] = self.concentration_amp
