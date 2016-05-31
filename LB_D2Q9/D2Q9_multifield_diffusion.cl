@@ -39,7 +39,7 @@ update_feq(__global __write_only float *feq_global,
 
                 float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
 
-                if(new_feq < zero_cutoff_factor) new_feq = 0;
+                if(new_feq < cur_w*zero_cutoff) new_feq = 0;
 
                 feq_global[four_d_index] = new_feq;
             }
@@ -131,7 +131,7 @@ collide_particles(__global float *f_global,
 
                 float new_f = relax + cur_w*react;
                 // If new_f < 0, set to zero.
-                if(new_f < zero_cutoff) new_f = 0;
+                if(new_f < cur_w*zero_cutoff) new_f = 0;
 
                 f_global[four_d_index] = new_f;
             }
@@ -150,7 +150,7 @@ collide_particles(__global float *f_global,
 
             float new_f = relax + cur_w*nutrient_react;
             // If new_f < 0, set to zero.
-            if(new_f < zero_cutoff) new_f = 0;
+            if(new_f < cur_w*zero_cutoff) new_f = 0;
 
             f_global[four_d_index] = new_f;
         }

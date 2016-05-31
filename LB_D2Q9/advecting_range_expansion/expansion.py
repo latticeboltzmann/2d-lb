@@ -61,7 +61,7 @@ class Expansion(object):
     def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
                  vx=0., vy=0., vc=0.,
                  mu_list=None, Nb=10., Dc=1.0,
-                 time_prefactor=1., N=50, rho_amp=1.0, zero_cutoff_factor = 0.1,
+                 time_prefactor=1., N=50, rho_amp=1.0, zero_cutoff_factor = 0.01,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -237,6 +237,9 @@ class Expansion(object):
         self.lb_D_nutrient = self.dim_D_nutrient * (self.delta_t / self.delta_x ** 2)
         self.omega_nutrient = np.float32((.5 + self.lb_D_nutrient/cs**2)**-1.)
         print 'omega nutrient:', self.omega_nutrient
+
+        print 'delta_ts:', self.dim_Dg/self.dim_G**2
+        print 'our delta_t:', self.delta_t
 
     def set_characteristic_length_time(self):
         """
@@ -461,7 +464,8 @@ class Expansion(object):
                                 self.f, self.feq, self.rho, self.random_normal.data,
                                 self.omega_buf, self.lb_G_buf, self.lb_Dg_buf,
                                 self.omega_nutrient,
-                                self.w, self.nx, self.ny, self.num_populations).wait()
+                                self.w, self.nx, self.ny, self.num_populations,
+                                self.zero_cutoff).wait()
 
     def run(self, num_iterations):
         """
