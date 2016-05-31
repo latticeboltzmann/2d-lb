@@ -61,7 +61,7 @@ class Expansion(object):
     def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
                  vx=0., vy=0., vc=0.,
                  mu_list=None, Nb=10., Dc=1.0,
-                 time_prefactor=1., N=50,
+                 time_prefactor=1., N=50, rho_amp=1.0, zero_cutoff_factor = 0.1,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -96,6 +96,9 @@ class Expansion(object):
 
         self.phys_mu_list = np.array(mu_list)
         self.num_populations = np.int32(len(self.phys_mu_list))
+
+        self.rho_amp = rho_amp
+        self.zero_cutoff = np.float32(zero_cutoff_factor * (1./self.phys_Nb))
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -213,7 +216,8 @@ class Expansion(object):
 
         self.dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1./self.phys_D)
         print 'Dg:', self.dim_Dg
-        self.lb_Dg = self.dim_Dg * (self.delta_t / self.delta_x ** 2)
+        #self.lb_Dg = self.dim_Dg * (self.delta_t / self.delta_x ** 2)
+        self.lb_Dg = self.dim_Dg * self.delta_t
         self.lb_Dg = self.lb_Dg.astype(np.float32, order='F')
         print 'lb_Dg:', self.lb_Dg
         print 'sqrt(lb_Dg):', np.sqrt(self.lb_Dg)
@@ -358,7 +362,7 @@ class Expansion(object):
         sum_of_fields = random_saturated_fields.sum(axis = 2)
 
         random_saturated_fields /= sum_of_fields[:, :, np.newaxis]
-
+        random_saturated_fields *= self.rho_amp
 
         circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         rr, cc = ski.draw.circle(self.nx/2, self.ny/2, self.N, shape=circular_mask.shape)
@@ -394,10 +398,11 @@ class Expansion(object):
         """
         # feq is the same for populations and nutrients...updated together
         self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                          self.feq, self.rho,
-                                          self.u, self.v,
-                                          self.w, self.cx, self.cy,
-                                          cs, self.nx, self.ny, self.num_populations).wait()
+                                self.feq, self.rho,
+                                self.u, self.v,
+                                self.w, self.cx, self.cy,
+                                cs, self.nx, self.ny, self.num_populations,
+                                self.zero_cutoff).wait()
 
     def init_f(self, amplitude = 0.001):
         """Requires init_feq to be run first."""
