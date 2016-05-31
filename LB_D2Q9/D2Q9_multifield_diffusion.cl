@@ -98,8 +98,7 @@ collide_particles(__global float *f_global,
         const int three_d_nutrient_index = (num_populations)*ny*nx + two_d_index;
         const float c = rho_global[three_d_nutrient_index];
 
-        float deterministic_sum = 0;
-        float stochastic_sum = 0;
+        float nutrient_react = 0;
 
         for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first
             int three_d_index = field_num*ny*nx + two_d_index;
@@ -112,12 +111,10 @@ collide_particles(__global float *f_global,
             float cur_omega = omega[field_num];
 
             float growth = cur_G * cur_rho * c;
-            deterministic_sum += growth;
-
             float fluctuate = sqrt(cur_Dg*cur_rho*c)*cur_rand;
-            stochastic_sum += fluctuate;
-
             float react = growth + fluctuate;
+
+            nutrient_react -= react;
 
             for(int jump_id=0; jump_id < 9; jump_id++){
                 int four_d_index = jump_id*num_fields*ny*nx + three_d_index;
@@ -137,8 +134,6 @@ collide_particles(__global float *f_global,
         }
 
         // Now act on the nutrient field
-
-        float nutrient_react = -deterministic_sum -stochastic_sum;
 
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_fields*ny*nx + three_d_nutrient_index;
