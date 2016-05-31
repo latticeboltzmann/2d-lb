@@ -61,7 +61,7 @@ class Expansion(object):
     def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
                  vx=0., vy=0., vc=0.,
                  mu_list=None, Nb=10., Dc=1.0,
-                 time_prefactor=1., N=50, rho_amp=1.0, zero_cutoff_factor = 0.01,
+                 time_prefactor=1., N=50, rho_amp=1.0, concentration_amp = 1.0, zero_cutoff_factor = 0.01,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -98,6 +98,7 @@ class Expansion(object):
         self.num_populations = np.int32(len(self.phys_mu_list))
 
         self.rho_amp = rho_amp
+        self.concentration_amp = concentration_amp
         self.zero_cutoff = np.float32(zero_cutoff_factor * (1./self.phys_Nb))
 
         # Interop with OpenGL?
@@ -376,7 +377,7 @@ class Expansion(object):
         rho[:, :, 0:self.num_populations] = random_saturated_fields
 
         # Initialize nutrient field to one for now
-        rho[:, :, self.num_populations] = 1.0
+        rho[:, :, self.num_populations] = self.concentration_amp
         rho = rho.astype(np.float32, order='F')
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=rho)
