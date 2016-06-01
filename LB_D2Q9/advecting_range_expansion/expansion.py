@@ -239,7 +239,7 @@ class Expansion(object):
         self.omega = self.omega.astype(np.float32, order='F')
         print 'omega populations:', self.omega
 
-        self.dim_D_nutrient = self.phys_Dc/self.D_standard
+        self.dim_D_nutrient = self.phys_Dc/(4*self.D_standard)
         print 'dim_D_concentration:', self.dim_D_nutrient
 
         self.lb_D_nutrient = self.dim_D_nutrient * (self.delta_t / self.delta_x ** 2)
