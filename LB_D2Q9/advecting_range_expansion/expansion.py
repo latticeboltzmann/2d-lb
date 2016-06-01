@@ -367,7 +367,7 @@ class Expansion(object):
         rho = np.zeros((self.nx, self.ny, self.num_populations + 1), dtype=np.float32, order='F')
 
         # Inoculate well mixed fractions initially to show the effects of stochasticity
-        rho[:, :, 0:self.num_populations] = self.rho_amp
+        rho[:, :, 0:self.num_populations] = self.rho_amp/self.num_populations
 
         circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
 

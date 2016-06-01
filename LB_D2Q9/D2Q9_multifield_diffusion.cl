@@ -115,7 +115,9 @@ collide_particles(__global float *f_global,
             float cur_omega = omega[field_num];
 
             float growth = cur_G * cur_rho * c;
+            //Use millstein update method for the fluctuating piece
             float fluctuate = sqrt(cur_Dg*cur_rho*c)*cur_rand;
+            fluctuate += (cur_Dg*c/4.)*(cur_rand*cur_rand - 1.);
             float react = growth + fluctuate;
 
             nutrient_react -= react;
