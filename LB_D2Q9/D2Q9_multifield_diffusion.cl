@@ -156,7 +156,12 @@ collide_particles(__global float *f_global,
 
             float new_f = relax + cur_w*nutrient_react;
 
-            f_global[four_d_index] = new_f;
+            if((c < zero_cutoff)){
+                f_global[four_d_index] = 0;
+            }
+            else{
+                f_global[four_d_index] = new_f;
+            }
         }
     }
 }
