@@ -58,9 +58,11 @@ class Expansion(object):
     For usage, see the docs folder.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
+    def __init__(self, Lx=1.0, Ly=1.0, z=0.1,
                  vx=0., vy=0., vc=0.,
-                 mu_list=None, Nb=10., Dc=1.0,
+                 mu_standard = 1.0, mu_list=None,
+                 D_standard = 1.0, D_list = None,
+                 Nb=10., Dc=1.0,
                  time_prefactor=1., N=50, rho_amp=1.0, concentration_amp = 1.0, zero_cutoff_factor = 0.01,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
@@ -84,7 +86,8 @@ class Expansion(object):
         # Physical units
         self.phys_Lx = Lx
         self.phys_Ly = Ly
-        self.phys_D = D
+        self.phys_D_list = D_list
+        self.D_standard = D_standard
         self.phys_z = z # The size of the droplet
 
         self.phys_vx = vx
@@ -94,6 +97,7 @@ class Expansion(object):
         self.phys_Nb = Nb
         self.phys_Dc = Dc
 
+        self.phys_mu_standard = mu_standard
         self.phys_mu_list = np.array(mu_list)
         self.num_populations = np.int32(len(self.phys_mu_list))
 
@@ -107,9 +111,12 @@ class Expansion(object):
         # Get the characteristic length and time scales for the flow
         self.L = None # Characteristic length scale
         self.T = None # Characteristic time scale
+        self.vf = None
+
         self.set_characteristic_length_time()
         print 'Characteristic L:', self.L
         print 'Characteristic T:', self.T
+        print 'Fisher wave velocity:', self.vf
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
@@ -119,18 +126,18 @@ class Expansion(object):
         self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
 
-        self.dim_Pe = None # One number
+        self.dim_vel_ratio = None # One number
+        self.dim_D_population = None # An array as well
         self.dim_G = None # An array
         self.dim_Dg = None # An array
-        self.dim_D_population = None # An array as well
         self.dim_D_nutrient = None # A single number
 
+        self.lb_D_population = None
+        self.omega = None
         self.lb_G = None
         self.lb_Dg = None
-        self.lb_D_population = None
-        self.lb_D_nutrient = None
 
-        self.omega = None
+        self.lb_D_nutrient = None
         self.omega_nutrient = None
 
         self.set_field_constants()
@@ -206,16 +213,16 @@ class Expansion(object):
     def set_field_constants(self):
         # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
 
-        self.dim_Pe = self.phys_z*self.phys_vc/self.phys_D
-        print 'Pe:', self.dim_Pe
+        self.dim_vel_ratio = self.phys_vc/self.vf
+        print 'vc/vf:', self.dim_vel_ratio
 
-        self.dim_G = (self.phys_z**2/self.phys_D)*self.phys_mu_list
+        self.dim_G = self.phys_mu_list / self.phys_mu_standard
         print 'G:', self.dim_G
         self.lb_G = self.dim_G * self.delta_t
         self.lb_G = self.lb_G.astype(np.float32, order='F')
         print 'lb_G:', self.lb_G
 
-        self.dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1./self.phys_D)
+        self.dim_Dg = (self.phys_mu_list/self.phys_Nb)*(1. / (4 * self.D_standard))
         print 'Dg:', self.dim_Dg
         #self.lb_Dg = self.dim_Dg * (self.delta_t / self.delta_x ** 2)
         self.lb_Dg = self.dim_Dg * self.delta_t
@@ -223,7 +230,7 @@ class Expansion(object):
         print 'lb_Dg:', self.lb_Dg
         print 'sqrt(lb_Dg):', np.sqrt(self.lb_Dg)
 
-        self.dim_D_population = 1.0 * np.ones_like(self.phys_mu_list, dtype=np.float, order='F')
+        self.dim_D_population = (1. / (4. * self.D_standard)) * self.phys_D_list
         print 'dim_D_populations:', self.dim_D_population
         self.lb_D_population = self.dim_D_population * (self.delta_t / self.delta_x ** 2)
         self.lb_D_population = self.lb_D_population.astype(np.float32, order='F')
@@ -232,7 +239,7 @@ class Expansion(object):
         self.omega = self.omega.astype(np.float32, order='F')
         print 'omega populations:', self.omega
 
-        self.dim_D_nutrient = self.phys_Dc/self.phys_D
+        self.dim_D_nutrient = self.phys_Dc/self.D_standard
         print 'dim_D_concentration:', self.dim_D_nutrient
 
         self.lb_D_nutrient = self.dim_D_nutrient * (self.delta_t / self.delta_x ** 2)
@@ -240,7 +247,7 @@ class Expansion(object):
         print 'omega nutrient:', self.omega_nutrient
 
         print 'delta_ts:', self.dim_Dg/self.dim_G**2
-        print 'our delta_t:', self.delta_t
+        print 'Our delta_t:', self.delta_t
 
     def set_characteristic_length_time(self):
         """
@@ -249,8 +256,9 @@ class Expansion(object):
         For pipe flow, L is the physical diameter of the pipe, and T is the time it takes the fluid moving at its
         theoretical maximum to to move a distance of L.
         """
-        self.L = self.phys_z
-        self.T = self.phys_z**2/self.phys_D
+        self.L = 2*np.sqrt(self.D_standard / self.phys_mu_standard)
+        self.T = 1./self.phys_mu_standard
+        self.vf = self.L / self.T
 
     def initialize_grid_dims(self):
         """
@@ -358,21 +366,15 @@ class Expansion(object):
         # Last density is the nutrient field, always.
         rho = np.zeros((self.nx, self.ny, self.num_populations + 1), dtype=np.float32, order='F')
 
-        # We must initialize each population density now. Just create an appropriate random array, and then take a
-        # slice of it. For N populations, you need N-1 random fields.
-        # random_saturated_fields = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
-        # random_saturated_fields[:, :, :] = np.random.rand(self.nx, self.ny, self.num_populations)
-        # # Normalize to one...it is saturated.
-        # sum_of_fields = random_saturated_fields.sum(axis = 2)
-        #
-        # random_saturated_fields /= sum_of_fields[:, :, np.newaxis]
-        # random_saturated_fields *= self.rho_amp
-
-        # Actually, inoculate well mixed fractions initially to show the effects of stochasticity
+        # Inoculate well mixed fractions initially to show the effects of stochasticity
         rho[:, :, 0:self.num_populations] = self.rho_amp
 
         circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        rr, cc = ski.draw.circle(self.nx/2, self.ny/2, self.N, shape=circular_mask.shape)
+
+        width_in_pixels = np.int((self.phys_z/self.L) * self.N)
+        print 'Initial droplet is' , width_in_pixels, 'pixels wide'
+
+        rr, cc = ski.draw.circle(self.nx/2, self.ny/2, width_in_pixels, shape=circular_mask.shape)
         circular_mask[rr, cc] = 1.0
 
         rho[:, :, 0:self.num_populations] *= circular_mask[:, :, np.newaxis]
@@ -384,8 +386,8 @@ class Expansion(object):
                                       hostbuf=rho)
 
         #### VELOCITY ####
-        dim_vx = self.dim_Pe * self.phys_vx / self.phys_vc
-        dim_vy = self.dim_Pe * self.phys_vy / self.phys_vc
+        dim_vx = self.dim_vel_ratio * self.phys_vx / self.phys_vc
+        dim_vy = self.dim_vel_ratio * self.phys_vy / self.phys_vc
 
         lb_vx = (self.delta_t / self.delta_x) * dim_vx
         lb_vy = (self.delta_t / self.delta_x) * dim_vy
