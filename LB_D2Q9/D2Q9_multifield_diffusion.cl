@@ -134,7 +134,7 @@ collide_particles(__global float *f_global,
 
                 float new_f = relax + cur_w*react;
 
-                if((cur_rho < zero_cutoff)){
+                if((cur_rho < zero_cutoff) || (new_f < 0)){
                     f_global[four_d_index] = 0;
                 }
                 else{
@@ -156,7 +156,7 @@ collide_particles(__global float *f_global,
 
             float new_f = relax + cur_w*nutrient_react;
 
-            if((c < zero_cutoff)){
+            if((c < zero_cutoff) || (new_f < 0)){
                 f_global[four_d_index] = 0;
             }
             else{
