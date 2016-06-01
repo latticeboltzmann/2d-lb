@@ -63,7 +63,7 @@ class Expansion(object):
                  mu_standard = 1.0, mu_list=None,
                  D_standard = 1.0, D_list = None,
                  Nb=10., Dc=1.0,
-                 time_prefactor=1., N=50, rho_amp=1.0, concentration_amp = 1.0, zero_cutoff_factor = 0.01,
+                 time_prefactor=1., N=50, rho_amp=1.0, concentration_amp = 1.0, zero_cutoff = 0.01,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -103,7 +103,7 @@ class Expansion(object):
 
         self.rho_amp = rho_amp
         self.concentration_amp = concentration_amp
-        self.zero_cutoff = np.float32(zero_cutoff_factor * (1./self.phys_Nb))
+        self.zero_cutoff = np.float32(zero_cutoff)
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -411,7 +411,7 @@ class Expansion(object):
                                 cs, self.nx, self.ny, self.num_populations,
                                 self.zero_cutoff).wait()
 
-    def init_f(self, amplitude = 0.001):
+    def init_f(self, amplitude = 0.00):
         """Requires init_feq to be run first."""
         f = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
