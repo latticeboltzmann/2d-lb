@@ -39,8 +39,6 @@ update_feq(__global __write_only float *feq_global,
 
                 float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
 
-                if(new_feq < cur_w*zero_cutoff) new_feq = 0;
-
                 feq_global[four_d_index] = new_feq;
             }
         }
@@ -53,7 +51,8 @@ update_hydro(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
-             const int nx, const int ny, const int num_populations)
+             const int nx, const int ny, const int num_populations,
+             const float zero_cutoff)
 {
     // Assumes that u and v are imposed. Can be changed later.
     //This *MUST* be run after move_bc's, as that takes care of BC's
@@ -72,6 +71,7 @@ update_hydro(__global float *f_global,
             for(int jump_id = 0; jump_id < 9; jump_id++){
                 f_sum += f_global[jump_id*num_fields*nx*ny + three_d_index];
             }
+            if (f_sum < zero_cutoff) f_sum = 0;
             rho_global[three_d_index] = f_sum;
         }
     }
@@ -108,6 +108,7 @@ collide_particles(__global float *f_global,
             int three_d_index = field_num*ny*nx + two_d_index;
 
             float cur_rho = rho_global[three_d_index];
+
             float cur_rand = random_normal[three_d_index];
 
             float cur_G = G[field_num];
@@ -132,10 +133,13 @@ collide_particles(__global float *f_global,
                 float relax = f*(1-cur_omega) + cur_omega*feq;
 
                 float new_f = relax + cur_w*react;
-                // If new_f < 0, set to zero.
-                if(new_f < cur_w*zero_cutoff) new_f = 0;
 
-                f_global[four_d_index] = new_f;
+                if((cur_rho < zero_cutoff) || (c < zero_cutoff)){
+                    f_global[four_d_index] = 0;
+                }
+                else{
+                    f_global[four_d_index] = new_f;
+                }
             }
         }
 
@@ -151,8 +155,6 @@ collide_particles(__global float *f_global,
             float relax = f*(1-omega_nutrient) + omega_nutrient*feq;
 
             float new_f = relax + cur_w*nutrient_react;
-            // If new_f < 0, set to zero.
-            if(new_f < cur_w*zero_cutoff) new_f = 0;
 
             f_global[four_d_index] = new_f;
         }

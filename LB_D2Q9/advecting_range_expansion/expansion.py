@@ -455,7 +455,8 @@ class Expansion(object):
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u, self.v, self.rho,
-                                self.nx, self.ny, self.num_populations).wait()
+                                self.nx, self.ny, self.num_populations,
+                                self.zero_cutoff).wait()
 
     def collide_particles(self):
         """
