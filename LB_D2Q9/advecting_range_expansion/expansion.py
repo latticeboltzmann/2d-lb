@@ -380,7 +380,7 @@ class Expansion(object):
         # rho[:, :, 0:self.num_populations] *= circular_mask[:, :, np.newaxis]
 
         # Actually, for now, just inoculate linearly...
-        rho[:, self.N:, 0:self.num_populations] = 0
+        rho[:, 2*self.N:, 0:self.num_populations] = 0
 
         # Initialize nutrient field to one for now
         rho[:, :, self.num_populations] = self.concentration_amp
