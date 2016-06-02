@@ -369,15 +369,18 @@ class Expansion(object):
         # Inoculate well mixed fractions initially to show the effects of stochasticity
         rho[:, :, 0:self.num_populations] = self.rho_amp/self.num_populations
 
-        circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        # circular_mask = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        #
+        # width_in_pixels = np.int((self.phys_z/self.L) * self.N)
+        # print 'Initial droplet is' , width_in_pixels, 'pixels wide'
+        #
+        # rr, cc = ski.draw.circle(self.nx/2, self.ny/2, width_in_pixels, shape=circular_mask.shape)
+        # circular_mask[rr, cc] = 1.0
+        #
+        # rho[:, :, 0:self.num_populations] *= circular_mask[:, :, np.newaxis]
 
-        width_in_pixels = np.int((self.phys_z/self.L) * self.N)
-        print 'Initial droplet is' , width_in_pixels, 'pixels wide'
-
-        rr, cc = ski.draw.circle(self.nx/2, self.ny/2, width_in_pixels, shape=circular_mask.shape)
-        circular_mask[rr, cc] = 1.0
-
-        rho[:, :, 0:self.num_populations] *= circular_mask[:, :, np.newaxis]
+        # Actually, for now, just inoculate linearly...
+        rho[:, self.N:, 0:self.num_populations] = 0
 
         # Initialize nutrient field to one for now
         rho[:, :, self.num_populations] = self.concentration_amp
