@@ -71,7 +71,7 @@ update_hydro(__global float *f_global,
             for(int jump_id = 0; jump_id < 9; jump_id++){
                 f_sum += f_global[jump_id*num_fields*nx*ny + three_d_index];
             }
-            if (f_sum < zero_cutoff) f_sum = 0;
+            if ((f_sum < zero_cutoff) || isnan(f_sum)) f_sum = 0;
             rho_global[three_d_index] = f_sum;
         }
     }
@@ -134,7 +134,7 @@ collide_particles(__global float *f_global,
 
                 float new_f = relax + cur_w*react;
 
-                if((cur_rho < zero_cutoff) || (new_f < 0)){
+                if((cur_rho < zero_cutoff) || (new_f < 0) || isnan(new_f)){
                     f_global[four_d_index] = 0;
                 }
                 else{
@@ -156,7 +156,7 @@ collide_particles(__global float *f_global,
 
             float new_f = relax + cur_w*nutrient_react;
 
-            if((c < zero_cutoff) || (new_f < 0)){
+            if((c < zero_cutoff) || (new_f < 0) || (isnan(new_f))){
                 f_global[four_d_index] = 0;
             }
             else{
