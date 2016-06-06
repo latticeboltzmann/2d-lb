@@ -207,7 +207,7 @@ class Poisson_Solver(object):
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
         Implemented in OpenCL.
         """
-        self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
+        self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.feq, self.rho, self.w,
                                 self.nx, self.ny).wait()
 
