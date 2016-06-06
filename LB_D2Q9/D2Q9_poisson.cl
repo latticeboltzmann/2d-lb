@@ -1,5 +1,5 @@
 __kernel void
-update_feq_diffusion(__global __write_only float *feq_global,
+update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __constant float *w,
            const int nx, const int ny)
@@ -32,7 +32,7 @@ update_feq_diffusion(__global __write_only float *feq_global,
 
 
 __kernel void
-update_hydro_diffusion(__global float *f_global,
+update_hydro(__global float *f_global,
              __global float *rho_global,
              const int nx, const int ny)
 {
@@ -61,11 +61,11 @@ update_hydro_diffusion(__global float *f_global,
 
 __kernel void
 collide_particles(__global float *f_global,
-                         __global float *feq_global,
-                         __global float *sources,
-                         const float omega,
-                         __constant float *w,
-                         const int nx, const int ny)
+                  __global float *feq_global,
+                  __global float *sources,
+                  const float omega,
+                  __constant float *w,
+                  const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);

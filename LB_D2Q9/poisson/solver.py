@@ -60,8 +60,8 @@ class Poisson_Solver(object):
     def __init__(self, nx=None, ny=None, sources=None, N=None, time_prefactor=None,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
 
-        self.nx = nx
-        self.ny = ny
+        self.nx = np.int32(nx)
+        self.ny = np.int32(ny)
 
         self.sources_numpy = sources # Either an opencl buffer or numpy array...to be figured out soon enough
         self.sources = None
@@ -126,10 +126,10 @@ class Poisson_Solver(object):
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
     def set_D_and_omega(self):
-
-        self.lb_D = self.delta_t / self.delta_x ** 2
+        self.lb_D = self.delta_t / self.delta_x ** 2 # Should equal about one
 
         self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        self.omega = np.float32(self.omega)
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -205,10 +205,8 @@ class Poisson_Solver(object):
         Implemented in OpenCL.
         """
         self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.feq,
-                                self.rho, self.u, self.v,
-                                self.w, self.cx, self.cy,
-                                np.float32(cs), np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.feq, self.rho, self.w,
+                                self.nx, self.ny).wait()
 
     def init_pop(self, amplitude=10.**-5.):
         """Based on feq, create the initial population of jumpers."""
@@ -258,17 +256,16 @@ class Poisson_Solver(object):
         """
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
-        self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.u, self.v, self.rho,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+        self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f, self.rho, self.nx, self.ny).wait()
 
     def collide_particles(self):
         """
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, np.float32(self.omega),
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.f, self.feq, self.sources, self.omega, self.w,
+                                self.nx, self.ny).wait()
 
     def run(self, num_iterations):
         """
