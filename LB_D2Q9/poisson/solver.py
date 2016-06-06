@@ -106,7 +106,6 @@ class Poisson_Solver(object):
 
         ## Initialize hydrodynamic variables
         self.rho = None # The simulation's density field
-
         self.init_hydro() # Create the hydrodynamic fields
 
         # Intitialize the underlying feq equilibrium field
@@ -197,6 +196,10 @@ class Poisson_Solver(object):
 
         # Transfer arrays to the device
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
+
+        temp_sources = self.sources_numpy * self.lb_D * self.delta_t
+        print 'max lb_source magnitude:', np.max(temp_sources)
+
         self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.sources_numpy)
 
     def update_feq(self):
