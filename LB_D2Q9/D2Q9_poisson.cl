@@ -65,6 +65,7 @@ collide_particles(__global float *f_global,
                   __global float *sources,
                   const float omega,
                   __constant float *w,
+                  const float delta_t, const float D,
                   const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -76,7 +77,7 @@ collide_particles(__global float *f_global,
         const int two_d_index = y*nx + x;
 
         // Define the reaction term
-        const float react = sources[two_d_index];
+        const float react = sources[two_d_index] * delta_t * D;
 
         for(int jump_id = 0; jump_id < 9; jump_id++){
             int three_d_index = jump_id*nx*ny + two_d_index;

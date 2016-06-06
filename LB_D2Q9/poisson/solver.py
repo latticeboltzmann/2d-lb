@@ -57,7 +57,7 @@ class Poisson_Solver(object):
     For usage, see the docs folder.
     """
 
-    def __init__(self, nx=None, ny=None, sources=None, N=None, time_prefactor=None,
+    def __init__(self, nx=None, ny=None, sources=None, delta_t=None, delta_x=None,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
 
         self.nx = np.int32(nx)
@@ -69,9 +69,9 @@ class Poisson_Solver(object):
         self.use_interop = use_interop
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
-        self.N = N # Characteristic length is broken into N pieces
-        self.delta_x = 1./N # How many squares characteristic length is broken into
-        self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
+        self.delta_x = delta_x # How many squares characteristic length is broken into
+        self.delta_t = delta_t # How many time iterations until the characteristic time, should be ~ \delta x^2
+        self.delta_t = np.float32(self.delta_t)
 
         self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
@@ -126,6 +126,7 @@ class Poisson_Solver(object):
 
     def set_D_and_omega(self):
         self.lb_D = self.delta_t / self.delta_x ** 2 # Should equal about one
+        self.lb_D = np.float32(self.lb_D)
 
         self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
         self.omega = np.float32(self.omega)
@@ -248,12 +249,12 @@ class Poisson_Solver(object):
         self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
                                 self.cx, self.cy,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.nx, self.ny).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f_streamed, self.f,
-                                np.int32(self.nx), np.int32(self.ny)).wait()
+                                self.nx, self.ny).wait()
 
     def update_hydro(self):
         """
@@ -268,6 +269,7 @@ class Poisson_Solver(object):
         """
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, self.sources, self.omega, self.w,
+                                self.delta_t, self.lb_D,
                                 self.nx, self.ny).wait()
 
     def run(self, num_iterations):
