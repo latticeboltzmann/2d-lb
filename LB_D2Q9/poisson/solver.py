@@ -200,7 +200,7 @@ class Poisson_Solver(object):
         temp_sources = self.sources_numpy * self.lb_D * self.delta_t
         print 'max lb_source magnitude:', np.max(temp_sources)
 
-        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.sources_numpy)
+        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=temp_sources)
 
     def update_feq(self):
         """
