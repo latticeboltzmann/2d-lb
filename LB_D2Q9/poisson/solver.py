@@ -191,7 +191,7 @@ class Poisson_Solver(object):
 
         # Create a flag to check if the solver has converged.
         self.host_done_flag = np.zeros(1).astype(np.int32)
-        self.gpu_done_flag = cl.Buffer(self.context, cl.mem_flags.READ_WRite, 4)
+        self.gpu_done_flag = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, 4)
 
     def init_hydro(self):
         """

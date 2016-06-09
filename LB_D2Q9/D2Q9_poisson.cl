@@ -92,7 +92,7 @@ collide_particles(__global float *f_global,
 
             f_global[three_d_index] = new_f;
 
-            if (abs(new_f - f) > tolerance) *(changed_flag) = 1; // You didn't converge
+            if (fabs(new_f - f) > tolerance) *(changed_flag) = 1; // You didn't converge
         }
     }
 }
