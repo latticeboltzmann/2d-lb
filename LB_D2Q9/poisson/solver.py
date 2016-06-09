@@ -57,7 +57,7 @@ class Poisson_Solver(object):
     For usage, see the docs folder.
     """
 
-    def __init__(self, nx=None, ny=None, sources=None, delta_t=None, delta_x=None,
+    def __init__(self, nx=None, ny=None, sources=None, delta_t=None, delta_x=None, rho_on_boundary = 0.0,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
 
         self.nx = np.int32(nx)
@@ -67,6 +67,8 @@ class Poisson_Solver(object):
         self.sources = None
 
         self.use_interop = use_interop
+
+        self.rho_on_boundary = np.float32(rho_on_boundary)
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.delta_x = delta_x # How many squares characteristic length is broken into
@@ -238,7 +240,9 @@ class Poisson_Solver(object):
         Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
         Implemented in OpenCL.
         """
-        pass
+        self.kernels.move_bcs(self.queue, self.three_d_global_size, self.three_d_local_size,
+                          self.f, self.rho_on_boundary, self.w,
+                          self.nx, self.ny).wait()
 
     def move(self):
         """

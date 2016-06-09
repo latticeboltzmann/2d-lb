@@ -143,10 +143,8 @@ move(__global __read_only float *f_global,
 
 __kernel void
 move_bcs(__global float *f_global,
-         __global float *u_global,
-         const float inlet_rho, const float outlet_rho,
-         __constant float *w,
          const float rho_specified,
+         __constant float *w,
          const int nx, const int ny)
 {
     //TODO: Make this efficient. I recognize there are better ways to do this, perhaps a kernel for each boundary...
