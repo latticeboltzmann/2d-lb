@@ -130,6 +130,8 @@ class Poisson_Solver(object):
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
+        self.num_iterations = 0
+
     def set_D_and_omega(self):
         self.lb_D = self.delta_t / self.delta_x ** 2 # Should equal about one
         self.lb_D = np.float32(self.lb_D)
@@ -305,9 +307,11 @@ class Poisson_Solver(object):
 
             self.collide_particles() # Relax the nonequilibrium fields.
 
+            self.num_iterations += 1
+
             cl.enqueue_copy(self.queue, self.host_done_flag, self.gpu_done_flag, is_blocking=True)
             if self.host_done_flag[0] == 0: # No updates; you are done!
-                print 'Done!'
+                print 'Done! Finished in', self.num_iterations
 
     def get_fields(self):
         """
