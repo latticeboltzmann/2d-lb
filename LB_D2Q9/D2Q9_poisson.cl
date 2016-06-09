@@ -66,6 +66,8 @@ collide_particles(__global float *f_global,
                   const float omega,
                   __constant float *w,
                   const float delta_t, const float D,
+                  __global __write_only int *changed_flag,
+                  const float tolerance,
                   const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -86,7 +88,11 @@ collide_particles(__global float *f_global,
             float feq = feq_global[three_d_index];
             float cur_w = w[jump_id];
 
-            f_global[three_d_index] = f*(1-omega) + omega*feq + cur_w*react;
+            float new_f = f*(1-omega) + omega*feq + cur_w*react;
+
+            f_global[three_d_index] = new_f;
+
+            if (abs(new_f - f) > tolerance) *(changed_flag) = 1; // You didn't converge
         }
     }
 }

@@ -58,6 +58,7 @@ class Poisson_Solver(object):
     """
 
     def __init__(self, nx=None, ny=None, sources=None, delta_t=None, delta_x=None, rho_on_boundary = 0.0,
+                 tolerance = 10.**-6.,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
 
         self.nx = np.int32(nx)
@@ -69,6 +70,7 @@ class Poisson_Solver(object):
         self.use_interop = use_interop
 
         self.rho_on_boundary = np.float32(rho_on_boundary)
+        self.tolerance = np.float32(tolerance)
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.delta_x = delta_x # How many squares characteristic length is broken into
@@ -104,6 +106,8 @@ class Poisson_Solver(object):
         self.w = None
         self.cx = None
         self.cy = None
+        self.host_done_flag = None
+        self.gpu_done_flag = None
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables
@@ -185,6 +189,9 @@ class Poisson_Solver(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
+        # Create a flag to check if the solver has converged.
+        self.host_done_flag = np.zeros(1).astype(np.int32)
+        self.gpu_done_flag = cl.Buffer(self.context, cl.mem_flags.READ_WRite, 4)
 
     def init_hydro(self):
         """
@@ -274,6 +281,7 @@ class Poisson_Solver(object):
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, self.sources, self.omega, self.w,
                                 self.delta_t, self.lb_D,
+                                self.gpu_done_flag, self.tolerance,
                                 self.nx, self.ny).wait()
 
     def run(self, num_iterations):
@@ -285,6 +293,10 @@ class Poisson_Solver(object):
         :param num_iterations: The number of iterations to run
         """
         for cur_iteration in range(num_iterations):
+
+            self.host_done_flag[0] = 0 # Assume you are done...it updates if not
+            cl.enqueue_copy(self.queue, self.gpu_done_flag, self.host_done_flag, is_blocking=True)
+
             self.move() # Move all jumpers
             self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
 
@@ -293,6 +305,9 @@ class Poisson_Solver(object):
 
             self.collide_particles() # Relax the nonequilibrium fields.
 
+            cl.enqueue_copy(self.queue, self.host_done_flag, self.gpu_done_flag, is_blocking=True)
+            if self.host_done_flag[0] == 0: # No updates; you are done!
+                print 'Done!'
 
     def get_fields(self):
         """
