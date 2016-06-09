@@ -141,3 +141,103 @@ move(__global __read_only float *f_global,
     }
 }
 
+__kernel void
+move_bcs(__global float *f_global,
+         __global float *u_global,
+         const float inlet_rho, const float outlet_rho,
+         __constant float *w,
+         const float rho_specified,
+         const int nx, const int ny)
+{
+    //TODO: Make this efficient. I recognize there are better ways to do this, perhaps a kernel for each boundary...
+    //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    int two_d_index = y*nx + x;
+
+    bool on_left = (x==0) && (y >= 1)&&(y < ny-1);
+    bool on_right = (x==nx - 1) && (y >= 1)&&(y < ny -1);
+    bool on_top = (y == ny-1) && (x >= 1) && (x< nx-1);
+    bool on_bottom = (y == 0) && (x >= 1) && (x < nx-1);
+
+    if (on_left || on_right || on_top || on_bottom){
+
+        // You need to read in all f...except f0 actually
+        // float f0 = f_global[0*ny*nx + two_d_index];
+        float f1 = f_global[1*ny*nx + two_d_index];
+        float f2 = f_global[2*ny*nx + two_d_index];
+        float f3 = f_global[3*ny*nx + two_d_index];
+        float f4 = f_global[4*ny*nx + two_d_index];
+        float f5 = f_global[5*ny*nx + two_d_index];
+        float f6 = f_global[6*ny*nx + two_d_index];
+        float f7 = f_global[7*ny*nx + two_d_index];
+        float f8 = f_global[8*ny*nx + two_d_index];
+
+        //Top: Constant density
+        if (on_top){
+            float rho_to_add = -(f1 + f2 + f3 + f5 + f6 + (-1 + w[0])*rho_specified)/(w[4]+w[7]+w[8]);
+            f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+            f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
+            f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+        }
+        //Right: constant density
+        if (on_right){
+            float rho_to_add = -(f1 + f2 + f4 + f5 + f8 + (-1 + w[0])*rho_specified)/(w[3]+w[6]+w[7]);
+            f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
+            f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+            f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+        }
+
+        //Bottom : constant density
+        if (on_bottom){
+            float rho_to_add = -(f1 + f3 + f4 + f7 + f8 + (-1 + w[0])*rho_specified)/(w[2]+w[5]+w[6]);
+            f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
+            f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
+            f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+        }
+        //Left: Constant density
+        if (on_left){
+            float rho_to_add = -(f2 + f3 + f4 + f6 + f7 + (-1 + w[0])*rho_specified)/(w[1]+w[5]+w[8]);
+            f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
+            f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
+            f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+        }
+
+        //Corner nodes: tricky and a huge pain! And likely very slow.
+        // BOTTOM INLET
+
+        if ((x==0) && (y==0)){
+            f_global[1*ny*nx + two_d_index] = f3;
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[5*ny*nx + two_d_index] = f7;
+            f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+            f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f3-2*f4-2*f7+inlet_rho);
+        }
+        // TOP INLET
+        if ((x==0)&&(y==ny-1)){
+            f_global[1*ny*nx + two_d_index] = f3;
+            f_global[4*ny*nx + two_d_index] = f2;
+            f_global[8*ny*nx + two_d_index] = f6;
+            f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
+            f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f2-2*f3-2*f6+inlet_rho);
+        }
+
+        // BOTTOM OUTLET
+        if ((x==nx-1)&&(y==0)){
+            f_global[3*ny*nx + two_d_index] = f1;
+            f_global[2*ny*nx + two_d_index] = f4;
+            f_global[6*ny*nx + two_d_index] = f8;
+            f_global[5*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+            f_global[7*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f4-2*f8+outlet_rho);
+        }
+        // TOP OUTLET
+        if ((x==nx-1)&&(y==ny-1)){
+            f_global[3*ny*nx + two_d_index] = f1;
+            f_global[4*ny*nx + two_d_index] = f2;
+            f_global[7*ny*nx + two_d_index] = f5;
+            f_global[6*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+            f_global[8*ny*nx + two_d_index] = .5*(-f0-2*f1-2*f2-2*f5+outlet_rho);
+        }
+    }
+}
