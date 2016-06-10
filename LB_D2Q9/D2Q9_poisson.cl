@@ -45,10 +45,10 @@ update_hydro(__global float *f_global,
 
     if ((x < nx) && (y < ny)){
         int two_d_index = y*nx + x;
+
+
+        float old_rho = rho_global[two_d_index];
         // No need for f0 in this formalism...
-
-        float old_rho = rho_global[two_d_index]
-
         // float f0 = f_global[0*ny*nx + two_d_index];
         float f1 = f_global[1*ny*nx + two_d_index];
         float f2 = f_global[2*ny*nx + two_d_index];
@@ -63,7 +63,7 @@ update_hydro(__global float *f_global,
 
         rho_global[two_d_index] = new_rho;
 
-        float percent_change = (old_rho - new_rho)/(old_rho)
+        float percent_change = (old_rho - new_rho)/(old_rho);
 
         if (fabs(percent_change) > tolerance) *(changed_flag) = 1; // You didn't converge
     }

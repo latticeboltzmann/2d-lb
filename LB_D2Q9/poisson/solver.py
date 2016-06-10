@@ -274,7 +274,9 @@ class Poisson_Solver(object):
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.rho, self.nx, self.ny).wait()
+                                self.f, self.rho,
+                                self.gpu_done_flag, self.tolerance,
+                                self.nx, self.ny).wait()
 
     def collide_particles(self):
         """
@@ -283,7 +285,6 @@ class Poisson_Solver(object):
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, self.sources, self.omega, self.w,
                                 self.delta_t, self.lb_D,
-                                self.gpu_done_flag, self.tolerance,
                                 self.nx, self.ny).wait()
 
     def run(self, num_iterations):
@@ -310,8 +311,9 @@ class Poisson_Solver(object):
             self.num_iterations += 1
 
             cl.enqueue_copy(self.queue, self.host_done_flag, self.gpu_done_flag, is_blocking=True)
-            if self.host_done_flag[0] == 0: # No updates; you are done!
-                print 'Done! Finished in', self.num_iterations
+            if (self.host_done_flag[0] == 0) and (self.num_iterations != 1): # No updates; you are done!
+                print 'Done! Finished in', self.num_iterations , 'iterations'
+                break
 
     def get_fields(self):
         """
