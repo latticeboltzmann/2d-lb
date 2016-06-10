@@ -3,6 +3,8 @@ import os
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
 import pyopencl.tools
+import pyopencl.algorithm
+import pyopencl.array
 import ctypes as ct
 
 # Required to draw obstacles
@@ -100,6 +102,7 @@ class Poisson_Solver(object):
         self.context = None     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
+        self.reduction_kernel = None
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
         # Allocate constants & local memory for opencl
@@ -183,6 +186,14 @@ class Poisson_Solver(object):
         # Compile our OpenCL code
         self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_poisson.cl').read()).build(options='')
 
+        # Create the reduction kernel
+        self.reduction_kernel = cl.algorithm.ReductionKernel(self.context, np.float32, neutral="0",
+                                                             reduce_expr="a+b",
+                                                             map_expr="(x[i]-y[i])*(x[i]-y[i])",
+                                                             arguments="__global float *x, \
+                                                                        __global float *y")
+
+
     def allocate_constants(self):
         """
         Allocates constants and local memory to be used by OpenCL.
@@ -192,8 +203,6 @@ class Poisson_Solver(object):
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
         # Create a flag to check if the solver has converged.
-        self.host_done_flag = np.zeros(1).astype(np.int32)
-        self.gpu_done_flag = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, 4)
 
     def init_hydro(self):
         """
@@ -275,7 +284,6 @@ class Poisson_Solver(object):
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.rho,
-                                self.gpu_done_flag, self.tolerance,
                                 self.nx, self.ny).wait()
 
     def collide_particles(self):
@@ -297,9 +305,6 @@ class Poisson_Solver(object):
         """
         for cur_iteration in range(num_iterations):
 
-            self.host_done_flag[0] = 0 # Assume you are done...it updates if not
-            cl.enqueue_copy(self.queue, self.gpu_done_flag, self.host_done_flag, is_blocking=True)
-
             self.move() # Move all jumpers
             self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
 
@@ -309,11 +314,6 @@ class Poisson_Solver(object):
             self.collide_particles() # Relax the nonequilibrium fields.
 
             self.num_iterations += 1
-
-            cl.enqueue_copy(self.queue, self.host_done_flag, self.gpu_done_flag, is_blocking=True)
-            if (self.host_done_flag[0] == 0) and (self.num_iterations != 1): # No updates; you are done!
-                print 'Done! Finished in', self.num_iterations , 'iterations'
-                break
 
     def get_fields(self):
         """

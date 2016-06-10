@@ -34,11 +34,8 @@ update_feq(__global __write_only float *feq_global,
 __kernel void
 update_hydro(__global float *f_global,
              __global float *rho_global,
-             __global __write_only int *changed_flag,
-             const float tolerance,
              const int nx, const int ny)
 {
-    // Assumes that u and v are imposed.
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -62,12 +59,6 @@ update_hydro(__global float *f_global,
         float new_rho = (9./5.)*(f1+f2+f3+f4+f5+f6+f7+f8);
 
         rho_global[two_d_index] = new_rho;
-
-        float abs_change = fabs(old_rho - new_rho);
-
-        //TODO: This condition is not good, I need some sort of global condition comparing the average distance. Right now, once rho < tolerance, things finish
-
-        if (abs_change > tolerance) *(changed_flag) = 1; // You didn't converge
     }
 }
 
