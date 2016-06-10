@@ -98,9 +98,9 @@ collide_particles(__global float *f_global,
 __kernel void
 collide_particles_fisher(__global float *f_global,
                          __global float *feq_global,
+                         __global __read_only float *rho_global,
                          const float omega, const float G,
                          __constant float *w,
-                         __global __read_only float *rho_global,
                          const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -112,6 +112,8 @@ collide_particles_fisher(__global float *f_global,
         const int two_d_index = y*nx + x;
         const float cur_rho = rho_global[two_d_index];
 
+        const float react = G*cur_rho*(1-cur_rho);
+
         for(int jump_id = 0; jump_id < 9; jump_id++){
             int three_d_index = jump_id*nx*ny + two_d_index;
 
@@ -119,7 +121,7 @@ collide_particles_fisher(__global float *f_global,
             float feq = feq_global[three_d_index];
             float cur_w = w[jump_id];
 
-            f_global[three_d_index] = f*(1-omega) + omega*feq + cur_w*G*cur_rho*(1-cur_rho);
+            f_global[three_d_index] = f*(1-omega) + omega*feq + cur_w*react;
         }
     }
 }

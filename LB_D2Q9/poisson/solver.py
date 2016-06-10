@@ -60,14 +60,15 @@ class Poisson_Solver(object):
     """
 
     def __init__(self, nx=None, ny=None, sources=None, delta_t=None, delta_x=None, rho_on_boundary = 0.0,
-                 tolerance = 10.**-6.,
+                 tolerance = 10.**-6., context = None, queue = None,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
 
         self.nx = np.int32(nx)
         self.ny = np.int32(ny)
 
-        self.sources_numpy = sources # Either an opencl buffer or numpy array...to be figured out soon enough
-        self.sources = None
+        # Either an opencl buffer or numpy array...to be figured out soon enough
+        self.input_sources = sources
+        self.scaled_sources = None
 
         self.use_interop = use_interop
 
@@ -99,8 +100,8 @@ class Poisson_Solver(object):
         print '3d local:' , self.three_d_local_size
 
         # Initialize the opencl environment
-        self.context = None     # The pyOpenCL context
-        self.queue = None       # The queue used to issue commands to the desired device
+        self.context = context  # The pyOpenCL context...may pass one in to share buffers
+        self.queue = queue       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
         self.reduction_kernel = None
         self.sum_kernel = None
@@ -151,11 +152,12 @@ class Poisson_Solver(object):
     def update_source(self, new_source):
         """Pass in a new source. Restarts the simulation with the old density."""
 
-        self.sources_numpy[:, :] = new_source
+        self.input_sources = new_source
 
-        temp_sources = self.sources_numpy * self.lb_D * self.delta_t
-        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                 hostbuf=temp_sources)
+        self.scaled_sources = self.input_sources.copy()
+        self.scaled_sources *= self.lb_D * self.delta_t
+        if type(self.scaled_sources) is pyopencl.array.Array:
+            self.scaled_sources.finish()
         self.num_iterations = 0  # Restart the simulation, basically, but keep the last guess of rho.
 
     def update_negative_gradient(self):
@@ -170,38 +172,39 @@ class Poisson_Solver(object):
         """
 
         # Startup script shamelessly taken from CS205 homework
-        platforms = cl.get_platforms()
-        print 'The platforms detected are:'
-        print '---------------------------'
-        for platform in platforms:
-            print platform.name, platform.vendor, 'version:', platform.version
-
-        # List devices in each platform
-        for platform in platforms:
-            print 'The devices detected on platform', platform.name, 'are:'
+        if self.context is None:
+            platforms = cl.get_platforms()
+            print 'The platforms detected are:'
             print '---------------------------'
-            for device in platform.get_devices():
-                print device.name, '[Type:', cl.device_type.to_string(device.type), ']'
-                print 'Maximum clock Frequency:', device.max_clock_frequency, 'MHz'
-                print 'Maximum allocable memory size:', int(device.max_mem_alloc_size / 1e6), 'MB'
-                print 'Maximum work group size', device.max_work_group_size
-                print 'Maximum work item dimensions', device.max_work_item_dimensions
-                print 'Maximum work item size', device.max_work_item_sizes
+            for platform in platforms:
+                print platform.name, platform.vendor, 'version:', platform.version
+
+            # List devices in each platform
+            for platform in platforms:
+                print 'The devices detected on platform', platform.name, 'are:'
                 print '---------------------------'
+                for device in platform.get_devices():
+                    print device.name, '[Type:', cl.device_type.to_string(device.type), ']'
+                    print 'Maximum clock Frequency:', device.max_clock_frequency, 'MHz'
+                    print 'Maximum allocable memory size:', int(device.max_mem_alloc_size / 1e6), 'MB'
+                    print 'Maximum work group size', device.max_work_group_size
+                    print 'Maximum work item dimensions', device.max_work_item_dimensions
+                    print 'Maximum work item size', device.max_work_item_sizes
+                    print '---------------------------'
 
-        # Create a context with all the devices
-        devices = platforms[0].get_devices()
-        if not self.use_interop:
-            self.context = cl.Context(devices)
-        else:
-            self.context = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])]
-                                                 + cl.tools.get_gl_sharing_context_properties(),
-                                      devices= devices)
-        print 'This context is associated with ', len(self.context.devices), 'devices'
+            # Create a context with all the devices
+            devices = platforms[0].get_devices()
+            if not self.use_interop:
+                self.context = cl.Context(devices)
+            else:
+                self.context = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])]
+                                                     + cl.tools.get_gl_sharing_context_properties(),
+                                          devices= devices)
+            print 'This context is associated with ', len(self.context.devices), 'devices'
 
-        # Create a simple queue
-        self.queue = cl.CommandQueue(self.context, self.context.devices[0],
-                                     properties=cl.command_queue_properties.PROFILING_ENABLE)
+            # Create a simple queue
+            self.queue = cl.CommandQueue(self.context, self.context.devices[0],
+                                         properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
         self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_poisson.cl').read()).build(options='')
 
@@ -240,10 +243,7 @@ class Poisson_Solver(object):
         self.rho = cl.array.to_device(self.queue, rho_host)
         self.rho_before = cl.array.to_device(self.queue, rho_host)
 
-        temp_sources = self.sources_numpy * self.lb_D * self.delta_t
-        print 'max lb_source magnitude:', np.max(temp_sources)
-
-        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=temp_sources)
+        self.update_source(self.input_sources)
 
         # Initialize buffers to store gradient. Same dimensions as rho_host, so we just use that.
         self.u = cl.array.to_device(self.queue, rho_host)
