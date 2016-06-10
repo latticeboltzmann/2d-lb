@@ -202,9 +202,12 @@ class Repelling_Fisher_Wave(object):
 
         # Set fisher wave and repulsion wave velocity
         self.vf = self.L/self.T
+        print 'vf:', self.vf
         self.vc = (self.phys_gamma/self.phys_mu)*self.vf
+        print 'vc:', self.vc
 
-        self.E = self.vf/self.vc # Exploding number
+        self.E = self.phys_gamma/self.phys_mu # Exploding number
+        print 'E:', self.E
 
     def set_characteristic_length_time(self):
         """
