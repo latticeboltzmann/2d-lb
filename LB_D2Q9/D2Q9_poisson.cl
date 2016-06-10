@@ -254,7 +254,7 @@ move_bcs(__global float *f_global,
 }
 
 __kernel void
-get_negative_gradient(__global __read_only float *rho,
+update_negative_gradient(__global __read_only float *rho,
      __global __write_only float *u,
      __global __write_only float *v,
      const float delta_x,
