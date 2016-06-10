@@ -292,9 +292,9 @@ update_negative_gradient(__global __read_only float *rho,
         // called infrequently, I don't think we care that much.
 
         if(up_y < ny) yp_value = rho[two_d_up];
-        if(down_y < 0) ym_value = rho[two_d_down];
+        if(down_y >= 0) ym_value = rho[two_d_down];
         if(right_x < nx) xp_value = rho[two_d_right];
-        if(left_x < 0) xm_value = rho[two_d_left];
+        if(left_x >= 0) xm_value = rho[two_d_left];
 
         // Calculate the derivatives appropriately.
         float u_value = -(yp_value - ym_value)/(2*delta_x);

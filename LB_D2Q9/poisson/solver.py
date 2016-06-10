@@ -75,8 +75,8 @@ class Poisson_Solver(object):
         self.tolerance = np.float32(tolerance)
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
-        self.delta_x = delta_x # How many squares characteristic length is broken into
-        self.delta_t = delta_t # How many time iterations until the characteristic time, should be ~ \delta x^2
+        self.delta_x = np.float32(delta_x) # How many squares characteristic length is broken into
+        self.delta_t = np.float32(delta_t) # How many time iterations until the characteristic time, should be ~ \delta x^2
         self.delta_t = np.float32(self.delta_t)
 
         self.ulb = self.delta_t/self.delta_x
@@ -159,8 +159,8 @@ class Poisson_Solver(object):
         self.num_iterations = 0  # Restart the simulation, basically, but keep the last guess of rho.
 
     def update_negative_gradient(self):
-        self.kernels.update_negative_grad(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                          self.rho.data, self.u, self.v,
+        self.kernels.update_negative_gradient(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                          self.rho.data, self.u.data, self.v.data,
                                           self.delta_x,
                                           self.nx, self.ny).wait()
 
@@ -353,8 +353,9 @@ class Poisson_Solver(object):
 
                 if (average_difference/rho_av) < self.tolerance:
                     print 'Done in' , self.num_iterations , 'iterations'
+                    print 'Updating u and v...'
+                    self.update_negative_gradient()
                     break
-
 
     def get_fields(self):
         """
