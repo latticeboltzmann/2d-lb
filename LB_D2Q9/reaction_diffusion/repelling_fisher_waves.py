@@ -60,7 +60,7 @@ class Repelling_Fisher_Wave(object):
 
     def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
                  mu = 1.0, gamma=1.0,
-                 time_prefactor=1., N=50,
+                 time_prefactor=1., N=50, tolerance = 10.**-4., max_poisson_iterations=10**4,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -88,6 +88,9 @@ class Repelling_Fisher_Wave(object):
 
         self.phys_mu = mu
         self.phys_gamma = gamma
+
+        self.tolerance = tolerance
+        self.max_poisson_iterations = max_poisson_iterations
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -302,8 +305,9 @@ class Repelling_Fisher_Wave(object):
         self.Y_dim = deltaY / self.N
 
         #### DENSITY #####
+        zdim = self.phys_z / self.L
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
-        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2)/self.phys_z**2)
+        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2)/zdim**2)
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         #### VELOCITY ####
@@ -312,7 +316,7 @@ class Repelling_Fisher_Wave(object):
 
         self.poisson_solver = Poisson_Solver(nx=self.nx, ny=self.ny, sources=self.rho,
                                              delta_t = self.delta_t, delta_x = self.delta_x,
-                                             tolerance = 10.**-3., context=self.context, queue = self.queue)
+                                             tolerance = self.tolerance, context=self.context, queue = self.queue)
 
         self.update_u_and_v()
 
@@ -373,7 +377,7 @@ class Repelling_Fisher_Wave(object):
     def update_u_and_v(self):
         self.poisson_solver.update_source(self.rho)
 
-        self.poisson_solver.run(10**3)
+        self.poisson_solver.run(self.max_poisson_iterations)
 
         self.u = self.poisson_solver.u
         self.u *= self.E * (self.delta_t/self.delta_x)
