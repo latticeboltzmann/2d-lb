@@ -236,7 +236,7 @@ class Poisson_Solver(object):
         temp_sources = self.sources_numpy * self.lb_D * self.delta_t
         self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                  hostbuf=temp_sources)
-        self.num_iterations = 0 # Restart the simulation, basically.
+        self.num_iterations = 0 # Restart the simulation, basically, but keep the last guess of rho.
 
     def update_feq(self):
         """
