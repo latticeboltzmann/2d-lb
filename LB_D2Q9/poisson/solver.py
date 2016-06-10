@@ -3,7 +3,7 @@ import os
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
 import pyopencl.tools
-import pyopencl.algorithm
+import pyopencl.reduction
 import pyopencl.array
 import ctypes as ct
 
@@ -103,6 +103,7 @@ class Poisson_Solver(object):
         self.queue = None       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
         self.reduction_kernel = None
+        self.sum_kernel = None
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
         # Allocate constants & local memory for opencl
@@ -115,6 +116,7 @@ class Poisson_Solver(object):
 
         ## Initialize hydrodynamic variables
         self.rho = None # The simulation's density field
+        self.rho_before = None
         self.init_hydro() # Create the hydrodynamic fields
 
         # Intitialize the underlying feq equilibrium field
@@ -187,11 +189,15 @@ class Poisson_Solver(object):
         self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_poisson.cl').read()).build(options='')
 
         # Create the reduction kernel
-        self.reduction_kernel = cl.algorithm.ReductionKernel(self.context, np.float32, neutral="0",
+        self.reduction_kernel = cl.reduction.ReductionKernel(self.context, np.float32, neutral="0",
                                                              reduce_expr="a+b",
-                                                             map_expr="(x[i]-y[i])*(x[i]-y[i])",
+                                                             map_expr="fabs(x[i]-y[i])",
                                                              arguments="__global float *x, \
                                                                         __global float *y")
+        self.sum_kernel = cl.reduction.ReductionKernel(self.context, np.float32, neutral="0",
+                                                             reduce_expr="a+b",
+                                                             map_expr="x[i]",
+                                                             arguments="__global float *x")
 
 
     def allocate_constants(self):
@@ -201,8 +207,6 @@ class Poisson_Solver(object):
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
-
-        # Create a flag to check if the solver has converged.
 
     def init_hydro(self):
         """
@@ -215,8 +219,9 @@ class Poisson_Solver(object):
         # Only density in the innoculated region.
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
 
-        # Transfer arrays to the device
-        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
+        # Transfer arrays to the device...make them arrays as we want to use the reduction kernel of opencl
+        self.rho = cl.array.to_device(self.queue, rho_host)
+        self.rho_before = cl.array.to_device(self.queue, rho_host)
 
         temp_sources = self.sources_numpy * self.lb_D * self.delta_t
         print 'max lb_source magnitude:', np.max(temp_sources)
@@ -229,7 +234,7 @@ class Poisson_Solver(object):
         Implemented in OpenCL.
         """
         self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.feq, self.rho, self.w,
+                                self.feq, self.rho.data, self.w,
                                 self.nx, self.ny).wait()
 
     def init_pop(self, amplitude=10.**-5.):
@@ -283,7 +288,7 @@ class Poisson_Solver(object):
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.rho,
+                                self.f, self.rho.data,
                                 self.nx, self.ny).wait()
 
     def collide_particles(self):
@@ -303,7 +308,11 @@ class Poisson_Solver(object):
 
         :param num_iterations: The number of iterations to run
         """
+
         for cur_iteration in range(num_iterations):
+
+            # Copy the current rho onto the previous rho
+            cl.enqueue_copy(self.queue, self.rho_before.data, self.rho.data)
 
             self.move() # Move all jumpers
             self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
@@ -314,6 +323,17 @@ class Poisson_Solver(object):
             self.collide_particles() # Relax the nonequilibrium fields.
 
             self.num_iterations += 1
+
+            if self.num_iterations != 1:
+                # Check that your simulation has not converged
+                weight = (1./(self.nx*self.ny))
+                average_difference = weight*self.reduction_kernel(self.rho_before, self.rho).get()
+                rho_av = weight * self.sum_kernel(self.rho_before).get()
+
+                if (average_difference/rho_av) < self.tolerance:
+                    print 'Done in' , self.num_iterations , 'iterations'
+                    break
+
 
     def get_fields(self):
         """
@@ -326,7 +346,7 @@ class Poisson_Solver(object):
         cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
 
         rho = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, rho, self.rho, is_blocking=True)
+        cl.enqueue_copy(self.queue, rho, self.rho.data, is_blocking=True)
 
         results={}
         results['f'] = f
