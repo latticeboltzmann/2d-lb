@@ -228,6 +228,16 @@ class Poisson_Solver(object):
 
         self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=temp_sources)
 
+    def update_source(self, new_source):
+        """Pass in a new source. Restarts the simulation with the old density."""
+
+        self.sources_numpy[:, :] = new_source
+
+        temp_sources = self.sources_numpy * self.lb_D * self.delta_t
+        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                 hostbuf=temp_sources)
+        self.num_iterations = 0 # Restart the simulation, basically.
+
     def update_feq(self):
         """
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
