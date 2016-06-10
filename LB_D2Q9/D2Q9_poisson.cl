@@ -254,9 +254,10 @@ move_bcs(__global float *f_global,
 }
 
 __kernel void
-get_gradient(__global __read_only float *rho,
+get_negative_gradient(__global __read_only float *rho,
      __global __write_only float *u,
      __global __write_only float *v,
+     const float delta_x,
      const int nx, const int ny)
 {
     const int x = get_global_id(0);
@@ -264,29 +265,42 @@ get_gradient(__global __read_only float *rho,
 
     int two_d_index = y*nx + x;
 
-    float up = y + 1;
-    float down = y - 1;
-    float right = x + 1;
-    float left = x - 1;
+    if ((x < nx) && (y < ny)){
+        // Grab your neighbors
 
-    if ((x < nx) && (y < ny) && (jump_id < 9)){
-        //Only stream if you will not go out of the system.
+        // Setup stencil
+        const int up_y = y + 1;
+        const int two_d_up = up_y*nx + x;
 
-        int cur_cx = cx[jump_id];
-        int cur_cy = cy[jump_id];
+        const int down_y = y - 1;
+        const int two_d_down = down_y*nx + x;
 
-        //Make sure that you don't go out of the system
+        const int right_x = x + 1;
+        const int two_d_right = y*nx + right_x;
 
-        int stream_x = x + cur_cx;
-        int stream_y = y + cur_cy;
+        const int left_x = x - 1;
+        const int two_d_left = y*nx + left_x;
 
-        const int old_3d_index = jump_id*nx*ny + y*nx + x;
+        // Read in values
+        float yp_value = 0;
+        float ym_value = 0;
+        float xp_value = 0;
+        float xm_value = 0;
 
-        if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){ // Stream
-            const int new_3d_index = jump_id*nx*ny + stream_y*nx + stream_x;
-            //Need two buffers to avoid parallel updates & shennanigans.
-            f_streamed_global[new_3d_index] = f_global[old_3d_index];
-        }
-        //TODO: See if we can avoid copying later and avoid bizarre movement problems
+        // TODO: We should actually loop over the local work group with a halo
+        // as that will decrease memory usage by about a factor of four. As this is
+        // called infrequently, I don't think we care that much.
+
+        if(up_y < ny) yp_value = rho[two_d_up];
+        if(down_y < 0) ym_value = rho[two_d_down];
+        if(right_x < nx) xp_value = rho[two_d_right];
+        if(left_x < 0) xm_value = rho[two_d_left];
+
+        // Calculate the derivatives appropriately.
+        float u_value = -(yp_value - ym_value)/(2*delta_x);
+        float v_value = -(xp_value - xm_value)/(2*delta_x);
+
+        u[two_d_index] = u_value;
+        v[two_d_index] = v_value;
     }
 }

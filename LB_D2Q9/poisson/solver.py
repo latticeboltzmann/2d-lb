@@ -117,6 +117,8 @@ class Poisson_Solver(object):
         ## Initialize hydrodynamic variables
         self.rho = None # The simulation's density field
         self.rho_before = None
+        self.x_grad = None
+        self.y_grad = None
         self.init_hydro() # Create the hydrodynamic fields
 
         # Intitialize the underlying feq equilibrium field
@@ -146,6 +148,20 @@ class Poisson_Solver(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
+    def update_source(self, new_source):
+        """Pass in a new source. Restarts the simulation with the old density."""
+
+        self.sources_numpy[:, :] = new_source
+
+        temp_sources = self.sources_numpy * self.lb_D * self.delta_t
+        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
+                                 hostbuf=temp_sources)
+        self.num_iterations = 0  # Restart the simulation, basically, but keep the last guess of rho.
+
+    def update_negative_gradient(self):
+        self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                  self.f, self.rho.data,
+                                  self.nx, self.ny).wait()
 
     def init_opencl(self):
         """
@@ -228,15 +244,9 @@ class Poisson_Solver(object):
 
         self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=temp_sources)
 
-    def update_source(self, new_source):
-        """Pass in a new source. Restarts the simulation with the old density."""
-
-        self.sources_numpy[:, :] = new_source
-
-        temp_sources = self.sources_numpy * self.lb_D * self.delta_t
-        self.sources = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                 hostbuf=temp_sources)
-        self.num_iterations = 0 # Restart the simulation, basically, but keep the last guess of rho.
+        # Initialize buffers to store gradient. Same dimensions as rho_host, so we just use that.
+        self.x_grad = cl.array.to_device(self.queue, rho_host)
+        self.y_grad = cl.array.to_device(self.queue, rho_host)
 
     def update_feq(self):
         """
