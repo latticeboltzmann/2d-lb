@@ -63,9 +63,11 @@ update_hydro(__global float *f_global,
 
         rho_global[two_d_index] = new_rho;
 
-        float percent_change = (old_rho - new_rho)/(old_rho);
+        float abs_change = fabs(old_rho - new_rho);
 
-        if (fabs(percent_change) > tolerance) *(changed_flag) = 1; // You didn't converge
+        //TODO: This condition is not good, I need some sort of global condition comparing the average distance. Right now, once rho < tolerance, things finish
+
+        if (abs_change > tolerance) *(changed_flag) = 1; // You didn't converge
     }
 }
 
