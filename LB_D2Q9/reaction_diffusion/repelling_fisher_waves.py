@@ -304,7 +304,7 @@ class Repelling_Fisher_Wave(object):
         #### DENSITY #####
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
         rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2)/self.phys_z**2)
-        self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=rho_host)
+        self.rho = cl.array.to_device(self.queue, rho_host)
 
         #### VELOCITY ####
 
@@ -313,6 +313,8 @@ class Repelling_Fisher_Wave(object):
         self.poisson_solver = Poisson_Solver(nx=self.nx, ny=self.ny, sources=self.rho,
                                              delta_t = self.delta_t, delta_x = self.delta_x,
                                              tolerance = 10.**-3., context=self.context, queue = self.queue)
+
+        self.poisson_solver.run(10**3)
 
         self.u = self.poisson_solver.u
         self.v = self.poisson_solver.v
@@ -325,7 +327,7 @@ class Repelling_Fisher_Wave(object):
         """
         self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.feq,
-                                self.rho, self.u, self.v,
+                                self.rho.data, self.u.data, self.v.data,
                                 self.w, self.cx, self.cy,
                                 cs, self.nx, self.ny).wait()
 
@@ -377,7 +379,7 @@ class Repelling_Fisher_Wave(object):
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
         self.kernels.update_hydro_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.u, self.v, self.rho,
+                                self.f, self.u.data, self.v.data, self.rho.data,
                                 self.nx, self.ny).wait()
 
     def collide_particles(self):
@@ -385,7 +387,7 @@ class Repelling_Fisher_Wave(object):
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
         self.kernels.collide_particles_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, self.rho,
+                                self.f, self.feq, self.rho.data,
                                 self.omega, self.lb_Gd,
                                 self.w,
                                 self.nx, self.ny).wait()
@@ -418,13 +420,13 @@ class Repelling_Fisher_Wave(object):
         cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
 
         u = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, u, self.u, is_blocking=True)
+        cl.enqueue_copy(self.queue, u, self.u.data, is_blocking=True)
 
         v = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, v, self.v, is_blocking=True)
+        cl.enqueue_copy(self.queue, v, self.v.data, is_blocking=True)
 
         rho = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, rho, self.rho, is_blocking=True)
+        cl.enqueue_copy(self.queue, rho, self.rho.data, is_blocking=True)
 
         results={}
         results['f'] = f

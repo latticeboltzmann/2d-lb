@@ -317,7 +317,7 @@ class Poisson_Solver(object):
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, self.sources, self.omega, self.w,
+                                self.f, self.feq, self.scaled_sources.data, self.omega, self.w,
                                 self.delta_t, self.lb_D,
                                 self.nx, self.ny).wait()
 
