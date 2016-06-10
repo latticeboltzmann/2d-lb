@@ -34,6 +34,8 @@ update_feq(__global __write_only float *feq_global,
 __kernel void
 update_hydro(__global float *f_global,
              __global float *rho_global,
+             __global __write_only int *changed_flag,
+             const float tolerance,
              const int nx, const int ny)
 {
     // Assumes that u and v are imposed.
@@ -44,6 +46,9 @@ update_hydro(__global float *f_global,
     if ((x < nx) && (y < ny)){
         int two_d_index = y*nx + x;
         // No need for f0 in this formalism...
+
+        float old_rho = rho_global[two_d_index]
+
         // float f0 = f_global[0*ny*nx + two_d_index];
         float f1 = f_global[1*ny*nx + two_d_index];
         float f2 = f_global[2*ny*nx + two_d_index];
@@ -54,8 +59,13 @@ update_hydro(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-        //This *MUST* be run after move_bc's, as that takes care of BC's
-        rho_global[two_d_index] = (9./5.)*(f1+f2+f3+f4+f5+f6+f7+f8);
+        float new_rho = (9./5.)*(f1+f2+f3+f4+f5+f6+f7+f8);
+
+        rho_global[two_d_index] = new_rho;
+
+        float percent_change = (old_rho - new_rho)/(old_rho)
+
+        if (fabs(percent_change) > tolerance) *(changed_flag) = 1; // You didn't converge
     }
 }
 
@@ -66,8 +76,6 @@ collide_particles(__global float *f_global,
                   const float omega,
                   __constant float *w,
                   const float delta_t, const float D,
-                  __global __write_only int *changed_flag,
-                  const float tolerance,
                   const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -91,8 +99,6 @@ collide_particles(__global float *f_global,
             float new_f = f*(1-omega) + omega*feq + cur_w*react;
 
             f_global[three_d_index] = new_f;
-
-            if (fabs(new_f - f) > tolerance) *(changed_flag) = 1; // You didn't converge
         }
     }
 }
