@@ -2,4 +2,5 @@ include LB_D2Q9/D2Q9.cl
 include LB_D2Q9/D2Q9_diffusion.cl
 include LB_D2Q9/D2Q9i.cl
 include LB_D2Q9/D2Q9_multifield_diffusion.cl
+include LB_D2Q9/D2Q9_multifield_fisher.cl
 include LB_D2Q9/D2Q9_poisson.cl

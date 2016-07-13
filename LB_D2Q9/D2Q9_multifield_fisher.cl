@@ -88,10 +88,10 @@ collide_particles(__global float *f_global,
 
         const int two_d_index = y*nx + x;
 
-        float rho_tot = 0
+        float rho_tot = 0;
         for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first
             int three_d_index = field_num*ny*nx + two_d_index;
-            float rho_tot += rho_global[three_d_index];
+            rho_tot += rho_global[three_d_index];
         }
 
         for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first

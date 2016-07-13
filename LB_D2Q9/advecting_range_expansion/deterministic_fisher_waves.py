@@ -52,18 +52,18 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
-class Expansion(object):
+class Fisher_Expansion(object):
     """
     Simulates pipe flow using the D2Q9 lattice. Generally used to verify that our simulations were working correctly.
     For usage, see the docs folder.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, z=0.1,
+    def __init__(self, Lx=1.0, Ly=1.0,
                  vx=0., vy=0., vc=0.,
                  mu_standard = 1.0, mu_list=None,
                  D_standard = 1.0, D_list = None,
-                 Nb=10., Dc=1.0,
-                 time_prefactor=1., N=50, rho_amp=1.0, concentration_amp = 1.0, zero_cutoff = 0.01,
+                 initial_frac_widths = None, initial_frac_indices = None,
+                 time_prefactor=1., N=50, rho_amp=1.0, concentration_amp = 1.0,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
@@ -88,14 +88,10 @@ class Expansion(object):
         self.phys_Ly = Ly
         self.phys_D_list = D_list
         self.D_standard = D_standard
-        self.phys_z = z # The size of the droplet
 
         self.phys_vx = vx
         self.phys_vy = vy
         self.phys_vc = vc
-
-        self.phys_Nb = Nb
-        self.phys_Dc = Dc
 
         self.phys_mu_standard = mu_standard
         self.phys_mu_list = np.array(mu_list)
@@ -103,7 +99,9 @@ class Expansion(object):
 
         self.rho_amp = rho_amp
         self.concentration_amp = concentration_amp
-        self.zero_cutoff = np.float32(zero_cutoff)
+
+        self.initial_frac_widths = initial_frac_widths
+        self.initial_frac_indices = initial_frac_indices
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -406,8 +404,7 @@ class Expansion(object):
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.u, self.v, self.rho,
-                                self.nx, self.ny, self.num_populations,
-                                self.zero_cutoff).wait()
+                                self.nx, self.ny, self.num_populations).wait()
 
     def collide_particles(self):
         """
@@ -419,8 +416,7 @@ class Expansion(object):
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, self.rho,
                                 self.omega_buf, self.lb_G_buf,
-                                self.w, self.nx, self.ny, self.num_populations,
-                                self.zero_cutoff).wait()
+                                self.w, self.nx, self.ny, self.num_populations).wait()
 
     def run(self, num_iterations):
         """
