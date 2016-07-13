@@ -7,8 +7,7 @@ update_feq(__global __write_only float *feq_global,
            __constant int *cx,
            __constant int *cy,
            const float cs,
-           const int nx, const int ny, const int num_populations,
-           const float zero_cutoff)
+           const int nx, const int ny, const int num_populations)
 {
     //Input should be a 2d workgroup. But, we loop over a 4d array...
     const int x = get_global_id(0);
@@ -51,8 +50,7 @@ update_hydro(__global float *f_global,
              __global float *u_global,
              __global float *v_global,
              __global float *rho_global,
-             const int nx, const int ny, const int num_populations,
-             const float zero_cutoff)
+             const int nx, const int ny, const int num_populations)
 {
     // Assumes that u and v are imposed. Can be changed later.
     //This *MUST* be run after move_bc's, as that takes care of BC's
@@ -81,14 +79,10 @@ __kernel void
 collide_particles(__global float *f_global,
                   __global __read_only float *feq_global,
                   __global __read_only float *rho_global,
-                  __global __read_only float *random_normal,
                   __constant float *omega,
                   __constant float *G,
-                  __constant float *Dg,
-                  const float omega_nutrient,
                   __constant float *w,
-                  const int nx, const int ny, const int num_populations,
-                  const float zero_cutoff)
+                  const int nx, const int ny, const int num_populations)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);

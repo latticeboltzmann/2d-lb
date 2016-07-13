@@ -187,7 +187,7 @@ class Expansion(object):
         self.init_hydro() # Create the hydrodynamic fields
 
         # Allocate the equilibrium distribution fields...the same for populations and nutrient fields
-        feq_host = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
+        feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
         self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
         # Create feq based on the initial hydrodynamic variables
         self.update_feq()
@@ -197,7 +197,7 @@ class Expansion(object):
         self.init_f()
 
         # Create a temporary buffer for streaming in parallel. Only need one.
-        f_temp_host = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
+        f_temp_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
         self.f_temporary = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
                                      hostbuf=f_temp_host)
 
@@ -284,7 +284,7 @@ class Expansion(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_multifield_diffusion.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9_multifield_fisher.cl').read()).build(options='')
 
     def allocate_constants(self):
         """
@@ -359,8 +359,8 @@ class Expansion(object):
                                 self.feq, self.rho,
                                 self.u, self.v,
                                 self.w, self.cx, self.cy,
-                                cs, self.nx, self.ny, self.num_populations,
-                                self.zero_cutoff).wait()
+                                cs,
+                                self.nx, self.ny, self.num_populations).wait()
 
     def init_f(self, amplitude = 0.00):
         """Requires init_feq to be run first."""
@@ -417,9 +417,8 @@ class Expansion(object):
         # We need to deal with the subpopulations and the concentration field separately.
 
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.feq, self.rho, self.random_normal.data,
-                                self.omega_buf, self.lb_G_buf, self.lb_Dg_buf,
-                                self.omega_nutrient,
+                                self.f, self.feq, self.rho,
+                                self.omega_buf, self.lb_G_buf,
                                 self.w, self.nx, self.ny, self.num_populations,
                                 self.zero_cutoff).wait()
 
