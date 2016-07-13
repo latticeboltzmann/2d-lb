@@ -327,8 +327,13 @@ class Fisher_Expansion(object):
         rho = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
 
         # Inoculate well mixed fractions initially, inoculate linearly
-        rho[:, :, 0:self.num_populations] = self.rho_amp/self.num_populations
-        rho[:, 2*self.N:, 0:self.num_populations] = 0
+
+        sites_occupied = 0
+        for cur_width, cur_type in zip(self.initial_frac_widths, self.initial_frac_indices):
+            num_to_occupy = int(cur_width * self.nx)
+
+            rho[sites_occupied:sites_occupied + num_to_occupy, 0:5, cur_type] = 1.0
+            sites_occupied += num_to_occupy
 
         rho = rho.astype(np.float32, order='F')
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
