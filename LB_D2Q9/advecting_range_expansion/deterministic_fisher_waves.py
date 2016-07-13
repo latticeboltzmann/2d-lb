@@ -438,18 +438,14 @@ class Expansion(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields. Reaction takes place here.
 
-            # Regenerate random fields in each subpopulation
-            self.random_generator.fill_normal(self.random_normal, queue=self.queue)
-            self.random_normal.finish()
-
     def get_fields(self):
         """
         :return: Returns a dictionary of all fields. Transfers data from the GPU to the CPU.
         """
-        f = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
+        f = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
 
-        feq = np.zeros((self.nx, self.ny, self.num_populations + 1, NUM_JUMPERS), dtype=np.float32, order='F')
+        feq = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
 
         u = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
@@ -458,7 +454,7 @@ class Expansion(object):
         v = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, v, self.v, is_blocking=True)
 
-        rho = np.zeros((self.nx, self.ny, self.num_populations + 1), dtype=np.float32, order='F')
+        rho = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, rho, self.rho, is_blocking=True)
 
         results={}

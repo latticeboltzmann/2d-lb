@@ -13,8 +13,6 @@ update_feq(__global __write_only float *feq_global,
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
-    const int num_fields = num_populations + 1;
-
     const int two_d_index = y*nx + x;
 
     if ((x < nx) && (y < ny)){
@@ -23,12 +21,12 @@ update_feq(__global __write_only float *feq_global,
         const float v = v_global[two_d_index];
 
         // rho is three-dimensional now...have to loop over every field.
-        for (int field_num=0; field_num < num_fields; field_num++){
+        for (int field_num=0; field_num < num_populations; field_num++){
             int three_d_index = field_num*nx*ny + two_d_index;
             float rho = rho_global[three_d_index];
             // Now loop over every jumper
             for(int jump_id=0; jump_id < 9; jump_id++){
-                int four_d_index = jump_id*num_fields*nx*ny + three_d_index;
+                int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
 
                 float cur_w = w[jump_id];
                 int cur_cx = cx[jump_id];
@@ -57,19 +55,17 @@ update_hydro(__global float *f_global,
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int num_fields = num_populations + 1;
 
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
         // Loop over fields.
-        for(int field_num = 0; field_num < num_fields; field_num++){
+        for(int field_num = 0; field_num < num_populations; field_num++){
             int three_d_index = field_num*nx*ny + two_d_index;
 
             float f_sum = 0;
             for(int jump_id = 0; jump_id < 9; jump_id++){
-                f_sum += f_global[jump_id*num_fields*nx*ny + three_d_index];
+                f_sum += f_global[jump_id*num_populations*nx*ny + three_d_index];
             }
-            if ((f_sum < zero_cutoff) || isnan(f_sum)) f_sum = 0;
             rho_global[three_d_index] = f_sum;
         }
     }
@@ -87,38 +83,29 @@ collide_particles(__global float *f_global,
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int num_fields = num_populations + 1;
 
     if ((x < nx) && (y < ny)){
 
         const int two_d_index = y*nx + x;
 
-        const int three_d_nutrient_index = (num_populations)*ny*nx + two_d_index;
-        const float c = rho_global[three_d_nutrient_index];
-
-        float nutrient_react = 0;
+        float rho_tot = 0
+        for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first
+            int three_d_index = field_num*ny*nx + two_d_index;
+            float rho_tot += rho_global[three_d_index];
+        }
 
         for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first
             int three_d_index = field_num*ny*nx + two_d_index;
 
             float cur_rho = rho_global[three_d_index];
 
-            float cur_rand = random_normal[three_d_index];
-
             float cur_G = G[field_num];
-            float cur_Dg = Dg[field_num];
             float cur_omega = omega[field_num];
 
-            float growth = cur_G * cur_rho * c;
-            //Use millstein update method for the fluctuating piece
-            float fluctuate = sqrt(cur_Dg*cur_rho*c)*cur_rand;
-            fluctuate += (cur_Dg*c/4.)*(cur_rand*cur_rand - 1.);
-            float react = growth + fluctuate;
-
-            nutrient_react -= react;
+            float growth = cur_G * cur_rho * (1 - rho_tot);
 
             for(int jump_id=0; jump_id < 9; jump_id++){
-                int four_d_index = jump_id*num_fields*ny*nx + three_d_index;
+                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
                 float f = f_global[four_d_index];
                 float feq = feq_global[four_d_index];
@@ -126,34 +113,8 @@ collide_particles(__global float *f_global,
 
                 float relax = f*(1-cur_omega) + cur_omega*feq;
 
-                float new_f = relax + cur_w*react;
+                float new_f = relax + cur_w*growth;
 
-                if((cur_rho < zero_cutoff) || (new_f < 0) || isnan(new_f)){
-                    f_global[four_d_index] = 0;
-                }
-                else{
-                    f_global[four_d_index] = new_f;
-                }
-            }
-        }
-
-        // Now act on the nutrient field
-
-        for(int jump_id=0; jump_id < 9; jump_id++){
-            int four_d_index = jump_id*num_fields*ny*nx + three_d_nutrient_index;
-
-            float f = f_global[four_d_index];
-            float feq = feq_global[four_d_index];
-            float cur_w = w[jump_id];
-
-            float relax = f*(1-omega_nutrient) + omega_nutrient*feq;
-
-            float new_f = relax + cur_w*nutrient_react;
-
-            if((c < zero_cutoff) || (new_f < 0) || (isnan(new_f))){
-                f_global[four_d_index] = 0;
-            }
-            else{
                 f_global[four_d_index] = new_f;
             }
         }
@@ -170,16 +131,15 @@ copy_buffer(__global __read_only float *copy_from,
     //Assumes a 2d workgroup
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int num_fields = num_populations + 1;
 
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
 
-        for(int field_num=0; field_num < num_fields; field_num++){
+        for(int field_num=0; field_num < num_populations; field_num++){
             int three_d_index = field_num*nx*ny + two_d_index;
 
             for (int jump_id = 0; jump_id < 9; jump_id++){
-                int four_d_index = jump_id*num_fields*nx*ny + three_d_index;
+                int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
                 copy_to[four_d_index] = copy_from[four_d_index];
             }
         }
@@ -196,7 +156,6 @@ move(__global __read_only float *f_global,
     //Input should be a 2d workgroup!
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-    const int num_fields = num_populations + 1;
 
     if ((x < nx) && (y < ny)){
         for(int jump_id = 0; jump_id < 9; jump_id++){
@@ -209,8 +168,8 @@ move(__global __read_only float *f_global,
             int stream_y = y + cur_cy;
 
             if ((stream_x >= 0) && (stream_x < nx) && (stream_y >= 0) && (stream_y < ny)){ // Stream
-                for(int field_num = 0; field_num < num_fields; field_num++){
-                    int slice = jump_id*num_fields*nx*ny + field_num*nx*ny;
+                for(int field_num = 0; field_num < num_populations; field_num++){
+                    int slice = jump_id*num_populations*nx*ny + field_num*nx*ny;
 
                     int old_4d_index = slice + y*nx + x;
                     int new_4d_index = slice + stream_y*nx + stream_x;
