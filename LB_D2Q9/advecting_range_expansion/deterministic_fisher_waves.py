@@ -383,7 +383,9 @@ class Fisher_Expansion(object):
         Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
         Implemented in OpenCL.
         """
-        pass # A placeholder, needs to be fixed in the future...lol.
+        self.kernels.move_bcs(self.queue, self.three_d_global_size, self.three_d_local_size,
+                              self.f, self.w,
+                              self.nx, self.ny).wait()
 
     def move(self):
         """
