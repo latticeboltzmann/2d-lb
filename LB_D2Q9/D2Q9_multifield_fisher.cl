@@ -269,20 +269,20 @@ move_bcs(__global float *f_global,
             f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
         }
 
-        //Bottom left corner: Constant density
-        if (bottom_left_corner){
-            float rho_to_add = (f3 + f4 + 2*f7)/(w[1] + w[2] + 2*w[5]);
-            f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
-            f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
-            f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
-        }
-
         // Bottom right corner: Constant density
         if (bottom_right_corner){
             float rho_to_add = (f1 + f4 + 2*f8)/(w[2] + w[3] + 2*w[6]);
             f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
             f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
             f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+        }
+
+        //Bottom left corner: Constant density
+        if (bottom_left_corner){
+            float rho_to_add = (f3 + f4 + 2*f7)/(w[1] + w[2] + 2*w[5]);
+            f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
+            f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
+            f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
         }
     }
 }
