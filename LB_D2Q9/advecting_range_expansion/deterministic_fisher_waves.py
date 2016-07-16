@@ -332,7 +332,7 @@ class Fisher_Expansion(object):
         for cur_width, cur_type in zip(self.initial_frac_widths, self.initial_frac_indices):
             num_to_occupy = int(cur_width * self.nx)
 
-            rho[sites_occupied:sites_occupied + num_to_occupy, int(self.N*initial_fisher_widths), cur_type] = 1.0
+            rho[sites_occupied:sites_occupied + num_to_occupy, 0:int(self.N*initial_fisher_widths), cur_type] = 1.0
             sites_occupied += num_to_occupy
 
         rho = rho.astype(np.float32, order='F')
