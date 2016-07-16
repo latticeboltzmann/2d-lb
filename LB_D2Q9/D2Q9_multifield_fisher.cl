@@ -221,13 +221,6 @@ move_bcs(__global float *f_global,
             f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
             f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
         }
-        //Right: no flux
-        if (on_right){
-            float rho_to_add = (f1 + f5 + f8)/(w[3] + w[6] + w[7]);
-            f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
-            f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
-            f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
-        }
 
         //Bottom: no flux
         if (on_bottom){
@@ -235,6 +228,14 @@ move_bcs(__global float *f_global,
             f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
             f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
             f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+        }
+
+        //Right: no flux
+        if (on_right){
+            float rho_to_add = (f1 + f5 + f8)/(w[3] + w[6] + w[7]);
+            f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
+            f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+            f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
         }
         //Left: no flux
         if (on_left){
