@@ -296,7 +296,7 @@ class Fisher_Expansion(object):
         self.lb_D_population_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.lb_D_population)
         self.omega_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.omega)
 
-    def init_hydro(self):
+    def init_hydro(self, initial_fisher_widths = 2):
         """
         Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity
         """
@@ -332,7 +332,7 @@ class Fisher_Expansion(object):
         for cur_width, cur_type in zip(self.initial_frac_widths, self.initial_frac_indices):
             num_to_occupy = int(cur_width * self.nx)
 
-            rho[sites_occupied:sites_occupied + num_to_occupy, 0:5, cur_type] = 1.0
+            rho[sites_occupied:sites_occupied + num_to_occupy, int(self.N*initial_fisher_widths), cur_type] = 1.0
             sites_occupied += num_to_occupy
 
         rho = rho.astype(np.float32, order='F')
