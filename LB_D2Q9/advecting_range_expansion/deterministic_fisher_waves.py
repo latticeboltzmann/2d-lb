@@ -385,7 +385,7 @@ class Fisher_Expansion(object):
         """
         self.kernels.move_bcs(self.queue, self.three_d_global_size, self.three_d_local_size,
                               self.f, self.w,
-                              self.nx, self.ny).wait()
+                              self.nx, self.ny, self.num_populations).wait()
 
     def move(self):
         """

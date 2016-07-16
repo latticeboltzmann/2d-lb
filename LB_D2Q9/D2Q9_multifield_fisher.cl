@@ -184,15 +184,14 @@ move(__global __read_only float *f_global,
 __kernel void
 move_bcs(__global float *f_global,
          __constant float *w,
-         const int nx, const int ny)
+         const int nx, const int ny,
+         const int num_populations)
 {
     //TODO: Make this efficient. I recognize there are better ways to do this, perhaps a kernel for each boundary...
     //Input should be a 2d workgroup! Everything is done inplace, no need for a second buffer
     //Must be run after move
     const int x = get_global_id(0);
     const int y = get_global_id(1);
-
-    int two_d_index = y*nx + x;
 
     bool on_left = (x==0) && (y >= 0)&&(y < ny);
     bool on_right = (x==nx - 1) && (y >= 0)&&(y < ny);
@@ -201,48 +200,53 @@ move_bcs(__global float *f_global,
 
     bool on_main_surface = on_left || on_right || on_top || on_bottom;
 
+    const int two_d_index = y*nx + nx;
+    const int four_d_prefactor = ny*nx*num_populations;
     if (on_main_surface){
 
-        // You need to read in all f...except f0 actually
-        // float f0 = f_global[0*ny*nx + two_d_index];
-        float f1 = f_global[1*ny*nx + two_d_index];
-        float f2 = f_global[2*ny*nx + two_d_index];
-        float f3 = f_global[3*ny*nx + two_d_index];
-        float f4 = f_global[4*ny*nx + two_d_index];
-        float f5 = f_global[5*ny*nx + two_d_index];
-        float f6 = f_global[6*ny*nx + two_d_index];
-        float f7 = f_global[7*ny*nx + two_d_index];
-        float f8 = f_global[8*ny*nx + two_d_index];
+        for(int field_num = 0; field_num < num_populations; field_num++){
 
-        //Top: No_flux
-        if (on_top){
-            float rho_to_add = (f2 + f5 + f6)/(w[4] + w[7] + w[8]);
-            f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
-            f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
-            f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
-        }
+            int three_d_index = field_num*nx*ny + two_d_index;
+            // You need to read in all f...except f0 actually
+            float f1 = f_global[1*four_d_prefactor + three_d_index];
+            float f2 = f_global[2*four_d_prefactor + three_d_index];
+            float f3 = f_global[3*four_d_prefactor + three_d_index];
+            float f4 = f_global[4*four_d_prefactor + three_d_index];
+            float f5 = f_global[5*four_d_prefactor + three_d_index];
+            float f6 = f_global[6*four_d_prefactor + three_d_index];
+            float f7 = f_global[7*four_d_prefactor + three_d_index];
+            float f8 = f_global[8*four_d_prefactor + three_d_index];
 
-        //Bottom: no flux
-        if (on_bottom){
-            float rho_to_add = (f4 + f7 + f8)/(w[2] + w[5] + w[6]);
-            f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
-            f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
-            f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
-        }
+            //Top: No_flux
+            if (on_top){
+                float rho_to_add = (f2 + f5 + f6)/(w[4] + w[7] + w[8]);
+                f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+                f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
+                f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+            }
 
-        //Right: no flux
-        if (on_right){
-            float rho_to_add = (f1 + f5 + f8)/(w[3] + w[6] + w[7]);
-            f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
-            f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
-            f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
-        }
-        //Left: no flux
-        if (on_left){
-            float rho_to_add = (f3 + f6 + f7)/(w[1]+w[5]+w[8]);
-            f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
-            f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
-            f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+            //Bottom: no flux
+            if (on_bottom){
+                float rho_to_add = (f4 + f7 + f8)/(w[2] + w[5] + w[6]);
+                f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
+                f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
+                f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+            }
+
+            //Right: no flux
+            if (on_right){
+                float rho_to_add = (f1 + f5 + f8)/(w[3] + w[6] + w[7]);
+                f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
+                f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+                f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+            }
+            //Left: no flux
+            if (on_left){
+                float rho_to_add = (f3 + f6 + f7)/(w[1]+w[5]+w[8]);
+                f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
+                f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
+                f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+            }
         }
     }
 }
