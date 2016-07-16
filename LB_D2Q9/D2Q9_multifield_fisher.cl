@@ -193,16 +193,25 @@ move_bcs(__global float *f_global,
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
-    bool on_left = (x==0) && (y >= 0)&&(y < ny);
-    bool on_right = (x==nx - 1) && (y >= 0)&&(y < ny);
-    bool on_top = (y == ny-1) && (x >= 0) && (x< nx);
-    bool on_bottom = (y == 0) && (x >= 0) && (x < nx);
+    // Check if on the main surfaces
+    bool on_left = (x==0) && (y >= 1)&&(y < ny-1);
+    bool on_right = (x==nx - 1) && (y >= 1)&&(y < ny -1);
+    bool on_top = (y == ny-1) && (x >= 1) && (x< nx-1);
+    bool on_bottom = (y == 0) && (x >= 1) && (x < nx-1);
 
     bool on_main_surface = on_left || on_right || on_top || on_bottom;
 
+    //Check if on the corners
+    bool bottom_left_corner = (x==0) && (y==0);
+    bool bottom_right_corner = (x==nx-1)&&(y==0);
+    bool upper_left_corner = (x==0)&&(y==ny-1);
+    bool upper_right_corner = (x==nx-1)&&(y==ny-1);
+
+    bool on_corner = bottom_left_corner || bottom_right_corner || upper_left_corner || upper_right_corner;
+
     const int two_d_index = y*nx + nx;
     const int four_d_prefactor = ny*nx*num_populations;
-    if (on_main_surface){
+    if (on_main_surface || on_corner){
 
         for(int field_num = 0; field_num < num_populations; field_num++){
 
@@ -246,6 +255,41 @@ move_bcs(__global float *f_global,
                 f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
                 f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
                 f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+            }
+
+            //Corner nodes! Extremely annoying and painful, and likely slow
+
+            // Upper left corner: constant density
+            if (upper_left_corner){
+                float rho_to_add = (f2 + f3 + 2*f6)/(w[1] + w[4] + 2*w[8]);
+                f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
+                f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
+                f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+            }
+
+            // Upper right corner: constant density
+            if (upper_right_corner){
+                float rho_to_add = (f1 + f2 + 2*f5)/(w[3] + w[4] + 2*w[7]);
+                f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
+                f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
+                f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+            }
+
+            // Bottom right corner: Constant density
+            if (bottom_right_corner){
+                float rho_to_add = (f1 + f4 + 2*f8)/(w[2] + w[3] + 2*w[6]);
+                f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
+                f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
+                f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+            }
+
+            //Bottom left corner: Constant density
+            if (bottom_left_corner){
+                float rho_to_add = (f3 + f4 + 2*f7)/(w[1] + w[2] + 2*w[5]);
+                f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
+                f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
+                f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
+
             }
         }
     }
