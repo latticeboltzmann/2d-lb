@@ -211,8 +211,8 @@ move_bcs(__global float *f_global,
 
     const int two_d_index = y*nx + nx;
     const int four_d_prefactor = ny*nx*num_populations;
-    if (on_main_surface || on_corner){
 
+    if (on_main_surface || on_corner){
         for(int field_num = 0; field_num < num_populations; field_num++){
 
             int three_d_index = field_num*nx*ny + two_d_index;
