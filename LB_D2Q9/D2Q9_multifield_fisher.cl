@@ -229,32 +229,32 @@ move_bcs(__global float *f_global,
             //Top: No_flux
             if (on_top){
                 float rho_to_add = (f2 + f5 + f6)/(w[4] + w[7] + w[8]);
-                f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
-                f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
-                f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+                f_global[7*four_d_prefactor + three_d_index] = w[7] * rho_to_add;
+                f_global[4*four_d_prefactor + three_d_index] = w[4] * rho_to_add;
+                f_global[8*four_d_prefactor + three_d_index] = w[8] * rho_to_add;
             }
 
             //Bottom: no flux
             if (on_bottom){
                 float rho_to_add = (f4 + f7 + f8)/(w[2] + w[5] + w[6]);
-                f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
-                f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
-                f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+                f_global[2*four_d_prefactor + three_d_index] = w[2] * rho_to_add;
+                f_global[5*four_d_prefactor + three_d_index] = w[5] * rho_to_add;
+                f_global[6*four_d_prefactor + three_d_index] = w[6] * rho_to_add;
             }
 
             //Right: no flux
             if (on_right){
                 float rho_to_add = (f1 + f5 + f8)/(w[3] + w[6] + w[7]);
-                f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
-                f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
-                f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+                f_global[3*four_d_prefactor + three_d_index] = w[3] * rho_to_add;
+                f_global[6*four_d_prefactor + three_d_index] = w[6] * rho_to_add;
+                f_global[7*four_d_prefactor + three_d_index] = w[7] * rho_to_add;
             }
             //Left: no flux
             if (on_left){
                 float rho_to_add = (f3 + f6 + f7)/(w[1]+w[5]+w[8]);
-                f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
-                f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
-                f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+                f_global[1*four_d_prefactor + three_d_index] = w[1] * rho_to_add;
+                f_global[5*four_d_prefactor + three_d_index] = w[5] * rho_to_add;
+                f_global[8*four_d_prefactor + three_d_index] = w[8] * rho_to_add;
             }
 
             //Corner nodes! Extremely annoying and painful, and likely slow
@@ -262,33 +262,33 @@ move_bcs(__global float *f_global,
             // Upper left corner: constant density
             if (upper_left_corner){
                 float rho_to_add = (f2 + f3 + 2*f6)/(w[1] + w[4] + 2*w[8]);
-                f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
-                f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
-                f_global[8*ny*nx + two_d_index] = w[8] * rho_to_add;
+                f_global[1*four_d_prefactor + three_d_index] = w[1] * rho_to_add;
+                f_global[4*four_d_prefactor + three_d_index] = w[4] * rho_to_add;
+                f_global[8*four_d_prefactor + three_d_index] = w[8] * rho_to_add;
             }
 
             // Upper right corner: constant density
             if (upper_right_corner){
                 float rho_to_add = (f1 + f2 + 2*f5)/(w[3] + w[4] + 2*w[7]);
-                f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
-                f_global[4*ny*nx + two_d_index] = w[4] * rho_to_add;
-                f_global[7*ny*nx + two_d_index] = w[7] * rho_to_add;
+                f_global[3*four_d_prefactor + three_d_index] = w[3] * rho_to_add;
+                f_global[4*four_d_prefactor + three_d_index] = w[4] * rho_to_add;
+                f_global[7*four_d_prefactor + three_d_index] = w[7] * rho_to_add;
             }
 
             // Bottom right corner: Constant density
             if (bottom_right_corner){
                 float rho_to_add = (f1 + f4 + 2*f8)/(w[2] + w[3] + 2*w[6]);
-                f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
-                f_global[3*ny*nx + two_d_index] = w[3] * rho_to_add;
-                f_global[6*ny*nx + two_d_index] = w[6] * rho_to_add;
+                f_global[2*four_d_prefactor + three_d_index] = w[2] * rho_to_add;
+                f_global[3*four_d_prefactor + three_d_index] = w[3] * rho_to_add;
+                f_global[6*four_d_prefactor + three_d_index] = w[6] * rho_to_add;
             }
 
             //Bottom left corner: Constant density
             if (bottom_left_corner){
                 float rho_to_add = (f3 + f4 + 2*f7)/(w[1] + w[2] + 2*w[5]);
-                f_global[1*ny*nx + two_d_index] = w[1] * rho_to_add;
-                f_global[2*ny*nx + two_d_index] = w[2] * rho_to_add;
-                f_global[5*ny*nx + two_d_index] = w[5] * rho_to_add;
+                f_global[1*four_d_prefactor + three_d_index] = w[1] * rho_to_add;
+                f_global[2*four_d_prefactor + three_d_index] = w[2] * rho_to_add;
+                f_global[5*four_d_prefactor + three_d_index] = w[5] * rho_to_add;
 
             }
         }

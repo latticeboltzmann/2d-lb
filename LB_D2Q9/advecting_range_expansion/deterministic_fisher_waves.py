@@ -328,12 +328,20 @@ class Fisher_Expansion(object):
 
         # Inoculate well mixed fractions initially, inoculate linearly
 
+        num_widths = len(self.initial_frac_widths)
+
         sites_occupied = 0
+        count = 1
         for cur_width, cur_type in zip(self.initial_frac_widths, self.initial_frac_indices):
             num_to_occupy = int(cur_width * self.nx)
 
+            if count == num_widths: # As the sum of all should equal one, but may not due to FP
+                num_to_occupy = nx - sites_occupied
+
             rho[sites_occupied:sites_occupied + num_to_occupy, 0:int(self.N*initial_fisher_widths), cur_type] = 1.0
             sites_occupied += num_to_occupy
+
+            count += 1
 
         rho = rho.astype(np.float32, order='F')
         self.rho = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
