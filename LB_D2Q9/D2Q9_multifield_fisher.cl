@@ -279,7 +279,6 @@ move_bcs(__global float *f_global,
 
             //Bottom left corner: Constant density
             if (bottom_left_corner){
-                float rho_to_add = (f3 + f4 + 2*f7)/(w[1] + w[2] + 2*w[5]);
                 f_global[1*four_d_prefactor + three_d_index] = f3;
                 f_global[2*four_d_prefactor + three_d_index] = f4;
                 f_global[5*four_d_prefactor + three_d_index] = f7;
