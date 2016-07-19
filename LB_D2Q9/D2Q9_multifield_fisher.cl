@@ -228,19 +228,21 @@ move_bcs(__global float *f_global,
             float f8 = f_global[8*four_d_prefactor + three_d_index];
 
             //Top: No_flux
-
+            /*
             if (on_top){
                 f_global[7*four_d_prefactor + three_d_index] = f5;
                 f_global[4*four_d_prefactor + three_d_index] = f2;
                 f_global[8*four_d_prefactor + three_d_index] = f6;
             }
-
+            */
             //Bottom: no flux
+            /*
             if (on_bottom){
                 f_global[2*four_d_prefactor + three_d_index] = f4;
                 f_global[5*four_d_prefactor + three_d_index] = f7;
                 f_global[6*four_d_prefactor + three_d_index] = f8;
             }
+
 
             //Right: no flux
             if (on_right){
@@ -285,6 +287,8 @@ move_bcs(__global float *f_global,
                 f_global[5*four_d_prefactor + three_d_index] = f7;
 
             }
+
+            */
         }
     }
 }
