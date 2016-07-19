@@ -246,13 +246,13 @@ move_bcs(__global float *f_global,
 
             //Right: no flux
 
+            */
             if (on_right){
                 f_global[3*four_d_prefactor + three_d_index] = f1;
                 f_global[6*four_d_prefactor + three_d_index] = f8;
                 f_global[7*four_d_prefactor + three_d_index] = f5;
             }
 
-            */
             //Left: no flux
             if (on_left){
                 f_global[1*four_d_prefactor + three_d_index] = f3;
@@ -260,6 +260,7 @@ move_bcs(__global float *f_global,
                 f_global[8*four_d_prefactor + three_d_index] = f6;
             }
             /*
+
 
 
             //Corner nodes! Extremely annoying and painful, and likely slow
