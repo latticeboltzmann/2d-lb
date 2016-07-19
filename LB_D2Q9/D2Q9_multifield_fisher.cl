@@ -210,7 +210,7 @@ move_bcs(__global float *f_global,
 
     const bool on_corner = bottom_left_corner || bottom_right_corner || upper_left_corner || upper_right_corner;
 
-    const int two_d_index = y*nx + nx;
+    const int two_d_index = y*nx + x;
     const int four_d_prefactor = ny*nx*num_populations;
 
     if (on_main_surface || on_corner){
@@ -227,16 +227,13 @@ move_bcs(__global float *f_global,
             float f7 = f_global[7*four_d_prefactor + three_d_index];
             float f8 = f_global[8*four_d_prefactor + three_d_index];
 
-            //Top: No_flux
-            /*
             if (on_top){
                 f_global[7*four_d_prefactor + three_d_index] = f5;
                 f_global[4*four_d_prefactor + three_d_index] = f2;
                 f_global[8*four_d_prefactor + three_d_index] = f6;
             }
-            */
+
             //Bottom: no flux
-            /*
             if (on_bottom){
                 f_global[2*four_d_prefactor + three_d_index] = f4;
                 f_global[5*four_d_prefactor + three_d_index] = f7;
@@ -245,8 +242,6 @@ move_bcs(__global float *f_global,
 
 
             //Right: no flux
-
-            */
             if (on_right){
                 f_global[3*four_d_prefactor + three_d_index] = f1;
                 f_global[6*four_d_prefactor + three_d_index] = f8;
@@ -259,9 +254,6 @@ move_bcs(__global float *f_global,
                 f_global[5*four_d_prefactor + three_d_index] = f7;
                 f_global[8*four_d_prefactor + three_d_index] = f6;
             }
-            /*
-
-
 
             //Corner nodes! Extremely annoying and painful, and likely slow
 
@@ -293,8 +285,6 @@ move_bcs(__global float *f_global,
                 f_global[5*four_d_prefactor + three_d_index] = f7;
 
             }
-
-            */
         }
     }
 }
