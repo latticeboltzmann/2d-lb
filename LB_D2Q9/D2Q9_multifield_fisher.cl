@@ -228,6 +228,7 @@ move_bcs(__global float *f_global,
             float f8 = f_global[8*four_d_prefactor + three_d_index];
 
             //Top: No_flux
+
             if (on_top){
                 f_global[7*four_d_prefactor + three_d_index] = f5;
                 f_global[4*four_d_prefactor + three_d_index] = f2;
