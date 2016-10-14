@@ -3,6 +3,7 @@ import pyopencl.array
 import gpyfft as gfft
 import numpy as np
 
+
 class Screened_Poisson(object):
     def __init__(self, charge, cl_context=None, cl_queue=None, lam=1., dx=1.):
         self.context = cl_context
@@ -14,15 +15,43 @@ class Screened_Poisson(object):
         charge_cpu = charge.astype(np.complex64)
         self.charge = cl.array.to_device(self.queue, charge_cpu)
 
-
         self.transform = gfft.fft.FFT(self.context, self.queue, (charge,), axes=(0, 1))
-
 
         self.lam = lam # Interaction length lambda
         self.dx = dx # Spatial scale
 
+        Lx = self.dx * charge_cpu.shape[0]
+        Ly = self.dx * charge_cpu.shape[1]
+
+        freq_x = Lx * np.fft.fftfreq(charge_cpu.shape[0], d=dx)
+        freq_y = Ly * np.fft.fftfreq(charge_cpu.shape[1], d=dx)
+
+        freq_Y_cpu, freq_X_cpu = np.meshgrid(freq_y, freq_x)
+        # Calculate the rescaling on the CPU, as it only has to be done once.
+
+        self.freq_X = cl.array.to_device(freq_X_cpu)
+        self.freq_Y = cl.array.to_device(freq_Y_cpu)
+
+        rescaling_cpu = 1./(self.lam**2*(self.freq_X**2 + self.freq_Y**2) + 1.)
+
+        self.rescaling = cl.array.to_device(self.queue, rescaling_cpu)
+
         self.xgrad = None
         self.ygrad = None
+
+        self.xgrad_transform = None
+        self.ygrad_transform = None
+
+
+    def fft_and_screen(self):
+        event, = self.transform.enqueue()
+        event.wait()
+
+        self.charge *= self.rescaling
+
+    def inverse_fft(self):
+        event, = self.transform.enqueue(forward=False)
+        event.wait()
 
     def create_grad_fields(self):
         xgrad_cpu = np.zeros_like(self.charge)
