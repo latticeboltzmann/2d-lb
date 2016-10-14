@@ -55,11 +55,9 @@ class Screened_Poisson(object):
         event.wait()
 
     def create_grad_fields(self):
-        xgrad_cpu = np.zeros_like(self.charge_cpu)
-        ygrad_cpu = np.zeros_like(self.charge_cpu)
 
-        self.xgrad = cl.array.to_device(self.queue, xgrad_cpu)
-        self.ygrad = cl.array.to_device(self.queue, ygrad_cpu)
+        self.xgrad = self.charge.copy()
+        self.ygrad = self.charge.copy()
 
         self.xgrad_transform = gfft.fft.FFT(self.context, self.queue, (self.xgrad,), axes=(0, 1))
         self.ygrad_transform = gfft.fft.FFT(self.context, self.queue, (self.ygrad,), axes=(0, 1))
@@ -74,8 +72,8 @@ class Screened_Poisson(object):
         cl.enqueue_copy(self.queue, self.xgrad.data, self.charge.data)
         cl.enqueue_copy(self.queue, self.ygrad.data, self.charge.data)
 
-        self.xgrad_rescale *= self.xgrad_rescale
-        self.ygrad_rescale *= self.ygrad_rescale
+        self.xgrad *= self.xgrad_rescale
+        self.ygrad *= self.ygrad_rescale
 
         event, = self.xgrad_transform.enqueue(forward=False)
         event.wait()
