@@ -67,7 +67,7 @@ class Screened_Poisson(object):
 
 
     def update_grad_fields(self):
-        # Requires fft to have been run first...
+        """Requires fft to have been run first"""
 
         cl.enqueue_copy(self.queue, self.xgrad.data, self.charge.data)
         cl.enqueue_copy(self.queue, self.ygrad.data, self.charge.data)
@@ -79,6 +79,11 @@ class Screened_Poisson(object):
         event.wait()
         event, = self.ygrad_transform.enqueue(forward=False)
         event.wait()
+
+    def solve_and_get_grad_fields(self):
+        """Run this to solve the screened poisson equation and get the gradient fields (what we usually need)"""
+        self.fft_and_screen()
+        self.update_grad_fields()
 
     def create_context_and_queue(self):
         # Startup script shamelessly taken from CS205 homework
