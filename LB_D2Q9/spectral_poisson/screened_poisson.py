@@ -5,17 +5,17 @@ import numpy as np
 
 
 class Screened_Poisson(object):
-    def __init__(self, charge, cl_context=None, cl_queue=None, lam=1., dx=1.):
+    def __init__(self, charge_cpu, cl_context=None, cl_queue=None, lam=1., dx=1.):
         self.context = cl_context
         self.queue = cl_queue
 
         if self.context is None:
             self.create_context_and_queue()
 
-        charge_cpu = charge.astype(np.complex64)
-        self.charge = cl.array.to_device(self.queue, charge_cpu)
+        self.charge_cpu = charge_cpu.astype(np.complex64)
+        self.charge = cl.array.to_device(self.queue, self.charge_cpu)
 
-        self.transform = gfft.fft.FFT(self.context, self.queue, (charge,), axes=(0, 1))
+        self.transform = gfft.fft.FFT(self.context, self.queue, (self.charge,), axes=(0, 1))
 
         self.lam = lam # Interaction length lambda
         self.dx = dx # Spatial scale
@@ -29,18 +29,19 @@ class Screened_Poisson(object):
         freq_Y_cpu, freq_X_cpu = np.meshgrid(freq_y, freq_x)
         # Calculate the rescaling on the CPU, as it only has to be done once.
 
-        self.freq_X = cl.array.to_device(freq_X_cpu)
-        self.freq_Y = cl.array.to_device(freq_Y_cpu)
+        self.freq_X = cl.array.to_device(self.queue, freq_X_cpu)
+        self.freq_Y = cl.array.to_device(self.queue, freq_Y_cpu)
 
-        rescaling_cpu = 1./(self.lam**2*(self.freq_X**2 + self.freq_Y**2) + 1.)
-
-        self.rescaling = cl.array.to_device(self.queue, rescaling_cpu)
+        self.rescaling = 1./(self.lam**2*(self.freq_X**2 + self.freq_Y**2) + 1.)
 
         self.xgrad = None
         self.ygrad = None
 
         self.xgrad_transform = None
         self.ygrad_transform = None
+
+        self.xgrad_rescale = None
+        self.ygrad_rescale = None
 
 
     def fft_and_screen(self):
@@ -54,11 +55,32 @@ class Screened_Poisson(object):
         event.wait()
 
     def create_grad_fields(self):
-        xgrad_cpu = np.zeros_like(self.charge)
-        ygrad_cpu = np.zeros_like(self.charge)
+        xgrad_cpu = np.zeros_like(self.charge_cpu)
+        ygrad_cpu = np.zeros_like(self.charge_cpu)
 
         self.xgrad = cl.array.to_device(self.queue, xgrad_cpu)
         self.ygrad = cl.array.to_device(self.queue, ygrad_cpu)
+
+        self.xgrad_transform = gfft.fft.FFT(self.context, self.queue, (self.xgrad,), axes=(0, 1))
+        self.ygrad_transform = gfft.fft.FFT(self.context, self.queue, (self.ygrad,), axes=(0, 1))
+
+        self.xgrad_rescale = np.pi*1.0j*self.freq_X
+        self.ygrad_rescale = np.pi * 1.0j * self.freq_Y
+
+
+    def update_grad_fields(self):
+        # Requires fft to have been run first...
+
+        cl.enqueue_copy(self.queue, self.xgrad.data, self.charge.data)
+        cl.enqueue_copy(self.queue, self.ygrad.data, self.charge.data)
+
+        self.xgrad_rescale *= self.xgrad_rescale
+        self.ygrad_rescale *= self.ygrad_rescale
+
+        event, = self.xgrad_transform.enqueue(forward=False)
+        event.wait()
+        event, = self.ygrad_transform.enqueue(forward=False)
+        event.wait()
 
     def create_context_and_queue(self):
         # Startup script shamelessly taken from CS205 homework
