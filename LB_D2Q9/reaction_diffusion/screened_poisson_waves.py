@@ -52,10 +52,9 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
-class Repelling_Fisher_Wave(object):
+class Screened_Fisher_Wave(object):
     """
-    Simulates pipe flow using the D2Q9 lattice. Generally used to verify that our simulations were working correctly.
-    For usage, see the docs folder.
+    Everything is in dimensionless units. It's just easier.
     """
 
     def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
