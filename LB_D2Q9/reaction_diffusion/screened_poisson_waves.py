@@ -229,7 +229,8 @@ class Screened_Fisher_Wave(object):
 
     def init_hydro(self):
         """
-        Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity
+        Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity.
+        This involves creating the poisson solver and solving for the velocity fields.
         """
 
         nx = self.nx
@@ -277,7 +278,7 @@ class Screened_Fisher_Wave(object):
                                 self.w, self.cx, self.cy,
                                 cs, self.nx, self.ny).wait()
 
-    def init_pop(self, amplitude=0.0001):
+    def init_pop(self, amplitude=0):
         """Based on feq, create the initial population of jumpers."""
 
         nx = self.nx
@@ -287,7 +288,8 @@ class Screened_Fisher_Wave(object):
         f = np.zeros((nx, ny, NUM_JUMPERS), dtype=np.float32, order='F')
         cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
 
-        # We now slightly perturb f
+        # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
+        # from sall fluctuations. Sooo...be careful.
         perturb = (1. + amplitude*np.random.randn(nx, ny, NUM_JUMPERS))
         f *= perturb
 
