@@ -1,6 +1,3 @@
-#include <pyopencl-random123/philox.cl>
-#include <pyopencl-random123/threefry.cl>
-
 __kernel void
 update_feq_diffusion(__global __write_only float *feq_global,
            __global __read_only float *rho_global,

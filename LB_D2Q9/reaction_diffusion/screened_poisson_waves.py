@@ -318,9 +318,10 @@ class Screened_Fisher_Wave(object):
                                 self.nx, self.ny).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
-        self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.f_streamed, self.f,
-                                self.nx, self.ny).wait()
+        cl.enqueue_copy(self.queue, self.f, self.f_streamed)
+        #self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
+        #                        self.f_streamed, self.f,
+        #                        self.nx, self.ny).wait()
 
     def update_u_and_v(self):
         # Update the charge field for the poisson solver
