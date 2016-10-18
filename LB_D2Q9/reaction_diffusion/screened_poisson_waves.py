@@ -57,18 +57,10 @@ class Screened_Fisher_Wave(object):
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, D=1.0, z=0.1,
-                 mu = 1.0, gamma=1.0,
-                 time_prefactor=1., N=50, tolerance = 10.**-4., max_poisson_iterations=10**4,
+    def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1.,
+                 time_prefactor=1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
-        If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
-
-        :param diameter: Physical diameter of the 2-dimensional pipe.
-        :param rho: Physical density of the fluid.
-        :param viscosity: Physical kinematic density of the fluid.
-        :param pressure_grad: Physical pressure gradient
-        :param pipe_length: Physical length of the pipe
         :param N: Resolution of the simulation. As N increases, the simulation should become more accurate. N determines
                   how many grid points the characteristic length scale is discretized into
         :param time_prefactor: In order for a simulation to be accurate, in general, the dimensionless
@@ -80,33 +72,26 @@ class Screened_Fisher_Wave(object):
         """
 
         # Physical units
-        self.phys_Lx = Lx
-        self.phys_Ly = Ly
-        self.phys_D = D
-        self.phys_z = z # The size of the box that is going to diffuse
-
-        self.phys_mu = mu
-        self.phys_gamma = gamma
-
-        self.tolerance = tolerance
-        self.max_poisson_iterations = max_poisson_iterations
+        self.Lx = Lx
+        self.Ly = Ly
+        self.D = 1.
+        self.vc = vc
+        self.lam = lam
 
         # Interop with OpenGL?
         self.use_interop = use_interop
 
-        # Get the characteristic length and time scales for the flow
-        self.L = None # Characteristic length scale
-        self.T = None # Characteristic time scale
-        self.set_characteristic_length_time()
-        print 'Characteristic L:', self.L
-        print 'Characteristic T:', self.T
+        # Get the characteristic length and time scales for the flow. Since this simulation is in dimensionless units
+        # they should both be one!
+        self.L = 1.0 # Fisher length
+        self.T = 1.0 # Time in generations
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
-        self.ulb = self.delta_t/self.delta_x
+        self.ulb = self.delta_t/self.delta_x # Speed of sound. The actual velocity must be *much* smaller.
         print 'u_lb:', self.ulb
 
         self.dim_D = None
@@ -207,16 +192,6 @@ class Screened_Fisher_Wave(object):
 
         self.E = self.phys_gamma/self.phys_mu # Exploding number
         print 'E:', self.E
-
-    def set_characteristic_length_time(self):
-        """
-        Based on the input parameters, set the characteristic length and time scales. Required to make
-        the simulation dimensionless. See http://www.latticeboltzmann.us/home/model-verification for more details.
-        For pipe flow, L is the physical diameter of the pipe, and T is the time it takes the fluid moving at its
-        theoretical maximum to to move a distance of L.
-        """
-        self.L = 2*np.sqrt(self.phys_D/self.phys_mu)
-        self.T = 1./self.phys_mu
 
     def initialize_grid_dims(self):
         """
