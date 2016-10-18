@@ -6,7 +6,7 @@ import pyopencl.tools
 import pyopencl.clrandom
 import pyopencl.array
 import ctypes as ct
-from LB_D2Q9.spectral_poisson import screened_poisson
+from LB_D2Q9.spectral_poisson import screened_poisson as sp
 
 # Required to draw obstacles
 import skimage as ski
@@ -57,7 +57,7 @@ class Screened_Fisher_Wave(object):
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1.,
+    def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., R0 = 5.,
                  time_prefactor=1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
         """
@@ -74,9 +74,10 @@ class Screened_Fisher_Wave(object):
         # Physical units
         self.Lx = Lx
         self.Ly = Ly
-        self.D = 1.
-        self.vc = vc
-        self.lam = lam
+        self.D = 1./4.
+        self.vc = vc # Characteristic velocity, deals with height vs. how concentration impacts surface tension
+        self.lam = lam # Screening length
+        self.R0 = R0 # Initial radius of the droplet
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -91,22 +92,16 @@ class Screened_Fisher_Wave(object):
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
-        self.ulb = self.delta_t/self.delta_x # Speed of sound. The actual velocity must be *much* smaller.
+        self.ulb = self.delta_t/self.delta_x # Speed of sound in LB units. The actual velocity must be *much* smaller.
         print 'u_lb:', self.ulb
 
-        self.dim_D = None
-        self.lb_D = None
-        self.omega = None
+        self.lb_D = self.D * (self.delta_t / self.delta_x ** 2) # Diffusion constant in LB units
+        self.lb_D = np.float32(self.lb_D)
 
-        self.dim_Gd = None
-        self.lb_Gd = None
-
-        self.vf = None
-        self.vc = None
-
-        self.E = None
-
-        self.set_pde_constants()
+        self.omega = (.5 + self.lb_D/cs**2)**-1.  # The relaxation time of the jumpers in the simulation
+        self.omega = np.float32(self.omega)
+        print 'omega', self.omega
+        assert self.omega < 2.
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -143,14 +138,15 @@ class Screened_Fisher_Wave(object):
         self.rho = None # The simulation's density field
         self.u = None # The simulation's velocity in the x direction (horizontal)
         self.v = None # The simulation's velocity in the y direction (vertical)
-        self.poisson_solver = None
 
         self.x_center = None
         self.y_center = None
         self.X_dim = None
         self.Y_dim = None
 
-        self.init_hydro() # Create the hydrodynamic fields
+        self.poisson_solver = None
+
+        self.init_hydro() # Create the hydrodynamic fields, and also intialize the poisson solver
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
@@ -168,30 +164,6 @@ class Screened_Fisher_Wave(object):
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
-    def set_pde_constants(self):
-        # Note that diffusion is basically constant as a function of grid size, as delta_t ~ delta_x**2.
-
-        self.dim_D = 1./4. # Diffusion constant is one in this non-dimensionalization
-        self.lb_D = self.dim_D * (self.delta_t / self.delta_x ** 2)
-        self.lb_D = np.float32(self.lb_D)
-
-        self.omega = (.5 + self.lb_D/cs**2)**-1.  # The relaxation time of the jumpers in the simulation
-        self.omega = np.float32(self.omega)
-        print 'omega', self.omega
-        assert self.omega < 2.
-
-        self.dim_Gd = 1.
-        self.lb_Gd = np.float32(self.dim_Gd * self.delta_t)
-        print 'dim_Gd:', self.dim_Gd
-
-        # Set fisher wave and repulsion wave velocity
-        self.vf = self.L/self.T
-        print 'vf:', self.vf
-        self.vc = (self.phys_gamma/self.phys_mu)*self.vf
-        print 'vc:', self.vc
-
-        self.E = self.phys_gamma/self.phys_mu # Exploding number
-        print 'E:', self.E
 
     def initialize_grid_dims(self):
         """
@@ -278,22 +250,19 @@ class Screened_Fisher_Wave(object):
         deltaY = Y - self.y_center
 
         # Convert to dimensionless coordinates
-        self.X_dim = deltaX / self.N
-        self.Y_dim = deltaY / self.N
+        self.X = deltaX / self.N
+        self.Y = deltaY / self.N
 
         #### DENSITY #####
-        zdim = self.phys_z / self.L
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
-        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2)/zdim**2)
+        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2)/self.R0**2)
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         #### VELOCITY ####
 
         # Initialize via poisson solver...
-
-        self.poisson_solver = Poisson_Solver(nx=self.nx, ny=self.ny, sources=self.rho,
-                                             delta_t = self.delta_t, delta_x = self.delta_x,
-                                             tolerance = self.tolerance, context=self.context, queue = self.queue)
+        self.poisson_solver = sp.Screened_Poisson(rho_host, cl_context=self.context, cl_queue = self.queue,
+                                                  lam = self.lam, dx = self.delta_x)
 
         self.update_u_and_v()
 
@@ -352,17 +321,13 @@ class Screened_Fisher_Wave(object):
                                 self.nx, self.ny).wait()
 
     def update_u_and_v(self):
-        self.poisson_solver.update_source(self.rho)
+        # Update the charge field for the poisson solver
+        cl.enqueue_copy(self.queue, self.charge.data, self.rho.data)
 
-        self.poisson_solver.run(self.max_poisson_iterations)
+        self.poisson_solver.solve_and_update_grad_fields()
 
-        self.u = self.poisson_solver.u
-        self.u *= self.E * (self.delta_t/self.delta_x)
-        self.u.finish()
-
-        self.v = self.poisson_solver.v
-        self.v *= self.E * (self.delta_t/self.delta_x)
-        self.v.finish()
+        self.u = -(self.delta_t/self.delta_x)*self.poisson_solver.xgrad
+        self.v = -(self.delta_t/self.delta_x)*self.poisson_solver.ygrad
 
     def update_hydro(self):
         """
