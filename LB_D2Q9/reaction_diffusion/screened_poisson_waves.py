@@ -261,7 +261,7 @@ class Screened_Fisher_Wave(object):
 
         # Initialize via poisson solver...
         self.poisson_solver = sp.Screened_Poisson(rho_host, cl_context=self.context, cl_queue = self.queue,
-                                                  lam = self.lam, dx = self.delta_x)
+                                                  lam=self.lam, dx=self.delta_x)
         self.poisson_solver.create_grad_fields()
 
         self.update_u_and_v()
@@ -321,7 +321,8 @@ class Screened_Fisher_Wave(object):
 
     def update_u_and_v(self):
         # Update the charge field for the poisson solver
-        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, self.rho.data)
+        #self.poisson_solver.charge = self.rho.astype(np.complex64, queue=self.queue)
+        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, self.rho.astype(np.complex64).data)
 
         self.poisson_solver.solve_and_update_grad_fields()
 

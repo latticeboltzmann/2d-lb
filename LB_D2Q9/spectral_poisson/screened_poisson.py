@@ -2,7 +2,7 @@ import pyopencl as cl
 import pyopencl.array
 import gpyfft as gfft
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 class Screened_Poisson(object):
     def __init__(self, charge_cpu, cl_context=None, cl_queue=None, lam=1., dx=1.):
@@ -47,6 +47,7 @@ class Screened_Poisson(object):
         self.ygrad_rescale = None
 
     def fft_and_screen(self):
+
         event, = self.transform.enqueue()
         event.wait()
 
@@ -89,6 +90,8 @@ class Screened_Poisson(object):
 
     def create_context_and_queue(self):
         # Startup script shamelessly taken from CS205 homework
+        print 'Creating a new openCL context...'
+
         platforms = cl.get_platforms()
         print 'The platforms detected are:'
         print '---------------------------'
