@@ -12,7 +12,7 @@ class Screened_Poisson(object):
         if self.context is None:
             self.create_context_and_queue()
 
-        self.charge_cpu = charge_cpu.astype(np.complex64)
+        self.charge_cpu = charge_cpu.astype(np.complex64, order='F')
         self.charge = cl.array.to_device(self.queue, self.charge_cpu)
 
         self.transform = gfft.fft.FFT(self.context, self.queue, (self.charge,), axes=(0, 1))
@@ -27,6 +27,9 @@ class Screened_Poisson(object):
         freq_y = Ly * np.fft.fftfreq(charge_cpu.shape[1], d=dx)
 
         freq_Y_cpu, freq_X_cpu = np.meshgrid(freq_y, freq_x)
+
+        freq_Y_cpu = np.asfortranarray(freq_Y_cpu)
+        freq_X_cpu = np.asfortranarray(freq_X_cpu)
         # Calculate the rescaling on the CPU, as it only has to be done once.
 
         self.freq_X = cl.array.to_device(self.queue, freq_X_cpu)

@@ -325,8 +325,8 @@ class Screened_Fisher_Wave(object):
 
         self.poisson_solver.solve_and_update_grad_fields()
 
-        self.u = -(self.delta_t/self.delta_x)*self.poisson_solver.xgrad
-        self.v = -(self.delta_t/self.delta_x)*self.poisson_solver.ygrad
+        self.u = -(self.delta_t/self.delta_x)*(self.poisson_solver.xgrad.real)
+        self.v = -(self.delta_t/self.delta_x)*(self.poisson_solver.ygrad.real)
 
     def update_hydro(self):
         """
