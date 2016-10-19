@@ -43,7 +43,6 @@ class Screened_Poisson(object):
         self.xgrad_rescale = None
         self.ygrad_rescale = None
 
-
     def fft_and_screen(self):
         event, = self.transform.enqueue()
         event.wait()

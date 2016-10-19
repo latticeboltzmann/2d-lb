@@ -75,6 +75,7 @@ class Screened_Fisher_Wave(object):
         self.Lx = Lx
         self.Ly = Ly
         self.D = 1./4.
+        self.G = 1. # Growth rate is dimensionalized to one
         self.vc = vc # Characteristic velocity, deals with height vs. how concentration impacts surface tension
         self.lam = lam # Screening length
         self.R0 = R0 # Initial radius of the droplet
@@ -103,9 +104,9 @@ class Screened_Fisher_Wave(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
+        self.lb_Gd = np.float32(self.G * self.delta_t)
+
         # Initialize grid dimensions
-        self.lx = None # Number of grid points in the x direction, ignoring the boundary
-        self.ly = None # Number of grid points in the y direction, ignoring the boundary
         self.nx = None # Number of grid points in the x direction with the boundray
         self.ny = None # Number of grid points in the y direction with the boundary
         self.initialize_grid_dims()
@@ -171,11 +172,8 @@ class Screened_Fisher_Wave(object):
         will depend on both the physical geometry of the input system and the desired resolution N.
         """
 
-        self.lx = np.int32(self.N*int(self.phys_Lx/self.L))
-        self.ly = np.int32(self.N*int(self.phys_Ly/self.L))
-
-        self.nx = np.int32(self.lx + 2) # Total size of grid in x including boundaries
-        self.ny = np.int32(self.ly + 2) # Total size of grid in y including boundaries
+        self.nx = np.int32(np.round(self.N*self.Lx))
+        self.ny = np.int32(np.round(self.N*self.Ly))
 
     def init_opencl(self):
         """
@@ -256,7 +254,7 @@ class Screened_Fisher_Wave(object):
 
         #### DENSITY #####
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
-        rho_host[:, :] = np.exp(-(self.X_dim**2 + self.Y_dim**2)/self.R0**2)
+        rho_host[:, :] = np.exp(-(self.X**2 + self.Y**2)/self.R0**2)
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         #### VELOCITY ####
@@ -264,6 +262,7 @@ class Screened_Fisher_Wave(object):
         # Initialize via poisson solver...
         self.poisson_solver = sp.Screened_Poisson(rho_host, cl_context=self.context, cl_queue = self.queue,
                                                   lam = self.lam, dx = self.delta_x)
+        self.poisson_solver.create_grad_fields()
 
         self.update_u_and_v()
 
@@ -319,13 +318,10 @@ class Screened_Fisher_Wave(object):
 
         # Copy the streamed buffer into f so that it is correctly updated.
         cl.enqueue_copy(self.queue, self.f, self.f_streamed)
-        #self.kernels.copy_buffer(self.queue, self.three_d_global_size, self.three_d_local_size,
-        #                        self.f_streamed, self.f,
-        #                        self.nx, self.ny).wait()
 
     def update_u_and_v(self):
         # Update the charge field for the poisson solver
-        cl.enqueue_copy(self.queue, self.charge.data, self.rho.data)
+        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, self.rho.data)
 
         self.poisson_solver.solve_and_update_grad_fields()
 
