@@ -104,7 +104,7 @@ class Screened_Fisher_Wave(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
-        self.lb_Gd = np.float32(self.G * self.delta_t)
+        self.lb_G = np.float32(self.G * self.delta_t)
 
         # Initialize grid dimensions
         self.nx = None # Number of grid points in the x direction with the boundray
@@ -345,7 +345,7 @@ class Screened_Fisher_Wave(object):
         """
         self.kernels.collide_particles_fisher(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f, self.feq, self.rho.data,
-                                self.omega, self.lb_Gd,
+                                self.omega, self.lb_G,
                                 self.w,
                                 self.nx, self.ny).wait()
 
