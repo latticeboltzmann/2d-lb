@@ -59,7 +59,7 @@ void main()
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
-                 num_colors=1024):
+                 cmap=plt.cm.magma, num_colors=1024):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
@@ -97,7 +97,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.program['scale_factor'] = self.scaling_factor
         self.program['max_magnitude'] = self.max_magnitude
 
-        self.cmap = plt.cm.coolwarm
+        self.cmap = cmap
         norm = plt.Normalize(-self.max_magnitude, self.max_magnitude)
         self.num_colors = num_colors
         possible_values = np.linspace(-self.max_magnitude, self.max_magnitude, num_colors)
