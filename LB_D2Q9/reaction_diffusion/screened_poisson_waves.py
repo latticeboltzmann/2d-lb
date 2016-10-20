@@ -255,6 +255,8 @@ class Screened_Fisher_Wave(object):
         #### DENSITY #####
         rho_host = np.zeros((nx, ny), dtype=np.float32, order='F')
         rho_host[:, :] = np.exp(-(self.X**2 + self.Y**2)/self.R0**2)
+        # rand_num = np.random.rand(nx, ny)
+        # rho_host[rand_num > .1] = 0.0
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         #### VELOCITY ####
