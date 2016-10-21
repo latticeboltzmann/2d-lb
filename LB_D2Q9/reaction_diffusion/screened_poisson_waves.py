@@ -60,7 +60,7 @@ class Screened_Fisher_Wave(object):
     def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., R0 = 5.,
                  time_prefactor=1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False,
-                 check_max_ulb=False):
+                 check_max_ulb=False, mach_tolerance=0.1):
         """
         :param N: Resolution of the simulation. As N increases, the simulation should become more accurate. N determines
                   how many grid points the characteristic length scale is discretized into
@@ -84,6 +84,7 @@ class Screened_Fisher_Wave(object):
         # Interop with OpenGL?
         self.use_interop = use_interop
         self.check_max_ulb = check_max_ulb
+        self.mach_tolerance = mach_tolerance
 
         # Get the characteristic length and time scales for the flow. Since this simulation is in dimensionless units
         # they should both be one!
@@ -271,6 +272,15 @@ class Screened_Fisher_Wave(object):
 
         self.update_u_and_v()
 
+    def redo_initial_condition(self, rho_field):
+        """After you have specified your own IC"""
+        rho_host = rho_field.astype(dtype=np.float32, order='F')
+        self.rho = cl.array.to_device(self.queue, rho_host)
+
+        self.update_u_and_v()
+        self.update_feq()  # Based on the hydrodynamic fields, create feq
+        self.init_pop()  # Based on feq, create the hopping non-equilibrium fields
+
     def update_feq(self):
         """
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
@@ -337,7 +347,7 @@ class Screened_Fisher_Wave(object):
         if self.check_max_ulb:
             max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
 
-            if max_ulb > cs/10.:
+            if max_ulb > cs*self.mach_tolerance:
                 print 'max_ulb is greater than cs/10! Ma=', max_ulb/cs
 
     def update_hydro(self):
