@@ -59,7 +59,8 @@ class Screened_Fisher_Wave(object):
 
     def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., R0 = 5.,
                  time_prefactor=1., N=50,
-                 two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
+                 two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False,
+                 check_max_ulb=False):
         """
         :param N: Resolution of the simulation. As N increases, the simulation should become more accurate. N determines
                   how many grid points the characteristic length scale is discretized into
@@ -82,6 +83,7 @@ class Screened_Fisher_Wave(object):
 
         # Interop with OpenGL?
         self.use_interop = use_interop
+        self.check_max_ulb = check_max_ulb
 
         # Get the characteristic length and time scales for the flow. Since this simulation is in dimensionless units
         # they should both be one!
@@ -93,7 +95,8 @@ class Screened_Fisher_Wave(object):
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
 
-        self.ulb = self.delta_t/self.delta_x # Speed of sound in LB units. The actual velocity must be *much* smaller.
+        # Characteristic LB speed corresponding to dimensionless speed of 1. Must be MUCH smaller than cs = .57 or so.
+        self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
 
         self.lb_D = self.D * (self.delta_t / self.delta_x ** 2) # Diffusion constant in LB units
@@ -330,6 +333,12 @@ class Screened_Fisher_Wave(object):
 
         self.u = -self.vc*(self.delta_t/self.delta_x)*(self.poisson_solver.xgrad.real)
         self.v = -self.vc*(self.delta_t/self.delta_x)*(self.poisson_solver.ygrad.real)
+
+        if self.check_max_ulb:
+            max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
+
+            if max_ulb > cs/10.:
+                print 'max_ulb is greater than cs/10! Ma=', max_ulb/cs
 
     def update_hydro(self):
         """
