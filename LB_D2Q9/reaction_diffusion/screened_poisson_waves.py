@@ -436,3 +436,14 @@ class Screened_Fisher_Wave(object):
         fields['v'] *= (self.L/self.T)
 
         return fields
+
+class Clumpy_Screened_Fisher_Wave(Screened_Fisher_Wave):
+
+    def __init__(self, g = 1.0, **kwargs):
+        self.psi = None
+        self.g = g
+        super(Clumpy_Screened_Fisher_Wave, self).__init__(**kwargs) # Initialize the superclass
+        self.psi = self.rho.copy()
+
+    def update_psi(self):
+        self.psi[...] = (self.rho
