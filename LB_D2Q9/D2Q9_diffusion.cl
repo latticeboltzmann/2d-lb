@@ -69,9 +69,9 @@ update_hydro_diffusion(__global float *f_global,
 
 __kernel void
 collide_particles(__global float *f_global,
-                         __global float *feq_global,
-                         const float omega,
-                         const int nx, const int ny)
+                  __global float *feq_global,
+                  const float omega,
+                  const int nx, const int ny)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
