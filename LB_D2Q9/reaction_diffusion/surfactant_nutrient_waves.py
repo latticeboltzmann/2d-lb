@@ -291,7 +291,7 @@ class Surfactant_Nutrient_Wave(object):
                                                   lam=self.lam, dx=self.delta_x)
         self.poisson_solver.create_grad_fields()
 
-        #TODO: IS MY CODE SUCKING IN NUTRIENTS? I DON'T UNDERSTAND HOW WE GET A BUILDUP
+        # TODO: IS MY CODE SUCKING IN NUTRIENTS? I DON'T UNDERSTAND HOW WE GET A BUILDUP
         self.update_u_and_v()
 
     def redo_initial_condition(self, rho_field):
