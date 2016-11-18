@@ -234,7 +234,7 @@ class Surfactant_Nutrient_Wave(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open('surfactant_nutrient_waves.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(file_dir + '/surfactant_nutrient_waves.cl').read()).build(options='')
 
     def allocate_constants(self):
         """
@@ -359,7 +359,9 @@ class Surfactant_Nutrient_Wave(object):
     def update_u_and_v(self):
         # Update the charge field for the poisson solver
         #self.poisson_solver.charge = self.rho.astype(np.complex64, queue=self.queue)
-        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, self.rho.astype(np.complex64).data)
+        density_view = self.rho[:, :, 0]
+
+        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
 
         self.poisson_solver.solve_and_update_grad_fields()
 

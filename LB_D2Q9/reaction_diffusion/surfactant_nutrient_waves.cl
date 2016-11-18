@@ -91,10 +91,10 @@ collide_particles(__global float *f_global,
         float cur_rho = rho_global[0*ny*nx + two_d_index]; // Density
         float cur_n = rho_global[1*ny*nx + two_d_index]; // Nutrient concentration
 
-        float all_growth = cur_G * cur_rho * cur_n;
+        float all_growth = G * cur_rho * cur_n;
 
         //****** POPULATION ******
-        int cur_field = 0
+        int cur_field = 0;
         int three_d_index = cur_field*ny*nx + two_d_index;
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
@@ -109,8 +109,8 @@ collide_particles(__global float *f_global,
             f_global[four_d_index] = relax + growth;
         }
         //****** NUTRIENT ******
-        int cur_field = 1
-        int three_d_index = cur_field*ny*nx + two_d_index;
+        cur_field = 1;
+        three_d_index = cur_field*ny*nx + two_d_index;
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
@@ -164,41 +164,6 @@ move_periodic(__global __read_only float *f_global,
                 int new_4d_index = slice + stream_y*nx + stream_x;
 
                 f_streamed_global[new_4d_index] = f_global[old_4d_index];
-            }
-        }
-    }
-}
-
-__kernel void
-move_periodic(__global __read_only float *f_global,
-     __global __write_only float *f_streamed_global,
-     __constant int *cx,
-     __constant int *cy,
-     const int nx, const int ny, const int num_populations)
-{
-    //Input should be a 2d workgroup!
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        for(int jump_id = 0; jump_id < 9; jump_id++){
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
-
-            //Make sure that you don't go out of the system
-
-            int stream_x = x + cur_cx;
-            int stream_y = y + cur_cy;
-
-            if ((stream_x >= 0) && (stream_x < nx) && (stream_y >= 0) && (stream_y < ny)){ // Stream
-                for(int field_num = 0; field_num < num_populations; field_num++){
-                    int slice = jump_id*num_populations*nx*ny + field_num*nx*ny;
-
-                    int old_4d_index = slice + y*nx + x;
-                    int new_4d_index = slice + stream_y*nx + stream_x;
-
-                    f_streamed_global[new_4d_index] = f_global[old_4d_index];
-                }
             }
         }
     }
