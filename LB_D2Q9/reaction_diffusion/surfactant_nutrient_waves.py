@@ -7,6 +7,7 @@ import pyopencl.clrandom
 import pyopencl.array
 import ctypes as ct
 from LB_D2Q9.spectral_poisson import screened_poisson as sp
+import matplotlib.pyplot as plt
 
 # Required to draw obstacles
 import skimage as ski
@@ -369,7 +370,13 @@ class Surfactant_Nutrient_Wave(object):
 
         self.poisson_solver.solve_and_update_grad_fields()
 
-        self.u = -self.vc*(self.delta_t/self.delta_x)*(self.poisson_solver.xgrad.real)
+        self.u = self.poisson_solver.xgrad
+        self.u *= -self.vc * (self.delta_t / self.delta_x)
+
+        plt.figure()
+        plt.imshow(self.u.real.get(), cmap=plt.cm.coolwarm)
+        plt.colorbar()
+
         self.v = -self.vc*(self.delta_t/self.delta_x)*(self.poisson_solver.ygrad.real)
 
         if self.check_max_ulb:

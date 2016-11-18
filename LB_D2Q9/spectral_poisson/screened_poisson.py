@@ -12,8 +12,8 @@ class Screened_Poisson(object):
         if self.context is None:
             self.create_context_and_queue()
 
-        self.charge_cpu = charge_cpu.astype(np.complex64, order='F')
-        self.charge = cl.array.to_device(self.queue, self.charge_cpu)
+        charge_cpu = charge_cpu.astype(np.complex64, order='F')
+        self.charge = cl.array.to_device(self.queue, charge_cpu)
 
         self.transform = gfft.fft.FFT(self.context, self.queue, (self.charge,), axes=(0, 1))
 
@@ -82,6 +82,10 @@ class Screened_Poisson(object):
         event.wait()
         event, = self.ygrad_transform.enqueue(forward=False)
         event.wait()
+
+        plt.figure()
+        plt.imshow(self.xgrad.get().real, cmap=plt.cm.coolwarm)
+        plt.colorbar()
 
     def solve_and_update_grad_fields(self):
         """Run this to solve the screened poisson equation and get the gradient fields (what we usually need)"""
