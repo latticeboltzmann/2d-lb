@@ -171,17 +171,17 @@ class Surfactant_Nutrient_Wave(object):
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
-        self.feq = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=feq_host)
+        self.feq = cl.array.to_device(self.queue, feq_host)
 
         self.update_feq() # Based on the hydrodynamic fields, create feq
 
         # Now initialize the nonequilibrium f
-        f_host=np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
         # In order to stream in parallel without communication between workgroups, we need two buffers (as far as the
         # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
         # after the particles have streamed.
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
-        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f_host)
+
+        self.f = None
+        self.f_streamed = None
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
@@ -308,7 +308,7 @@ class Surfactant_Nutrient_Wave(object):
         Implemented in OpenCL.
         """
         self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.feq,
+                                self.feq.data,
                                 self.rho.data,
                                 self.u.data,
                                 self.v.data,
@@ -322,19 +322,18 @@ class Surfactant_Nutrient_Wave(object):
         ny = self.ny
 
         # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
-        f = np.zeros((nx, ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, f, self.feq, is_blocking=True)
+        f_host = self.feq.get()
 
         # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
         # from sall fluctuations. Sooo...be careful.
         perturb = (1. + amplitude*np.random.randn(nx, ny, self.num_populations, NUM_JUMPERS))
-        f *= perturb
+        f_host *= perturb
 
         # Now send f to the GPU
-        self.f = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
+        self.f = cl.array.to_device(self.queue, f_host)
 
         # f_temporary will be the buffer that f moves into in parallel.
-        self.f_streamed = cl.Buffer(self.context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=f)
+        self.f_streamed = self.f.copy()
 
     def move_bcs(self):
         """
@@ -350,12 +349,12 @@ class Surfactant_Nutrient_Wave(object):
         in parallel without copying the temporary buffer back onto f.
         """
         self.kernels.move_periodic(self.queue, self.three_d_global_size, self.three_d_local_size,
-                                self.f, self.f_streamed,
+                                self.f.data, self.f_streamed.data,
                                 self.cx, self.cy,
                                 self.nx, self.ny, self.num_populations).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
-        cl.enqueue_copy(self.queue, self.f, self.f_streamed)
+        cl.enqueue_copy(self.queue, self.f.data, self.f_streamed.data)
 
     def update_u_and_v(self):
         # Update the charge field for the poisson solver
@@ -380,7 +379,7 @@ class Surfactant_Nutrient_Wave(object):
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f, self.u.data, self.v.data, self.rho.data,
+                                self.f.data, self.u.data, self.v.data, self.rho.data,
                                 self.nx, self.ny, self.num_populations).wait()
         self.update_u_and_v()
 
@@ -389,8 +388,8 @@ class Surfactant_Nutrient_Wave(object):
         Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
         """
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f,
-                                self.feq,
+                                self.f.data,
+                                self.feq.data,
                                 self.rho.data,
                                 self.omega, self.omega_n,
                                 self.lb_G,
@@ -413,56 +412,17 @@ class Surfactant_Nutrient_Wave(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields.
 
+    # def get_nondim_fields(self):
+    #     """
+    #     :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
+    #     """
+    #     fields = self.get_fields()
+    #
+    #     fields['u'] *= self.delta_x/self.delta_t
+    #     fields['v'] *= self.delta_x/self.delta_t
+    #
+    #     return fields
 
-    def get_fields(self):
-        """
-        :return: Returns a dictionary of all fields. Transfers data from the GPU to the CPU.
-        """
-        f = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, f, self.f, is_blocking=True)
-
-        feq = np.zeros((self.nx, self.ny, NUM_JUMPERS), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, feq, self.feq, is_blocking=True)
-
-        u = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, u, self.u.data, is_blocking=True)
-
-        v = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, v, self.v.data, is_blocking=True)
-
-        rho = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        cl.enqueue_copy(self.queue, rho, self.rho.data, is_blocking=True)
-
-        results={}
-        results['f'] = f
-        results['u'] = u
-        results['v'] = v
-        results['rho'] = rho
-        results['feq'] = feq
-        return results
-
-    def get_nondim_fields(self):
-        """
-        :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
-        """
-        fields = self.get_fields()
-
-        fields['u'] *= self.delta_x/self.delta_t
-        fields['v'] *= self.delta_x/self.delta_t
-
-        return fields
-
-    def get_physical_fields(self):
-        """
-        :return: Returns a dictionary of the fields scaled so that they are in physical form; this is probably what
-                 most users are interested in.
-        """
-        fields = self.get_nondim_fields()
-
-        fields['u'] *= (self.L/self.T)
-        fields['v'] *= (self.L/self.T)
-
-        return fields
 
 # class Clumpy_Screened_Fisher_Wave(Screened_Fisher_Wave):
 #
