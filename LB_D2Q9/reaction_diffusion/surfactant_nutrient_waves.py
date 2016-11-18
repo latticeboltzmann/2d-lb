@@ -286,7 +286,8 @@ class Surfactant_Nutrient_Wave(object):
         #### VELOCITY ####
 
         # Initialize via poisson solver...
-        self.poisson_solver = sp.Screened_Poisson(rho_host, cl_context=self.context, cl_queue = self.queue,
+        density_field = rho_host[:, :, self.pop_index]
+        self.poisson_solver = sp.Screened_Poisson(density_field, cl_context=self.context, cl_queue = self.queue,
                                                   lam=self.lam, dx=self.delta_x)
         self.poisson_solver.create_grad_fields()
 
@@ -306,7 +307,7 @@ class Surfactant_Nutrient_Wave(object):
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
         Implemented in OpenCL.
         """
-        self.kernels.update_feq_diffusion(self.queue, self.two_d_global_size, self.two_d_local_size,
+        self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.feq,
                                 self.rho.data,
                                 self.u.data,
@@ -359,7 +360,7 @@ class Surfactant_Nutrient_Wave(object):
     def update_u_and_v(self):
         # Update the charge field for the poisson solver
         #self.poisson_solver.charge = self.rho.astype(np.complex64, queue=self.queue)
-        density_view = self.rho[:, :, 0]
+        density_view = self.rho[:, :, self.pop_index]
 
         cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
 
