@@ -58,7 +58,7 @@ class Surfactant_Nutrient_Wave(object):
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., Dn = 1., R0 = 5.,
+    def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., Dn = 1./4., R0 = 5.,
                  time_prefactor=1., N=50,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):

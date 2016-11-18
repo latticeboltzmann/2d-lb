@@ -88,17 +88,14 @@ collide_particles(__global float *f_global,
 
         const int two_d_index = y*nx + x;
 
-        int cur_field = 0;
+        float cur_rho = rho_global[0*ny*nx + two_d_index]; // Density
+        float cur_n = rho_global[1*ny*nx + two_d_index]; // Nutrient concentration
 
-        int three_d_index = field_num*ny*nx + two_d_index;
+        float all_growth = cur_G * cur_rho * cur_n;
 
-        float cur_rho = rho_global[three_d_index];
-
-        float cur_G = G[field_num];
-        float cur_omega = omega[field_num];
-
-        float growth = cur_G * cur_rho * (1 - rho_tot);
-
+        //****** POPULATION ******
+        int cur_field = 0
+        int three_d_index = cur_field*ny*nx + two_d_index;
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
@@ -106,38 +103,26 @@ collide_particles(__global float *f_global,
             float feq = feq_global[four_d_index];
             float cur_w = w[jump_id];
 
-            float relax = f*(1-cur_omega) + cur_omega*feq;
+            float relax = f*(1-omega) + omega*feq;
+            float growth = relax + cur_w*all_growth;
 
-            float new_f = relax + cur_w*growth;
+            f_global[four_d_index] = relax + growth;
+        }
+        //****** NUTRIENT ******
+        int cur_field = 1
+        int three_d_index = cur_field*ny*nx + two_d_index;
+        for(int jump_id=0; jump_id < 9; jump_id++){
+            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
-            f_global[four_d_index] = new_f;
-            }
+            float f = f_global[four_d_index];
+            float feq = feq_global[four_d_index];
+            float cur_w = w[jump_id];
 
+            float relax = f*(1-omega_n) + omega_n*feq;
+            //Nutrients are depleted at the same rate cells grow
+            float growth = relax - cur_w*all_growth;
 
-        // Act on population
-        for(int field_num=0; field_num < num_populations; field_num++){ //Loop over populations first
-            int three_d_index = field_num*ny*nx + two_d_index;
-
-            float cur_rho = rho_global[three_d_index];
-
-            float cur_G = G[field_num];
-            float cur_omega = omega[field_num];
-
-            float growth = cur_G * cur_rho * (1 - rho_tot);
-
-            for(int jump_id=0; jump_id < 9; jump_id++){
-                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
-
-                float f = f_global[four_d_index];
-                float feq = feq_global[four_d_index];
-                float cur_w = w[jump_id];
-
-                float relax = f*(1-cur_omega) + cur_omega*feq;
-
-                float new_f = relax + cur_w*growth;
-
-                f_global[four_d_index] = new_f;
-            }
+            f_global[four_d_index] = relax + growth;
         }
     }
 }
