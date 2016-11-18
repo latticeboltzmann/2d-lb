@@ -83,7 +83,7 @@ class Surfactant_Nutrient_Wave(object):
         self.lam = lam # Screening length
         self.R0 = R0 # Initial radius of the droplet
 
-        self.num_populations = 2 # Population field and nutrient field. Could be extended to surfactant field someday as well
+        self.num_populations = np.int32(2) # Population field and nutrient field. Could be extended to surfactant field someday as well
         self.pop_index = 0
         self.nut_index = 1
 
