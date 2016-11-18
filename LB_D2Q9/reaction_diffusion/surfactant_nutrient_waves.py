@@ -340,7 +340,7 @@ class Surfactant_Nutrient_Wave(object):
         Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
         Implemented in OpenCL.
         """
-        pass # Need to implement closed boundary conditions someday...bleh
+        pass # Implemented in move_periodic in this case...it's just easier
 
     def move(self):
         """
@@ -348,7 +348,7 @@ class Surfactant_Nutrient_Wave(object):
         streaming f into a new buffer, and then copying that new buffer onto f. We could not think of a way to stream
         in parallel without copying the temporary buffer back onto f.
         """
-        self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
+        self.kernels.move_periodic(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
                                 self.cx, self.cy,
                                 self.nx, self.ny).wait()
