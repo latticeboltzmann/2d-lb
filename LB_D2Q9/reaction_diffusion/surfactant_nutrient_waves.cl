@@ -104,7 +104,7 @@ collide_particles(__global float *f_global,
             float cur_w = w[jump_id];
 
             float relax = f*(1-omega) + omega*feq;
-            float growth = relax + cur_w*all_growth;
+            float growth = cur_w*all_growth;
 
             f_global[four_d_index] = relax + growth;
         }
@@ -120,7 +120,7 @@ collide_particles(__global float *f_global,
 
             float relax = f*(1-omega_n) + omega_n*feq;
             //Nutrients are depleted at the same rate cells grow...so subtract
-            float growth = relax - cur_w*all_growth;
+            float growth = -cur_w*all_growth;
 
             f_global[four_d_index] = relax + growth;
         }
