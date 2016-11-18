@@ -66,7 +66,7 @@ class Screened_Poisson(object):
         self.ygrad_transform = gfft.fft.FFT(self.context, self.queue, (self.ygrad,), axes=(0, 1))
 
         self.xgrad_rescale = 2*np.pi * 1.0j*self.freq_X
-        self.ygrad_rescale = 2*np.pi * 1.0j * self.freq_Y
+        self.ygrad_rescale = 2*np.pi * 1.0j*self.freq_Y
 
 
     def update_grad_fields(self):
