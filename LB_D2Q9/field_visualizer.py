@@ -59,7 +59,6 @@ void main()
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
-                 field_index = None,
                  cmap=plt.cm.magma, num_colors=1024):
         # Determine the size of the window
         self.sim = sim
@@ -69,12 +68,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
 
         # Setup necessary buffers, projections, etc.
         self.I = np.zeros((self.W, self.H), dtype=np.float32, order='F')
-
-        self.field_index = field_index
-        if self.field_index is None:
-            cl.enqueue_copy(sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
-        else:
-            cl.enqueue_copy(sim.queue, self.I, self.sim_field_to_draw[:, :, self.field_index].astype(np.float32), is_blocking=True)
+        self.I = self.sim_field_to_draw.get()
 
         self.scaling_factor = scaling_factor
         self.max_magnitude = max_magnitude
@@ -145,11 +139,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.sim.run(self.num_steps_per_draw)
         self.total_num_steps += self.num_steps_per_draw
 
-        if self.field_index is None:
-            cl.enqueue_copy(self.sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
-        else:
-            cl.enqueue_copy(self.sim.queue, self.I, self.sim_field_to_draw[:, :, self.field_index], is_blocking=True)
+        self.I[...] = self.sim_field_to_draw.get()
 
-        cl.enqueue_copy(self.sim.queue, self.I, self.sim_field_to_draw, is_blocking=True)
         self.texture.set_data(self.I)
         self.program.draw('triangle_strip')
