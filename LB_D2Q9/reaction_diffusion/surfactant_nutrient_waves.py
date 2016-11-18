@@ -352,7 +352,7 @@ class Surfactant_Nutrient_Wave(object):
         self.kernels.move_periodic(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
                                 self.cx, self.cy,
-                                self.nx, self.ny).wait()
+                                self.nx, self.ny, self.num_populations).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         cl.enqueue_copy(self.queue, self.f, self.f_streamed)

@@ -130,10 +130,10 @@ collide_particles(__global float *f_global,
 
 __kernel void
 move_periodic(__global __read_only float *f_global,
-     __global __write_only float *f_streamed_global,
-     __constant int *cx,
-     __constant int *cy,
-     const int nx, const int ny, const int num_populations)
+              __global __write_only float *f_streamed_global,
+              __constant int *cx,
+              __constant int *cy,
+              const int nx, const int ny, const int num_populations)
 {
     /* Moves you assuming periodic BC's. */
     //Input should be a 2d workgroup!
