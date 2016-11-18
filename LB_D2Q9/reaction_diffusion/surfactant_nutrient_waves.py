@@ -195,6 +195,9 @@ class Surfactant_Nutrient_Wave(object):
         self.nx = np.int32(np.round(self.N*self.Lx))
         self.ny = np.int32(np.round(self.N*self.Ly))
 
+        print 'nx:' , self.nx
+        print 'ny:', self.ny
+
     def init_opencl(self):
         """
         Initializes the base items needed to run OpenCL code.
@@ -261,7 +264,7 @@ class Surfactant_Nutrient_Wave(object):
         # Now initialize the gaussian
         xvalues = np.arange(nx)
         yvalues = np.arange(ny)
-        X, Y = np.meshgrid(xvalues, yvalues)
+        Y, X = np.meshgrid(yvalues, xvalues)
         X = X.astype(np.float)
         Y = Y.astype(np.float)
 
