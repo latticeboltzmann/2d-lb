@@ -278,7 +278,7 @@ class Surfactant_Nutrient_Wave(object):
         rho_host[:, :, self.pop_index] = np.exp(-(self.X**2 + self.Y**2)/self.R0**2)
 
         # Nutrient field
-        rho_host[:, :, self.nut_index] = 1.0
+        rho_host[:, :, self.nut_index] = 1.0 - rho_host[:, :, self.pop_index]
 
         # Send to device
         self.rho = cl.array.to_device(self.queue, rho_host)
