@@ -433,9 +433,8 @@ class Surfactant_Nutrient_Wave(object):
 
 class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
 
-    def __init__(self, **kwargs):
+    def __init__(self, rho_o = 1.0,  **kwargs):
         self.rho_o = None
-        self.sticky = None
         self.G_chen = None
         self.psi = None
         super(Clumpy_Surfactant_Nutrient_Wave, self).__init__(**kwargs) # Initialize the superclass

@@ -168,3 +168,22 @@ move_periodic(__global __read_only float *f_global,
         }
     }
 }
+
+__kernel void
+update_psi(__global float *psi_global,
+           __global __read_only float *rho_global,
+           const float rho_o,
+           const int nx, const int ny, const int population_index)
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_index = population_index*ny*nx + two_d_index;
+
+        float cur_rho = rho_global[three_d_index];
+        psi_global[two_d_index] = sqrt(rho_o)*(1 - exp(-cur_rho/rho_o));
+
+    }
+}
