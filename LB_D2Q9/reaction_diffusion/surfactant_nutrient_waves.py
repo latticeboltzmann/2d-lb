@@ -387,7 +387,6 @@ class Surfactant_Nutrient_Wave(object):
         self.u *= -self.vc * (self.delta_t / self.delta_x)
         self.v *= -self.vc * (self.delta_t / self.delta_x)
 
-
         if self.check_max_ulb:
             max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
 
