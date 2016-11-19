@@ -258,7 +258,7 @@ update_pseudo_force(__global __read_only float *psi_global,
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            float psi_mult = psi_local[old_2d_buf_index]*psi_global[new_2d_buf_index];
+            float psi_mult = psi_local[old_2d_buf_index]*psi_local[new_2d_buf_index];
             force_x += G_chen * cur_cx * psi_mult;
             force_y += G_chen * cur_cy * psi_mult;
         }
