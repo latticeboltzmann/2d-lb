@@ -88,8 +88,8 @@ class Surfactant_Nutrient_Wave(object):
         self.R0 = R0 # Initial radius of the droplet
 
         self.num_populations = np.int32(2) # Population field and nutrient field. Could be extended to surfactant field someday as well
-        self.pop_index = 0
-        self.nut_index = 1
+        self.pop_index = np.int32(0)
+        self.nut_index = np.int32(1)
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -436,26 +436,27 @@ class Surfactant_Nutrient_Wave(object):
 
 class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
 
-    def __init__(self, rho_o = 1.0,  **kwargs):
-        self.rho_o = None
-        self.G_chen = None
+    def __init__(self, rho_o = 1.0, G_chen=-1.0,  **kwargs):
+        self.rho_o = np.float32(rho_o)
+        self.G_chen = np.float32(G_chen)
+
         self.psi = None
         self.pseudo_force_x = None
         self.pseudo_force_y = None
 
-        self.halo = None # As we are doing D2Q9, we have a halo of one
+        self.halo = None
         self.buf_nx = None
         self.buf_ny = None
-        self.local_psi = None
+        self.psi_local = None
         super(Clumpy_Surfactant_Nutrient_Wave, self).__init__(**kwargs) # Initialize the superclass
 
     def allocate_constants(self):
         super(Clumpy_Surfactant_Nutrient_Wave, self).allocate_constants()
         # Allocate local memory for the finite difference code
-        self.halo = np.int32(1)
+        self.halo = np.int32(1) # As we are doing D2Q9, we have a halo of one
         self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
         self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
-        self.local_psi = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
+        self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
 
     def init_hydro(self):
         psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
@@ -473,9 +474,20 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
 
         # Now update psi, and adjust u accordingly. Probably in openCL.
         self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.psi, self.rho, self.rho_o,
+                                self.psi.data,
+                                self.rho.data,
+                                self.rho_o,
                                 self.nx, self.ny, self.pop_index).wait()
         # Get the force from psi
+        self.kernels.update_pseudo_force(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                         self.psi.data,
+                                         self.pseudo_force_x.data,
+                                         self.pseudo_force_y.data,
+                                         self.G_chen,
+                                         self.cx, self.cy,
+                                         self.psi_local,
+                                         self.nx, self.ny, self.buf_nx, self.buf_ny,
+                                         self.halo)
 
 
 

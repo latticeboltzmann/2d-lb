@@ -197,7 +197,8 @@ update_pseudo_force(__global __read_only float *psi_global,
                     __constant float *cy,
                     __local float *psi_local,
                     const int nx, const int ny,
-                    const int buf_nx, const int buf_ny, const int halo)
+                    const int buf_nx, const int buf_ny,
+                    const int halo)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
