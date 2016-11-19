@@ -489,26 +489,11 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.psi_local,
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
                                          self.halo)
-
-        # def get_nondim_fields(self):
-    #     """
-    #     :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
-    #     """
-    #     fields = self.get_fields()
-    #
-    #     fields['u'] *= self.delta_x/self.delta_t
-    #     fields['v'] *= self.delta_x/self.delta_t
-    #
-    #     return fields
-
-
-# class Clumpy_Screened_Fisher_Wave(Screened_Fisher_Wave):
-#
-#     def __init__(self, g = 1.0, **kwargs):
-#         self.psi = None
-#         self.g = g
-#         super(Clumpy_Screened_Fisher_Wave, self).__init__(**kwargs) # Initialize the superclass
-#         self.psi = self.rho.copy()
-#
-#     def update_psi(self):
-#         self.psi[...] = (self.rho
+        # Update velocities (shift hydrodynamic variables)
+        self.kernels.shift_velocities_force(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                            self.u.data,
+                                            self.v.data,
+                                            self.pseudo_force_x.data,
+                                            self.pseudo_force_y.data,
+                                            self.rho.data,
+                                            self.nx, self.ny, self.pop_index)

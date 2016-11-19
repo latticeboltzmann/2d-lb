@@ -267,3 +267,36 @@ update_pseudo_force(__global __read_only float *psi_global,
         force_y_global[two_d_index] = force_y;
     }
 }
+
+__kernel void
+update_pseudo_force(__global float *u_global,
+                    __global float *v_global,
+                    __global __read_only float *force_x_global,
+                    __global __read_only float *force_y_global,
+                    __global __read_only float *rho_global,
+                    const int nx, const int ny, const int population_index)
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    //I AM DOING WHAT GUACAMO SAID, TAKING U BEFORE AND AFTER AND AVERAGING
+    //Also arbitrarily setting omega = 1, as it's not obvious to me why we need that here
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+
+        float u_before = u_global[two_d_index];
+        float v_before = v_global[two_d_index];
+
+        const float force_x = force_x_global[two_d_index];
+        const float force_y = force_y_global[two_d_index];
+
+        const int three_d_index = population_index*ny*nx + two_d_index;
+        const float rho_pop = rho_global[three_d_index];
+
+        const float u_shifted = u_before + force_x/rho_pop;
+        const float v_shifted = v_before + force_y/rho_pop;
+
+        u_global[two_d_index] = (u_before + u_shifted)/2.f;
+        v_global[two_d_index] = (v_before + v_shifted)/2.f;
+    }
+}
