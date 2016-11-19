@@ -83,10 +83,6 @@ class Screened_Poisson(object):
         event, = self.ygrad_transform.enqueue(forward=False)
         event.wait()
 
-        plt.figure()
-        plt.imshow(self.xgrad.get().real, cmap=plt.cm.coolwarm)
-        plt.colorbar()
-
     def solve_and_update_grad_fields(self):
         """Run this to solve the screened poisson equation and get the gradient fields (what we usually need)"""
         self.fft_and_screen()

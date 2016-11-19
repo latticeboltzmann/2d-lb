@@ -372,9 +372,10 @@ class Surfactant_Nutrient_Wave(object):
 
         self.u = self.poisson_solver.xgrad
         self.u *= -self.vc * (self.delta_t / self.delta_x)
+        self.u = self.u.real
 
         plt.figure()
-        plt.imshow(self.u.real.get(), cmap=plt.cm.coolwarm)
+        plt.imshow(self.u.get(), cmap=plt.cm.coolwarm)
         plt.colorbar()
 
         self.v = -self.vc*(self.delta_t/self.delta_x)*(self.poisson_solver.ygrad.real)
