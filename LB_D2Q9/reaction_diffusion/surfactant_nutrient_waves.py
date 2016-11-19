@@ -289,13 +289,19 @@ class Surfactant_Nutrient_Wave(object):
 
         #### VELOCITY ####
 
+        # Create u and v fields. Necessary to copy onto due to complex type issues...
+        u_host = np.zeros((nx, ny), dtype=np.float32, order='F')
+        v_host = np.zeros((nx, ny), dtype=np.float32, order='F')
+
+        self.u = cl.array.to_device(self.queue, u_host)
+        self.v = cl.array.to_device(self.queue, v_host)
+
         # Initialize via poisson solver...
         density_field = rho_host[:, :, self.pop_index]
         self.poisson_solver = sp.Screened_Poisson(density_field, cl_context=self.context, cl_queue = self.queue,
                                                   lam=self.lam, dx=self.delta_x)
         self.poisson_solver.create_grad_fields()
 
-        # TODO: IS MY CODE SUCKING IN NUTRIENTS? I DON'T UNDERSTAND HOW WE GET A BUILDUP
         self.update_u_and_v()
 
     def redo_initial_condition(self, rho_field):
@@ -369,16 +375,18 @@ class Surfactant_Nutrient_Wave(object):
         cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
 
         self.poisson_solver.solve_and_update_grad_fields()
+        xgrad = self.poisson_solver.xgrad
+        ygrad = self.poisson_solver.ygrad
 
-        self.u = self.poisson_solver.xgrad
+        #TODO: THIS SEEMS TO BE THE ONLY WAY TO PREVENT WEIRD TRANSPOSITION ERRORS. TRY TO FIX IN THE FUTURE.
+        # THERE SEEMS TO BE AN ERROR ASSOCIATED WITH .REAL, IT SEEMS TO TRANSPOSE ELEMENTS IN A WAY I DON'T
+        # UNDERSTAND
+        cl.enqueue_copy(self.queue, self.u.data, xgrad.real.data)
+        cl.enqueue_copy(self.queue, self.v.data, ygrad.real.data)
+
         self.u *= -self.vc * (self.delta_t / self.delta_x)
-        self.u = self.u.real
+        self.v *= -self.vc * (self.delta_t / self.delta_x)
 
-        plt.figure()
-        plt.imshow(self.u.get(), cmap=plt.cm.coolwarm)
-        plt.colorbar()
-
-        self.v = -self.vc*(self.delta_t/self.delta_x)*(self.poisson_solver.ygrad.real)
 
         if self.check_max_ulb:
             max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
