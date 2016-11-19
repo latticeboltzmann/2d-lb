@@ -127,6 +127,76 @@ collide_particles(__global float *f_global,
     }
 }
 
+__kernel void
+collide_particles_attraction(__global float *f_global,
+                            __global __read_only float *feq_global,
+                            __global __read_only float *rho_global,
+                            const float omega, const float omega_n,
+                            const float G,
+                            __global __read_only float *force_x_global,
+                            __global __read_only float *force_y_global,
+                            __constant float *w,
+                            __constant int *cx,
+                            __constant int *cy,
+                            const float cs,
+                            const int nx, const int ny, const int num_populations)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+
+        const int two_d_index = y*nx + x;
+
+        float cur_rho = rho_global[0*ny*nx + two_d_index]; // Density
+        float cur_n = rho_global[1*ny*nx + two_d_index]; // Nutrient concentration
+
+        float all_growth = G * cur_rho * cur_n;
+
+        //****** POPULATION ******
+        int cur_field = 0;
+        int three_d_index = cur_field*ny*nx + two_d_index;
+        for(int jump_id=0; jump_id < 9; jump_id++){
+            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+
+            float f = f_global[four_d_index];
+            float feq = feq_global[four_d_index];
+            float cur_w = w[jump_id];
+
+            float relax = f*(1-omega) + omega*feq;
+            float growth = cur_w*all_growth;
+
+            // Add in the external force
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
+
+            float Fx = force_x_global[two_d_index];
+            float Fy = force_y_global[two_d_index];
+
+            float f_dot_c = cur_cx * Fx + cur_cy * Fy;
+            float force_term = (cur_w * f_dot_c)/(cs*cs);
+
+            f_global[four_d_index] = relax + growth + force_term;
+        }
+        //****** NUTRIENT ******
+        cur_field = 1;
+        three_d_index = cur_field*ny*nx + two_d_index;
+        for(int jump_id=0; jump_id < 9; jump_id++){
+            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+
+            float f = f_global[four_d_index];
+            float feq = feq_global[four_d_index];
+            float cur_w = w[jump_id];
+
+            float relax = f*(1-omega_n) + omega_n*feq;
+            //Nutrients are depleted at the same rate cells grow...so subtract
+            float growth = -cur_w*all_growth;
+
+            f_global[four_d_index] = relax + growth;
+        }
+    }
+}
 
 __kernel void
 move_periodic(__global __read_only float *f_global,
@@ -193,6 +263,7 @@ update_pseudo_force(__global __read_only float *psi_global,
                     __global __write_only float *force_x_global,
                     __global __write_only float *force_y_global,
                     const float G_chen,
+                    const float cs,
                     __constant int *cx,
                     __constant int *cy,
                     __local float *psi_local,
@@ -259,12 +330,12 @@ update_pseudo_force(__global __read_only float *psi_global,
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
             float psi_mult = psi_local[old_2d_buf_index]*psi_local[new_2d_buf_index];
-            force_x += G_chen * cur_cx * psi_mult;
-            force_y += G_chen * cur_cy * psi_mult;
+            force_x += cur_cx * psi_mult;
+            force_y += cur_cy * psi_mult;
         }
         const int two_d_index = y*nx + x;
-        force_x_global[two_d_index] = force_x;
-        force_y_global[two_d_index] = force_y;
+        force_x_global[two_d_index] = G_chen * cs*cs * force_x;
+        force_y_global[two_d_index] = G_chen * cs*cs* force_y;
     }
 }
 
@@ -276,7 +347,8 @@ shift_velocities_force(__global float *u_global,
                     __global __read_only float *rho_global,
                     const int nx, const int ny, const int population_index)
 {
-    // TODO: This does not work, as rho -> 0. It makes more sense to put it in the collision routine this time.
+    //TODO: This does not work, as rho -> 0. It makes more sense to put it in the collision routine this time.
+    // Also doesn't work as only one population is sticky...the nutrient field is not sticky.
 
     const int x = get_global_id(0);
     const int y = get_global_id(1);
