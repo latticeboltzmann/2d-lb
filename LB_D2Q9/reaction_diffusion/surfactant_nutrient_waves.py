@@ -431,6 +431,19 @@ class Surfactant_Nutrient_Wave(object):
             self.update_feq() # Update the equilibrium fields
             self.collide_particles() # Relax the nonequilibrium fields.
 
+class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
+
+    def __init__(self, **kwargs):
+        self.rho_o = None
+        self.sticky = None
+        self.G_chen = None
+        self.psi = None
+        super(Clumpy_Surfactant_Nutrient_Wave, self).__init__(**kwargs) # Initialize the superclass
+
+    def update_hydro(self):
+        super(Clumpy_Surfactant_Nutrient_Wave, self).update_hydro()
+        # Now update psi, and adjust u accordingly. Probably in openCL.
+
     # def get_nondim_fields(self):
     #     """
     #     :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
