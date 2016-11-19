@@ -223,7 +223,6 @@ update_pseudo_force(__global __read_only float *psi_global,
     const int idx_1D = ly * get_local_size(0) + lx;
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    printf("haba waba flaba");
     if (idx_1D < buf_nx) {
         for (int row = 0; row < buf_ny; row++) {
             if ((x < nx) && (y < ny)){
@@ -237,6 +236,8 @@ update_pseudo_force(__global __read_only float *psi_global,
                 if (temp_y == ny) temp_y = 0;
                 if (temp_y < 0) temp_y = ny - 1;
 
+                //printf("x: %d y: %d \n", temp_x, temp_y);
+                //printf("idx_1d: %d row: %d \n", idx_1D, row);
                 psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
             }
         }
@@ -256,6 +257,8 @@ update_pseudo_force(__global __read_only float *psi_global,
             //Get the shifted positions
             int stream_buf_x = buf_x + cur_cx;
             int stream_buf_y = buf_y + cur_cy;
+
+            printf("stream_bufx: %d, stream_bufy: %d \n", stream_buf_x, stream_buf_y);
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
