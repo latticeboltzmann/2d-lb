@@ -223,6 +223,7 @@ update_pseudo_force(__global __read_only float *psi_global,
     const int idx_1D = ly * get_local_size(0) + lx;
 
     barrier(CLK_LOCAL_MEM_FENCE);
+    printf("haba waba flaba");
     if (idx_1D < buf_nx) {
         for (int row = 0; row < buf_ny; row++) {
             if ((x < nx) && (y < ny)){

@@ -479,6 +479,17 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                 self.rho_o,
                                 self.nx, self.ny, self.pop_index).wait()
         # Get the force from psi
+        # self.kernels.update_pseudo_force(self.queue, self.two_d_global_size, self.two_d_local_size,
+        #                                  self.psi.data,
+        #                                  self.pseudo_force_x.data,
+        #                                  self.pseudo_force_y.data,
+        #                                  self.G_chen,
+        #                                  self.cx, self.cy,
+        #                                  self.psi_local,
+        #                                  self.nx, self.ny, self.buf_nx, self.buf_ny,
+        #                                  self.halo)
+
+    def update_pseudo_force(self):
         self.kernels.update_pseudo_force(self.queue, self.two_d_global_size, self.two_d_local_size,
                                          self.psi.data,
                                          self.pseudo_force_x.data,
@@ -490,8 +501,7 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.halo)
 
 
-
-    # def get_nondim_fields(self):
+        # def get_nondim_fields(self):
     #     """
     #     :return: Returns a dictionary of the fields scaled so that they are in non-dimensional form.
     #     """
