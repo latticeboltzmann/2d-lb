@@ -269,7 +269,7 @@ update_pseudo_force(__global __read_only float *psi_global,
 }
 
 __kernel void
-update_pseudo_force(__global float *u_global,
+shift_velocities_force(__global float *u_global,
                     __global float *v_global,
                     __global __read_only float *force_x_global,
                     __global __read_only float *force_y_global,
@@ -292,6 +292,9 @@ update_pseudo_force(__global float *u_global,
 
         const int three_d_index = population_index*ny*nx + two_d_index;
         const float rho_pop = rho_global[three_d_index];
+
+//        const float u_shifted = u_before + force_x/rho_pop;
+//        const float v_shifted = v_before + force_y/rho_pop;
 
         const float u_shifted = u_before + force_x/rho_pop;
         const float v_shifted = v_before + force_y/rho_pop;
