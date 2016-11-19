@@ -202,9 +202,8 @@ update_pseudo_force(__global __read_only float *psi_global,
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
-    // Local memory where you read in everything around you in the workgroup.
-    // Otherwise, you are actually doing 9x the work of what you have to...
-    // We actually need a halo of one, which is painful. I'll have to review how to do that...
+    // Have to use local memory where you read in everything around you in the workgroup.
+    // Otherwise, you are actually doing 9x the work of what you have to...painful.
 
     // Local position relative to (0, 0) in workgroup
     const int lx = get_local_id(0);
@@ -236,7 +235,7 @@ update_pseudo_force(__global __read_only float *psi_global,
                 if (temp_y == ny) stream_y = 0;
                 if (temp_y < 0) stream_y = ny - 1;
 
-                local_psi[row*buf_nx + idx_1D] = psi_global[temp_y * nx + temp_x];
+                local_psi[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
             }
         }
     }
