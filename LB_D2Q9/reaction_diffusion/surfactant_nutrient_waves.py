@@ -495,7 +495,8 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.pseudo_force_x.data,
                                          self.pseudo_force_y.data,
                                          self.G_chen,
-                                         self.cx, self.cy,
+                                         self.cx,
+                                         self.cy,
                                          self.psi_local,
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
                                          self.halo)
