@@ -468,9 +468,28 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
 
         super(Clumpy_Surfactant_Nutrient_Wave, self).init_hydro()
 
+        self.update_force()
 
-    def update_u_and_v(self):
-        super(Clumpy_Surfactant_Nutrient_Wave, self).update_u_and_v()
+    def update_hydro(self):
+        super(Clumpy_Surfactant_Nutrient_Wave, self).update_hydro()
+        self.update_force()
+
+    def collide_particles(self):
+        self.kernels.collide_particles_attraction(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                  self.f.data,
+                                                  self.feq.data,
+                                                  self.rho.data,
+                                                  self.omega, self.omega_n,
+                                                  self.lb_G,
+                                                  self.pseudo_force_x.data,
+                                                  self.pseudo_force_y.data,
+                                                  self.w,
+                                                  self.cx,
+                                                  self.cy,
+                                                  cs,
+                                                  self.nx, self.ny, self.num_populations).wait()
+
+    def update_force(self):
 
         # Now update psi, and adjust u accordingly. Probably in openCL.
         self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
@@ -484,16 +503,10 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.pseudo_force_x.data,
                                          self.pseudo_force_y.data,
                                          self.G_chen,
+                                         cs,
                                          self.cx,
                                          self.cy,
                                          self.psi_local,
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
                                          self.halo)
-        # Update velocities (shift hydrodynamic variables)
-        self.kernels.shift_velocities_force(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                            self.u.data,
-                                            self.v.data,
-                                            self.pseudo_force_x.data,
-                                            self.pseudo_force_y.data,
-                                            self.rho.data,
-                                            self.nx, self.ny, self.pop_index)
+        # We update the force in the collision term now.
