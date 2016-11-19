@@ -187,3 +187,48 @@ update_psi(__global float *psi_global,
 
     }
 }
+
+__kernel void
+update_pseudo_force(__global __read_only float *psi_global,
+                    __global __write_only float *force_x_global,
+                    __global __write_only float *force_y_global,
+                    const float G_chen,
+                    __constant float *cx,
+                    __constant float *cy,
+                    __local float *local_psi,
+                    const int nx, const int ny, const int population_index)
+{
+    //TODO: Should add local memory where you read in everything around you in the workgroup.
+    // Otherwise, you are actually doing 9x the work of what you have to...
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+
+        float force_x = 0;
+        float force_y = 0;
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            int cur_cx = cx[jump_id]
+            int cur_cy = cy[jump_id]
+
+            //Get the shifted positions
+            int stream_x = x + cur_cx;
+            int stream_y = y + cur_cy;
+
+            if (stream_x == nx) stream_x = 0;
+            if (stream_x < 0) stream_x = nx - 1;
+
+            if (stream_y == ny) stream_y = 0;
+            if (stream_y < 0) stream_y = ny - 1;
+
+            int new_2d_index = stream_y*nx + stream_x
+
+            float psi_mult = psi_global[two_d_index]*psi_global[new_2d_index]
+            force_x += G_chen * cur_cx * psi_mult
+            force_y += G_chen * cur_cy * psi_mult
+        }
+    }
+    force_x_global[two_d_index] = force_x
+    force_y_global[two_d_index] = force_y
+}

@@ -18,6 +18,9 @@ full_path = os.path.realpath(__file__)
 file_dir = os.path.dirname(full_path)
 parent_dir = os.path.dirname(file_dir)
 
+# Required for allocating local memory
+float_size = ct.sizeof(ct.c_float)
+
 ##########################
 ##### D2Q9 parameters ####
 ##########################
@@ -437,11 +440,37 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
         self.rho_o = None
         self.G_chen = None
         self.psi = None
+        self.pseudo_force_x = None
+        self.pseudo_force_y = None
+        self.local_psi = None
         super(Clumpy_Surfactant_Nutrient_Wave, self).__init__(**kwargs) # Initialize the superclass
 
-    def update_hydro(self):
-        super(Clumpy_Surfactant_Nutrient_Wave, self).update_hydro()
+    def allocate_constants(self):
+        super(Clumpy_Surfactant_Nutrient_Wave, self).allocate_constants()
+        # Allocate local memory for the finite difference code
+        self.local_psi = cl.LocalMemory(float_size * self.two_d_local_size[0] * self.two_d_local_size[1])
+
+    def init_hydro(self):
+        psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
+        self.psi = cl.array.to_device(self.queue, psi_host)
+
+        pseudo_force_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
+        self.pseudo_force_x = cl.array.to_device(self.queue, pseudo_force_host)
+        self.pseudo_force_y = self.pseudo_force_x.copy()
+
+        super(Clumpy_Surfactant_Nutrient_Wave, self).init_hydro()
+
+
+    def update_u_and_v(self):
+        super(Clumpy_Surfactant_Nutrient_Wave, self).update_u_and_v()
+
         # Now update psi, and adjust u accordingly. Probably in openCL.
+        self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.psi, self.rho, self.rho_o,
+                                self.nx, self.ny, self.num_populations).wait()
+        # Get the force from psi
+
+
 
     # def get_nondim_fields(self):
     #     """
