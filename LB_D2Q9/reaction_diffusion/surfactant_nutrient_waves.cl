@@ -222,8 +222,6 @@ update_pseudo_force(__global __read_only float *psi_global,
     // 1D index of thread within our work-group
     const int idx_1D = ly * get_local_size(0) + lx;
 
-    //printf("cx: %d \n", cx[5]);
-
     barrier(CLK_LOCAL_MEM_FENCE);
     if (idx_1D < buf_nx) {
         for (int row = 0; row < buf_ny; row++) {
@@ -238,15 +236,11 @@ update_pseudo_force(__global __read_only float *psi_global,
                 if (temp_y == ny) temp_y = 0;
                 if (temp_y < 0) temp_y = ny - 1;
 
-                //printf("x: %d y: %d \n", temp_x, temp_y);
-                //printf("idx_1d: %d row: %d \n", idx_1D, row);
                 psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
             }
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
-
-    //printf("cx[3]: %d \n", cx[3]);
 
     //Now that all desired psi are read in, do the multiplication
     if ((x < nx) && (y < ny)){
@@ -258,14 +252,9 @@ update_pseudo_force(__global __read_only float *psi_global,
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
 
-            //printf("cx: %d, cy: %d, jump_id: %d \n", cur_cx, cur_cy, jump_id);
-
             //Get the shifted positions
             int stream_buf_x = buf_x + cur_cx;
             int stream_buf_y = buf_y + cur_cy;
-
-            //printf("buf_x: %d, buf_y, %d, stream_bufx: %d, stream_bufy: %d cur_cx: %d, cur_cy: %d \n",
-            //    buf_x, buf_y, stream_buf_x, stream_buf_y, cur_cx, cur_cy);
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
