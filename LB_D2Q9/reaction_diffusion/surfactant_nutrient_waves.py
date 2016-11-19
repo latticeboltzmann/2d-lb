@@ -442,13 +442,20 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
         self.psi = None
         self.pseudo_force_x = None
         self.pseudo_force_y = None
+
+        self.halo = None # As we are doing D2Q9, we have a halo of one
+        self.buf_nx = None
+        self.buf_ny = None
         self.local_psi = None
         super(Clumpy_Surfactant_Nutrient_Wave, self).__init__(**kwargs) # Initialize the superclass
 
     def allocate_constants(self):
         super(Clumpy_Surfactant_Nutrient_Wave, self).allocate_constants()
         # Allocate local memory for the finite difference code
-        self.local_psi = cl.LocalMemory(float_size * self.two_d_local_size[0] * self.two_d_local_size[1])
+        self.halo = np.int32(1)
+        self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
+        self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
+        self.local_psi = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
 
     def init_hydro(self):
         psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
@@ -467,7 +474,7 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
         # Now update psi, and adjust u accordingly. Probably in openCL.
         self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.psi, self.rho, self.rho_o,
-                                self.nx, self.ny, self.num_populations).wait()
+                                self.nx, self.ny, self.pop_index).wait()
         # Get the force from psi
 
 
