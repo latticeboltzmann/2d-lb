@@ -276,6 +276,8 @@ shift_velocities_force(__global float *u_global,
                     __global __read_only float *rho_global,
                     const int nx, const int ny, const int population_index)
 {
+    // TODO: This does not work, as rho -> 0. It makes more sense to put it in the collision routine this time.
+
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
