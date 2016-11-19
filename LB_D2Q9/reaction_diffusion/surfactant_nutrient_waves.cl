@@ -195,7 +195,7 @@ update_pseudo_force(__global __read_only float *psi_global,
                     const float G_chen,
                     __constant float *cx,
                     __constant float *cy,
-                    __local float *local_psi,
+                    __local float *psi_local,
                     const int nx, const int ny,
                     const int buf_nx, const int buf_ny, const int halo)
 {
@@ -232,18 +232,18 @@ update_pseudo_force(__global __read_only float *psi_global,
                 if (temp_x == nx) temp_x = 0;
                 if (temp_x < 0) temp_x = nx - 1;
 
-                if (temp_y == ny) stream_y = 0;
-                if (temp_y < 0) stream_y = ny - 1;
+                if (temp_y == ny) temp_y = 0;
+                if (temp_y < 0) temp_y = ny - 1;
 
-                local_psi[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
+                psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
             }
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
     //Now that all desired psi are read in, do the multiplication
-    const int old_2d_buf_index = buf_y*buf_nx + buf_x;
     if ((x < nx) && (y < ny)){
+        const int old_2d_buf_index = buf_y*buf_nx + buf_x;
 
         float force_x = 0;
         float force_y = 0;
@@ -261,8 +261,8 @@ update_pseudo_force(__global __read_only float *psi_global,
             force_x += G_chen * cur_cx * psi_mult;
             force_y += G_chen * cur_cy * psi_mult;
         }
+        const int two_d_index = y*nx + x;
+        force_x_global[two_d_index] = force_x;
+        force_y_global[two_d_index] = force_y;
     }
-    const int two_d_index = y*nx + x;
-    force_x_global[two_d_index] = force_x;
-    force_y_global[two_d_index] = force_y;
 }
