@@ -297,19 +297,18 @@ update_pseudo_force(__global __read_only float *psi_global,
     barrier(CLK_LOCAL_MEM_FENCE);
     if (idx_1D < buf_nx) {
         for (int row = 0; row < buf_ny; row++) {
-            if ((x < nx) && (y < ny)){
-                int temp_x = buf_corner_x + idx_1D;
-                int temp_y = buf_corner_y + row;
+            int temp_x = buf_corner_x + idx_1D;
+            int temp_y = buf_corner_y + row;
 
-                //Painfully deal with BC's...i.e. use periodic BC's.
-                if (temp_x == nx) temp_x = 0;
-                if (temp_x < 0) temp_x = nx - 1;
+            //Painfully deal with BC's...i.e. use periodic BC's.
+            if (temp_x >= nx) temp_x -= nx;
+            if (temp_x < 0) temp_x += nx;
 
-                if (temp_y == ny) temp_y = 0;
-                if (temp_y < 0) temp_y = ny - 1;
+            if (temp_y >= ny) temp_y -= ny;
+            if (temp_y < 0) temp_y += ny;
 
-                psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
-            }
+            psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
+
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
