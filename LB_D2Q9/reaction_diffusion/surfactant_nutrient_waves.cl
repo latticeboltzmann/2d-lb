@@ -253,6 +253,7 @@ update_psi(__global float *psi_global,
         int three_d_index = population_index*ny*nx + two_d_index;
 
         float cur_rho = rho_global[three_d_index];
+        if (cur_rho < 0) cur_rho = 0;
         psi_global[two_d_index] = sqrt(rho_o)*(1 - exp(-cur_rho/rho_o));
 
     }
@@ -334,7 +335,7 @@ update_pseudo_force(__global __read_only float *psi_global,
             force_y += cur_cy * psi_mult;
         }
         const int two_d_index = y*nx + x;
-        force_x_global[two_d_index] = G_chen * cs*cs * force_x;
+        force_x_global[two_d_index] = G_chen * cs*cs* force_x;
         force_y_global[two_d_index] = G_chen * cs*cs* force_y;
     }
 }
