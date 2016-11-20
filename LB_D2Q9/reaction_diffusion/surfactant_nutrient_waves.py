@@ -490,7 +490,6 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                                   self.nx, self.ny, self.num_populations).wait()
 
     def update_force(self):
-
         # Now update psi, and adjust u accordingly. Probably in openCL.
         self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.psi.data,
@@ -509,4 +508,7 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.psi_local,
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
                                          self.halo).wait()
-        # We update the force in the collision term now.
+
+    def redo_initial_condition(self, rho_field):
+        super(Clumpy_Surfactant_Nutrient_Wave, self).redo_initial_condition(rho_field)
+        self.update_force()
