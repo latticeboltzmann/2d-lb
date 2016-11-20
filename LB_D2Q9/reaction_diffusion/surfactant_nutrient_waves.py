@@ -508,5 +508,5 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.cy,
                                          self.psi_local,
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
-                                         self.halo)
+                                         self.halo).wait()
         # We update the force in the collision term now.
