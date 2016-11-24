@@ -254,7 +254,7 @@ update_psi(__global float *psi_global,
 
         float cur_rho = rho_global[three_d_index];
         if (cur_rho < 0) cur_rho = 0;
-        psi_global[two_d_index] = sqrt(rho_o)*(1 - exp(-cur_rho/rho_o));
+        psi_global[two_d_index] = rho_o*(1 - exp(-cur_rho/rho_o));
 
     }
 }
