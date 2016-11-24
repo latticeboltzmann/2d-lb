@@ -505,6 +505,7 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          cs,
                                          self.cx,
                                          self.cy,
+                                         self.w,
                                          self.psi_local,
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
                                          self.halo).wait()

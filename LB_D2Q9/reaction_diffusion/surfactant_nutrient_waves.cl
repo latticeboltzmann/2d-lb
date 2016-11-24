@@ -267,6 +267,7 @@ update_pseudo_force(__global __read_only float *psi_global,
                     const float cs,
                     __constant int *cx,
                     __constant int *cy,
+                    __constant float *w,
                     __local float *psi_local,
                     const int nx, const int ny,
                     const int buf_nx, const int buf_ny,
@@ -322,6 +323,7 @@ update_pseudo_force(__global __read_only float *psi_global,
         for(int jump_id = 0; jump_id < 9; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
+            float cur_w = w[jump_id];
 
             //Get the shifted positions
             int stream_buf_x = buf_x + cur_cx;
@@ -330,12 +332,12 @@ update_pseudo_force(__global __read_only float *psi_global,
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
             float psi_mult = psi_local[old_2d_buf_index]*psi_local[new_2d_buf_index];
-            force_x += cur_cx * psi_mult;
-            force_y += cur_cy * psi_mult;
+            force_x += cur_w * cur_cx * psi_mult;
+            force_y += cur_w * cur_cy * psi_mult;
         }
         const int two_d_index = y*nx + x;
-        force_x_global[two_d_index] = G_chen * cs*cs* force_x;
-        force_y_global[two_d_index] = G_chen * cs*cs* force_y;
+        force_x_global[two_d_index] = G_chen * force_x;
+        force_y_global[two_d_index] = G_chen * force_y;
     }
 }
 
