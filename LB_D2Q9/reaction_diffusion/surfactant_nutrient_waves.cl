@@ -254,7 +254,7 @@ update_psi(__global float *psi_global,
 
         float cur_rho = rho_global[three_d_index];
         if (cur_rho < 0) cur_rho = 0;
-        psi_global[two_d_index] = rho_o*(1 - exp(-cur_rho/rho_o));
+        psi_global[two_d_index] = sqrt(rho_o)*(1 - exp(-cur_rho/rho_o));
 
     }
 }
@@ -317,6 +317,7 @@ update_pseudo_force(__global __read_only float *psi_global,
     //Now that all desired psi are read in, do the multiplication
     if ((x < nx) && (y < ny)){
         const int old_2d_buf_index = buf_y*buf_nx + buf_x;
+        const float middle_psi = psi_local[old_2d_buf_index];
 
         float force_x = 0;
         float force_y = 0;
@@ -331,13 +332,13 @@ update_pseudo_force(__global __read_only float *psi_global,
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            float psi_mult = psi_local[old_2d_buf_index]*psi_local[new_2d_buf_index];
+            float psi_mult = midle_psi*psi_local[new_2d_buf_index];
             force_x += cur_w * cur_cx * psi_mult;
             force_y += cur_w * cur_cy * psi_mult;
         }
         const int two_d_index = y*nx + x;
-        force_x_global[two_d_index] = G_chen * force_x;
-        force_y_global[two_d_index] = G_chen * force_y;
+        force_x_global[two_d_index] = cs*cs * G_chen * force_x;
+        force_y_global[two_d_index] = cs*cs * G_chen * force_y;
     }
 }
 
