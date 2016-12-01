@@ -282,7 +282,7 @@ class Surfactant_Nutrient_Wave(object):
         #### DENSITY #####
         rho_host = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
         # Population field
-        rho_host[:, :, self.pop_index] = np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
+        rho_host[:, :, self.pop_index] = 1.2*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
 
         # Nutrient field
         rho_host[:, :, self.nut_index] = 1.0 #- rho_host[:, :, self.pop_index]
@@ -491,11 +491,18 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
 
     def update_force(self):
         # Now update psi, and adjust u accordingly. Probably in openCL.
-        self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
+        # self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
+        #                         self.psi.data,
+        #                         self.rho.data,
+        #                         self.rho_o,
+        #                         self.nx, self.ny, self.pop_index).wait()
+
+        self.kernels.update_psi_sticky_repulsive(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.psi.data,
                                 self.rho.data,
                                 self.rho_o,
                                 self.nx, self.ny, self.pop_index).wait()
+
         # Get the force from psi
         self.kernels.update_pseudo_force(self.queue, self.two_d_global_size, self.two_d_local_size,
                                          self.psi.data,

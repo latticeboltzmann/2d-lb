@@ -260,6 +260,27 @@ update_psi(__global float *psi_global,
 }
 
 __kernel void
+update_psi_sticky_repulsive(__global float *psi_global,
+                            __global __read_only float *rho_global,
+                            const float rho_o,
+                            const int nx, const int ny, const int population_index)
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_index = population_index*ny*nx + two_d_index;
+
+        float cur_rho = rho_global[three_d_index];
+        if (cur_rho < 0) cur_rho = 0;
+        psi_global[two_d_index] = cur_rho - rho_o * cur_rho * cur_rho;
+
+    }
+}
+
+
+__kernel void
 update_pseudo_force(__global __read_only float *psi_global,
                     __global __write_only float *force_x_global,
                     __global __write_only float *force_y_global,
