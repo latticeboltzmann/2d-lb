@@ -85,9 +85,9 @@ class Rocket_Yeast(object):
         self.G = 1.
 
         # Surfactant diffusion constant and "growth rate" are set by the user
-        self.Dc = (1./4.)*Dc
-        self.Gc = Gc
-        self.epsilon = epsilon # Characteristic velocity coupling constant, deals with height vs. how concentration impacts surface tension
+        self.Dc = (1./4.)*np.float32(Dc)
+        self.Gc = np.float32(Gc)
+        self.epsilon = np.float32(epsilon) # Characteristic velocity coupling constant, deals with height vs. how concentration impacts surface tension
 
         self.R0 = R0 # Initial radius of the droplet
 
@@ -303,9 +303,6 @@ class Rocket_Yeast(object):
 
         ## Population field
         rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
-
-        ## Nutrient field
-        rho_host[:, :, self.nut_index] = 1.0 # Lots of nutrients initially
 
         ## Surfactant field
         rho_host[:, :, self.surf_index] = 0.0 # No surfactant initially

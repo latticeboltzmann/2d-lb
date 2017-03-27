@@ -72,7 +72,7 @@ update_hydro(__global float *f_global,
 }
 
 __kernel void
-collide_particles_attraction(__global float *f_global,
+collide_particles(__global float *f_global,
                             __global __read_only float *feq_global,
                             __global __read_only float *rho_global,
                             const float omega, const float omega_c,
@@ -360,7 +360,7 @@ update_u_and_v(__global __read_only float *rho_global,
             if (temp_y >= ny) temp_y -= ny;
             if (temp_y < 0) temp_y += ny;
 
-            rho_local[row*buf_nx + idx_1D] = psi_global[surf_index*ny*nx + temp_y*nx + temp_x];
+            rho_local[row*buf_nx + idx_1D] = rho_global[surf_index*ny*nx + temp_y*nx + temp_x];
 
         }
     }
