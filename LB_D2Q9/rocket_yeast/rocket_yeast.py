@@ -147,6 +147,15 @@ class Rocket_Yeast(object):
 
         self.lb_G = np.float32(self.G * self.delta_t)
 
+        # Surfactant Field
+        self.lb_Ds = self.Ds * (self.delta_t / self.delta_x ** 2)  # Diffusion constant in LB units
+        self.lb_Ds = np.float32(self.lb_Ds)
+
+        self.omega_s = (.5 + self.lb_Ds / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        self.omega_s = np.float32(self.omega_s)
+        print 'omega_s', self.omega_s
+        assert self.omega_s < 2.
+
         # Initialize grid dimensions
         self.nx = None # Number of grid points in the x direction with the boundray
         self.ny = None # Number of grid points in the y direction with the boundary
@@ -268,7 +277,7 @@ class Rocket_Yeast(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
-        # Allocate local memory for the finite difference code
+        # Allocate local memory for the clumpiness
         self.halo = np.int32(1) # As we are doing D2Q9, we have a halo of one
         self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
         self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
@@ -280,13 +289,6 @@ class Rocket_Yeast(object):
         Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity.
         This involves creating the poisson solver and solving for the velocity fields.
         """
-
-        psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
-        self.psi = cl.array.to_device(self.queue, psi_host)
-
-        pseudo_force_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
-        self.pseudo_force_x = cl.array.to_device(self.queue, pseudo_force_host)
-        self.pseudo_force_y = self.pseudo_force_x.copy()
 
         nx = self.nx
         ny = self.ny
@@ -311,11 +313,15 @@ class Rocket_Yeast(object):
 
         #### DENSITY #####
         rho_host = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
-        # Population field
-        rho_host[:, :, self.pop_index] = 1.2*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
 
-        # Nutrient field
-        rho_host[:, :, self.nut_index] = 1.0 #- rho_host[:, :, self.pop_index]
+        ## Population field
+        rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
+
+        ## Nutrient field
+        rho_host[:, :, self.nut_index] = 1.0 # Lots of nutrients initially
+
+        ## Surfactant field
+        rho_host[:, :, self.surf_index] = 0.0 # No surfactant initially
 
         # Send to device
         self.rho = cl.array.to_device(self.queue, rho_host)
@@ -329,13 +335,16 @@ class Rocket_Yeast(object):
         self.u = cl.array.to_device(self.queue, u_host)
         self.v = cl.array.to_device(self.queue, v_host)
 
-        # Initialize via poisson solver...
-        density_field = rho_host[:, :, self.pop_index]
-        self.poisson_solver = sp.Screened_Poisson(density_field, cl_context=self.context, cl_queue = self.queue,
-                                                  lam=self.lam, dx=self.delta_x)
-        self.poisson_solver.create_grad_fields()
+        # If surfactant field is zero, so are u & v
 
-        self.update_u_and_v()
+        ### CLUMPINESS ###
+
+        psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
+        self.psi = cl.array.to_device(self.queue, psi_host)
+
+        pseudo_force_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
+        self.pseudo_force_x = cl.array.to_device(self.queue, pseudo_force_host)
+        self.pseudo_force_y = self.pseudo_force_x.copy()
 
         self.update_force()
 
@@ -345,10 +354,10 @@ class Rocket_Yeast(object):
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         self.update_u_and_v()
+        self.update_force()
+
         self.update_feq()  # Based on the hydrodynamic fields, create feq
         self.init_pop()  # Based on feq, create the hopping non-equilibrium fields
-
-        self.update_force()
 
     def update_feq(self):
         """
@@ -405,21 +414,7 @@ class Rocket_Yeast(object):
         cl.enqueue_copy(self.queue, self.f.data, self.f_streamed.data)
 
     def update_u_and_v(self):
-        # Update the charge field for the poisson solver
-        #self.poisson_solver.charge = self.rho.astype(np.complex64, queue=self.queue)
-        density_view = self.rho[:, :, self.pop_index]
-
-        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
-
-        self.poisson_solver.solve_and_update_grad_fields()
-        xgrad = self.poisson_solver.xgrad
-        ygrad = self.poisson_solver.ygrad
-
-        #TODO: THIS SEEMS TO BE THE ONLY WAY TO PREVENT WEIRD TRANSPOSITION ERRORS. TRY TO FIX IN THE FUTURE.
-        # THERE SEEMS TO BE AN ERROR ASSOCIATED WITH .REAL, IT SEEMS TO TRANSPOSE ELEMENTS IN A WAY I DON'T
-        # UNDERSTAND
-        cl.enqueue_copy(self.queue, self.u.data, xgrad.real.data)
-        cl.enqueue_copy(self.queue, self.v.data, ygrad.real.data)
+        # Proportional to the gradient of the surfactant
 
         self.u *= -self.vc * (self.delta_t / self.delta_x)
         self.v *= -self.vc * (self.delta_t / self.delta_x)
