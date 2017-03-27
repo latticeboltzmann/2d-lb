@@ -242,7 +242,7 @@ move_periodic(__global __read_only float *f_global,
 __kernel void
 update_psi(__global float *psi_global,
            __global __read_only float *rho_global,
-           const float rho_o, const float psi_o
+           const float rho_o,
            const int nx, const int ny, const int population_index)
 {
     const int x = get_global_id(0);
@@ -254,7 +254,7 @@ update_psi(__global float *psi_global,
 
         float cur_rho = rho_global[three_d_index];
         if (cur_rho < 0) cur_rho = 0;
-        psi_global[two_d_index] = -psi_o * exp(-cur_rho/rho_o);
+        psi_global[two_d_index] = rho_o * (1 - exp(-cur_rho/rho_o));
 
     }
 }

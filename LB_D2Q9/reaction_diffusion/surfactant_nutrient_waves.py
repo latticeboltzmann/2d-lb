@@ -436,9 +436,8 @@ class Surfactant_Nutrient_Wave(object):
 
 class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
 
-    def __init__(self, rho_o = 1.0, G_chen=-1.0, psi_o = 1.0,  **kwargs):
+    def __init__(self, rho_o = 1.0, G_chen=-1.0,  **kwargs):
         self.rho_o = np.float32(rho_o)
-        self.psi_o = np.float32(psi_o)
         self.G_chen = np.float32(G_chen)
 
         self.psi = None
@@ -495,7 +494,7 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
         self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.psi.data,
                                 self.rho.data,
-                                self.rho_o, self.psi_o,
+                                self.rho_o,
                                 self.nx, self.ny, self.pop_index).wait()
 
         # self.kernels.update_psi_sticky_repulsive(self.queue, self.two_d_global_size, self.two_d_local_size,
