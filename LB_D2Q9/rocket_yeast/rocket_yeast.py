@@ -57,13 +57,14 @@ def get_divisible_global(global_size, local_size):
     return tuple(new_size)
 
 
-class Surfactant_Nutrient_Wave(object):
+class Rocket_Yeast(object):
     """
     Everything is in dimensionless units. It's just easier.
     """
 
     def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., Dn = 1./4., R0 = 5.,
-                 time_prefactor=1., N=50,
+                 rho_o=1.0, G_chen=-1.0,
+                 time_prefactor=1., N=10,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
         """
@@ -87,12 +88,28 @@ class Surfactant_Nutrient_Wave(object):
         self.lam = lam # Screening length
         self.R0 = R0 # Initial radius of the droplet
 
-        self.num_populations = np.int32(2) # Population field and nutrient field. Could be extended to surfactant field someday as well
+        # For clumpiness, self-attraction of yeast
+        self.rho_o = np.float32(rho_o)
+        self.G_chen = np.float32(G_chen)
+
+        self.psi = None
+        self.pseudo_force_x = None
+        self.pseudo_force_y = None
+
+        self.halo = None
+        self.buf_nx = None
+        self.buf_ny = None
+        self.psi_local = None
+
+        # Book-keeping
+        self.num_populations = np.int32(3) # Population, nutrient, and surfactant
         self.pop_index = np.int32(0)
         self.nut_index = np.int32(1)
+        self.surf_index = np.int32(2)
 
         # Interop with OpenGL?
         self.use_interop = use_interop
+        # Check if you are close to sound speed
         self.check_max_ulb = check_max_ulb
         self.mach_tolerance = mach_tolerance
 
@@ -241,7 +258,7 @@ class Surfactant_Nutrient_Wave(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(file_dir + '/surfactant_nutrient_waves.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(file_dir + '/rocket_yeast.cl').read()).build(options='')
 
     def allocate_constants(self):
         """
@@ -251,12 +268,25 @@ class Surfactant_Nutrient_Wave(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
+        # Allocate local memory for the finite difference code
+        self.halo = np.int32(1) # As we are doing D2Q9, we have a halo of one
+        self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
+        self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
+        self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
+
 
     def init_hydro(self):
         """
         Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity.
         This involves creating the poisson solver and solving for the velocity fields.
         """
+
+        psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
+        self.psi = cl.array.to_device(self.queue, psi_host)
+
+        pseudo_force_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
+        self.pseudo_force_x = cl.array.to_device(self.queue, pseudo_force_host)
+        self.pseudo_force_y = self.pseudo_force_x.copy()
 
         nx = self.nx
         ny = self.ny
@@ -307,6 +337,8 @@ class Surfactant_Nutrient_Wave(object):
 
         self.update_u_and_v()
 
+        self.update_force()
+
     def redo_initial_condition(self, rho_field):
         """After you have specified your own IC"""
         rho_host = rho_field.astype(dtype=np.float32, order='F')
@@ -315,6 +347,8 @@ class Surfactant_Nutrient_Wave(object):
         self.update_u_and_v()
         self.update_feq()  # Based on the hydrodynamic fields, create feq
         self.init_pop()  # Based on feq, create the hopping non-equilibrium fields
+
+        self.update_force()
 
     def update_feq(self):
         """
@@ -404,90 +438,7 @@ class Surfactant_Nutrient_Wave(object):
                                 self.f.data, self.u.data, self.v.data, self.rho.data,
                                 self.nx, self.ny, self.num_populations).wait()
         self.update_u_and_v()
-
-    def collide_particles(self):
-        """
-        Relax the nonequilibrium f fields towards their equilibrium feq. Depends on omega. Implemented in OpenCL.
-        """
-        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f.data,
-                                self.feq.data,
-                                self.rho.data,
-                                self.omega, self.omega_n,
-                                self.lb_G,
-                                self.w,
-                                self.nx, self.ny, self.num_populations).wait()
-
-    def run(self, num_iterations):
-        """
-        Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
-        to the same non-dimensional time passing, as delta_t, the time discretization, will change depending on
-        your resolution.
-
-        :param num_iterations: The number of iterations to run
-        """
-        for cur_iteration in range(num_iterations):
-            self.move() # Move all jumpers
-            self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
-
-            self.update_hydro() # Update the hydrodynamic variables
-            self.update_feq() # Update the equilibrium fields
-            self.collide_particles() # Relax the nonequilibrium fields.
-
-class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
-
-    def __init__(self, rho_o = 1.0, G_chen=-1.0,  **kwargs):
-        self.rho_o = np.float32(rho_o)
-        self.G_chen = np.float32(G_chen)
-
-        self.psi = None
-        self.pseudo_force_x = None
-        self.pseudo_force_y = None
-
-        self.halo = None
-        self.buf_nx = None
-        self.buf_ny = None
-        self.psi_local = None
-        super(Clumpy_Surfactant_Nutrient_Wave, self).__init__(**kwargs) # Initialize the superclass
-
-    def allocate_constants(self):
-        super(Clumpy_Surfactant_Nutrient_Wave, self).allocate_constants()
-        # Allocate local memory for the finite difference code
-        self.halo = np.int32(1) # As we are doing D2Q9, we have a halo of one
-        self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
-        self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
-        self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
-
-    def init_hydro(self):
-        psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
-        self.psi = cl.array.to_device(self.queue, psi_host)
-
-        pseudo_force_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
-        self.pseudo_force_x = cl.array.to_device(self.queue, pseudo_force_host)
-        self.pseudo_force_y = self.pseudo_force_x.copy()
-
-        super(Clumpy_Surfactant_Nutrient_Wave, self).init_hydro()
-
         self.update_force()
-
-    def update_hydro(self):
-        super(Clumpy_Surfactant_Nutrient_Wave, self).update_hydro()
-        self.update_force()
-
-    def collide_particles(self):
-        self.kernels.collide_particles_attraction(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                                  self.f.data,
-                                                  self.feq.data,
-                                                  self.rho.data,
-                                                  self.omega, self.omega_n,
-                                                  self.lb_G,
-                                                  self.pseudo_force_x.data,
-                                                  self.pseudo_force_y.data,
-                                                  self.w,
-                                                  self.cx,
-                                                  self.cy,
-                                                  cs,
-                                                  self.nx, self.ny, self.num_populations).wait()
 
     def update_force(self):
         # Now update psi, and adjust u accordingly. Probably in openCL.
@@ -517,6 +468,34 @@ class Clumpy_Surfactant_Nutrient_Wave(Surfactant_Nutrient_Wave):
                                          self.nx, self.ny, self.buf_nx, self.buf_ny,
                                          self.halo).wait()
 
-    def redo_initial_condition(self, rho_field):
-        super(Clumpy_Surfactant_Nutrient_Wave, self).redo_initial_condition(rho_field)
-        self.update_force()
+    def collide_particles(self):
+        self.kernels.collide_particles_attraction(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                  self.f.data,
+                                                  self.feq.data,
+                                                  self.rho.data,
+                                                  self.omega, self.omega_n,
+                                                  self.lb_G,
+                                                  self.pseudo_force_x.data,
+                                                  self.pseudo_force_y.data,
+                                                  self.w,
+                                                  self.cx,
+                                                  self.cy,
+                                                  cs,
+                                                  self.nx, self.ny, self.num_populations).wait()
+
+
+    def run(self, num_iterations):
+        """
+        Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
+        to the same non-dimensional time passing, as delta_t, the time discretization, will change depending on
+        your resolution.
+
+        :param num_iterations: The number of iterations to run
+        """
+        for cur_iteration in range(num_iterations):
+            self.move() # Move all jumpers
+            self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
+
+            self.update_hydro() # Update the hydrodynamic variables
+            self.update_feq() # Update the equilibrium fields
+            self.collide_particles() # Relax the nonequilibrium fields.
