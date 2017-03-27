@@ -62,7 +62,7 @@ class Rocket_Yeast(object):
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, vc=1., lam=1., Dn = 1./4., R0 = 5.,
+    def __init__(self, Lx=1.0, Ly=1.0, R0 = 5., epsilon=1., Dc = 1./4., Gc = 2.0,
                  rho_o=1.0, G_chen=-1.0,
                  time_prefactor=1., N=10,
                  two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False,
@@ -81,31 +81,25 @@ class Rocket_Yeast(object):
         # Physical units
         self.Lx = Lx
         self.Ly = Ly
+        # Population growth and diffusion constant are set by our non-dimensionalization
         self.D = 1./4.
-        self.Dn = Dn
-        self.G = 1. # Growth rate is dimensionalized to one
-        self.vc = vc # Characteristic velocity, deals with height vs. how concentration impacts surface tension
-        self.lam = lam # Screening length
+        self.G = 1.
+
+        # Surfactant diffusion constant and "growth rate" are set by the user
+        self.Dc = (1./4.)*Dc
+        self.Gc = Gc
+        self.epsilon = epsilon # Characteristic velocity coupling constant, deals with height vs. how concentration impacts surface tension
+
         self.R0 = R0 # Initial radius of the droplet
 
         # For clumpiness, self-attraction of yeast
         self.rho_o = np.float32(rho_o)
         self.G_chen = np.float32(G_chen)
 
-        self.psi = None
-        self.pseudo_force_x = None
-        self.pseudo_force_y = None
-
-        self.halo = None
-        self.buf_nx = None
-        self.buf_ny = None
-        self.psi_local = None
-
         # Book-keeping
-        self.num_populations = np.int32(3) # Population, nutrient, and surfactant
+        self.num_populations = np.int32(2) # Population and surfactant
         self.pop_index = np.int32(0)
-        self.nut_index = np.int32(1)
-        self.surf_index = np.int32(2)
+        self.surf_index = np.int32(1)
 
         # Interop with OpenGL?
         self.use_interop = use_interop
@@ -136,25 +130,14 @@ class Rocket_Yeast(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
-        # Nutrient field
-        self.lb_Dn = self.Dn * (self.delta_t / self.delta_x ** 2)  # Diffusion constant in LB units
-        self.lb_Dn = np.float32(self.lb_Dn)
-
-        self.omega_n = (.5 + self.lb_Dn / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        self.omega_n = np.float32(self.omega_n)
-        print 'omega_n', self.omega_n
-        assert self.omega_n < 2.
-
-        self.lb_G = np.float32(self.G * self.delta_t)
-
         # Surfactant Field
-        self.lb_Ds = self.Ds * (self.delta_t / self.delta_x ** 2)  # Diffusion constant in LB units
-        self.lb_Ds = np.float32(self.lb_Ds)
+        self.lb_Dc = self.Dc * (self.delta_t / self.delta_x ** 2)  # Diffusion constant in LB units
+        self.lb_Dc = np.float32(self.lb_Dc)
 
-        self.omega_s = (.5 + self.lb_Ds / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        self.omega_s = np.float32(self.omega_s)
-        print 'omega_s', self.omega_s
-        assert self.omega_s < 2.
+        self.omega_c = (.5 + self.lb_Dc / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        self.omega_c = np.float32(self.omega_c)
+        print 'omega_s', self.omega_c
+        assert self.omega_c < 2.
 
         # Initialize grid dimensions
         self.nx = None # Number of grid points in the x direction with the boundray
@@ -183,19 +166,27 @@ class Rocket_Yeast(object):
         self.w = None
         self.cx = None
         self.cy = None
+
+        self.halo = None
+        self.buf_nx = None
+        self.buf_ny = None
+        self.psi_local = None
+
         self.allocate_constants()
 
-        ## Initialize hydrodynamic variables and poisson solver
+        ## Initialize hydrodynamic variables & Shan-chen variables
         self.rho = None # The simulation's density field
         self.u = None # The simulation's velocity in the x direction (horizontal)
         self.v = None # The simulation's velocity in the y direction (vertical)
+
+        self.psi = None
+        self.pseudo_force_x = None
+        self.pseudo_force_y = None
 
         self.x_center = None
         self.y_center = None
         self.X_dim = None
         self.Y_dim = None
-
-        self.poisson_solver = None
 
         self.init_hydro() # Create the hydrodynamic fields, and also intialize the poisson solver
 
@@ -221,7 +212,6 @@ class Rocket_Yeast(object):
         Initializes the dimensions of the grid that the simulation will take place in. The size of the grid
         will depend on both the physical geometry of the input system and the desired resolution N.
         """
-
         self.nx = np.int32(np.round(self.N*self.Lx))
         self.ny = np.int32(np.round(self.N*self.Ly))
 
