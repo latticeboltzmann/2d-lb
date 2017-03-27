@@ -65,7 +65,7 @@ class Rocket_Yeast(object):
     def __init__(self, Lx=1.0, Ly=1.0, R0 = 5., epsilon=1., Dc = 1./4., Gc = 2.0,
                  rho_o=1.0, G_chen=-1.0,
                  time_prefactor=1., N=10,
-                 two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False,
+                 two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
         """
         :param N: Resolution of the simulation. As N increases, the simulation should become more accurate. N determines
@@ -75,7 +75,6 @@ class Rocket_Yeast(object):
                                In our simulation, delta_t = time_prefactor * delta_x^2. delta_x is determined automatically
                                by N.
         :param two_d_local_size: A tuple of the local size to be used in 2d, i.e. (32, 32)
-        :param three_d_local_size: A tuple of the local size to be used in 3d, i.e. (32, 32, 3)
         """
 
         # Physical units
@@ -124,11 +123,12 @@ class Rocket_Yeast(object):
         # Population field
         self.lb_D = self.D * (self.delta_t / self.delta_x ** 2) # Diffusion constant in LB units
         self.lb_D = np.float32(self.lb_D)
-
         self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
         self.omega = np.float32(self.omega)
         print 'omega', self.omega
         assert self.omega < 2.
+
+        self.lb_G = np.float32(self.G * self.delta_t)
 
         # Surfactant Field
         self.lb_Dc = self.Dc * (self.delta_t / self.delta_x ** 2)  # Diffusion constant in LB units
@@ -139,6 +139,8 @@ class Rocket_Yeast(object):
         print 'omega_s', self.omega_c
         assert self.omega_c < 2.
 
+        self.lb_Gc = np.float32(self.Gc * self.delta_t)
+
         # Initialize grid dimensions
         self.nx = None # Number of grid points in the x direction with the boundray
         self.ny = None # Number of grid points in the y direction with the boundary
@@ -146,15 +148,10 @@ class Rocket_Yeast(object):
 
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size        # The local size to be used for 2-d workgroups
-        self.three_d_local_size = three_d_local_size    # The local size to be used for 3-d workgroups
-
         self.two_d_global_size = get_divisible_global((self.nx, self.ny), self.two_d_local_size)
-        self.three_d_global_size = get_divisible_global((self.nx, self.ny, 9), self.three_d_local_size)
 
         print '2d global:' , self.two_d_global_size
         print '2d local:' , self.two_d_local_size
-        print '3d global:' , self.three_d_global_size
-        print '3d local:' , self.three_d_local_size
 
         # Initialize the opencl environment
         self.context = None     # The pyOpenCL context
@@ -325,7 +322,8 @@ class Rocket_Yeast(object):
         self.u = cl.array.to_device(self.queue, u_host)
         self.v = cl.array.to_device(self.queue, v_host)
 
-        # If surfactant field is zero, so are u & v
+        # If surfactant field is zero, so are u & v...check just in case
+        self.update_u_and_v()
 
         ### CLUMPINESS ###
 
@@ -395,7 +393,7 @@ class Rocket_Yeast(object):
         streaming f into a new buffer, and then copying that new buffer onto f. We could not think of a way to stream
         in parallel without copying the temporary buffer back onto f.
         """
-        self.kernels.move_periodic(self.queue, self.three_d_global_size, self.three_d_local_size,
+        self.kernels.move_periodic(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.f.data, self.f_streamed.data,
                                 self.cx, self.cy,
                                 self.nx, self.ny, self.num_populations).wait()
@@ -406,8 +404,13 @@ class Rocket_Yeast(object):
     def update_u_and_v(self):
         # Proportional to the gradient of the surfactant
 
-        self.u *= -self.vc * (self.delta_t / self.delta_x)
-        self.v *= -self.vc * (self.delta_t / self.delta_x)
+        self.kernels.update_u_and_v(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                    self.rho.data, self.u.data, self.v.data,
+                                    self.surf_index, cs, self.epsilon,
+                                    self.cx, self.cy, self.w,
+                                    self.psi_local,
+                                    self.nx, self.ny,
+                                    self.buf_nx, self.buf_ny, self.halo).wait()
 
         if self.check_max_ulb:
             max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
@@ -420,8 +423,8 @@ class Rocket_Yeast(object):
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f.data, self.u.data, self.v.data, self.rho.data,
-                                self.nx, self.ny, self.num_populations).wait()
+                                  self.f.data, self.u.data, self.v.data, self.rho.data,
+                                  self.nx, self.ny, self.num_populations).wait()
         self.update_u_and_v()
         self.update_force()
 
@@ -454,19 +457,16 @@ class Rocket_Yeast(object):
                                          self.halo).wait()
 
     def collide_particles(self):
-        self.kernels.collide_particles_attraction(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                                  self.f.data,
-                                                  self.feq.data,
-                                                  self.rho.data,
-                                                  self.omega, self.omega_n,
-                                                  self.lb_G,
-                                                  self.pseudo_force_x.data,
-                                                  self.pseudo_force_y.data,
-                                                  self.w,
-                                                  self.cx,
-                                                  self.cy,
-                                                  cs,
-                                                  self.nx, self.ny, self.num_populations).wait()
+        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                       self.f.data,
+                                       self.feq.data,
+                                       self.rho.data,
+                                       self.omega, self.omega_c,
+                                       self.lb_G, self.lb_Gc,
+                                       self.pseudo_force_x.data,
+                                       self.pseudo_force_y.data,
+                                       self.w, self.cx, self.cy, cs,
+                                       self.nx, self.ny, self.num_populations).wait()
 
 
     def run(self, num_iterations):

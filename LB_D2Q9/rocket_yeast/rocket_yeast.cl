@@ -75,8 +75,8 @@ __kernel void
 collide_particles_attraction(__global float *f_global,
                             __global __read_only float *feq_global,
                             __global __read_only float *rho_global,
-                            const float omega, const float omega_n,
-                            const float G,
+                            const float omega, const float omega_c,
+                            const float G, const float Gc,
                             __global __read_only float *force_x_global,
                             __global __read_only float *force_y_global,
                             __constant float *w,
@@ -94,12 +94,13 @@ collide_particles_attraction(__global float *f_global,
         const int two_d_index = y*nx + x;
 
         float cur_rho = rho_global[0*ny*nx + two_d_index]; // Density
-        float cur_n = rho_global[1*ny*nx + two_d_index]; // Nutrient concentration
-
-        float all_growth = G * cur_rho * cur_n;
+        float cur_c = rho_global[1*ny*nx + two_d_index]; // Surfactant concentration
 
         //****** POPULATION ******
         int cur_field = 0;
+
+        float all_growth = G * cur_rho * (1 - cur_rho);
+
         int three_d_index = cur_field*ny*nx + two_d_index;
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
@@ -123,8 +124,11 @@ collide_particles_attraction(__global float *f_global,
 
             f_global[four_d_index] = relax + growth + force_term;
         }
-        //****** NUTRIENT ******
+        //****** Surfactant ******
         cur_field = 1;
+
+        all_growth = Gc*cur_rho;
+
         three_d_index = cur_field*ny*nx + two_d_index;
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
@@ -133,9 +137,9 @@ collide_particles_attraction(__global float *f_global,
             float feq = feq_global[four_d_index];
             float cur_w = w[jump_id];
 
-            float relax = f*(1-omega_n) + omega_n*feq;
+            float relax = f*(1-omega_c) + omega_c*feq;
             //Nutrients are depleted at the same rate cells grow...so subtract
-            float growth = -cur_w*all_growth;
+            float growth = cur_w*all_growth;
 
             f_global[four_d_index] = relax + growth;
         }
@@ -224,6 +228,89 @@ update_psi_sticky_repulsive(__global float *psi_global,
 }
 
 __kernel void
+update_pseudo_force(__global __read_only float *psi_global,
+                    __global __write_only float *force_x_global,
+                    __global __write_only float *force_y_global,
+                    const float G_chen,
+                    const float cs,
+                    __constant int *cx,
+                    __constant int *cy,
+                    __constant float *w,
+                    __local float *psi_local,
+                    const int nx, const int ny,
+                    const int buf_nx, const int buf_ny,
+                    const int halo)
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    // Have to use local memory where you read in everything around you in the workgroup.
+    // Otherwise, you are actually doing 9x the work of what you have to...painful.
+
+    // Local position relative to (0, 0) in workgroup
+    const int lx = get_local_id(0);
+    const int ly = get_local_id(1);
+
+    // coordinates of the upper left corner of the buffer in image
+    // space, including halo
+    const int buf_corner_x = x - lx - halo;
+    const int buf_corner_y = y - ly - halo;
+
+    // coordinates of our pixel in the local buffer
+    const int buf_x = lx + halo;
+    const int buf_y = ly + halo;
+
+    // 1D index of thread within our work-group
+    const int idx_1D = ly * get_local_size(0) + lx;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (idx_1D < buf_nx) {
+        for (int row = 0; row < buf_ny; row++) {
+            int temp_x = buf_corner_x + idx_1D;
+            int temp_y = buf_corner_y + row;
+
+            //Painfully deal with BC's...i.e. use periodic BC's.
+            if (temp_x >= nx) temp_x -= nx;
+            if (temp_x < 0) temp_x += nx;
+
+            if (temp_y >= ny) temp_y -= ny;
+            if (temp_y < 0) temp_y += ny;
+
+            psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
+
+        }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    //Now that all desired psi are read in, do the multiplication
+    if ((x < nx) && (y < ny)){
+        const int old_2d_buf_index = buf_y*buf_nx + buf_x;
+        const float middle_psi = psi_local[old_2d_buf_index];
+
+        float force_x = 0;
+        float force_y = 0;
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
+            float cur_w = w[jump_id];
+
+            //Get the shifted positions
+            int stream_buf_x = buf_x + cur_cx;
+            int stream_buf_y = buf_y + cur_cy;
+
+            int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
+
+            float psi_mult = middle_psi*psi_local[new_2d_buf_index];
+            force_x += cur_w * cur_cx * psi_mult;
+            force_y += cur_w * cur_cy * psi_mult;
+        }
+        const int two_d_index = y*nx + x;
+        force_x_global[two_d_index] = -G_chen * force_x;
+        force_y_global[two_d_index] = -G_chen * force_y;
+    }
+}
+
+__kernel void
 update_u_and_v(__global __read_only float *rho_global,
                __global __write_only float *u,
                __global __write_only float *v,
@@ -307,85 +394,3 @@ update_u_and_v(__global __read_only float *rho_global,
     }
 }
 
-__kernel void
-update_pseudo_force(__global __read_only float *psi_global,
-                    __global __write_only float *force_x_global,
-                    __global __write_only float *force_y_global,
-                    const float G_chen,
-                    const float cs,
-                    __constant int *cx,
-                    __constant int *cy,
-                    __constant float *w,
-                    __local float *psi_local,
-                    const int nx, const int ny,
-                    const int buf_nx, const int buf_ny,
-                    const int halo)
-{
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    // Have to use local memory where you read in everything around you in the workgroup.
-    // Otherwise, you are actually doing 9x the work of what you have to...painful.
-
-    // Local position relative to (0, 0) in workgroup
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-
-    // coordinates of the upper left corner of the buffer in image
-    // space, including halo
-    const int buf_corner_x = x - lx - halo;
-    const int buf_corner_y = y - ly - halo;
-
-    // coordinates of our pixel in the local buffer
-    const int buf_x = lx + halo;
-    const int buf_y = ly + halo;
-
-    // 1D index of thread within our work-group
-    const int idx_1D = ly * get_local_size(0) + lx;
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-    if (idx_1D < buf_nx) {
-        for (int row = 0; row < buf_ny; row++) {
-            int temp_x = buf_corner_x + idx_1D;
-            int temp_y = buf_corner_y + row;
-
-            //Painfully deal with BC's...i.e. use periodic BC's.
-            if (temp_x >= nx) temp_x -= nx;
-            if (temp_x < 0) temp_x += nx;
-
-            if (temp_y >= ny) temp_y -= ny;
-            if (temp_y < 0) temp_y += ny;
-
-            psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
-
-        }
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    //Now that all desired psi are read in, do the multiplication
-    if ((x < nx) && (y < ny)){
-        const int old_2d_buf_index = buf_y*buf_nx + buf_x;
-        const float middle_psi = psi_local[old_2d_buf_index];
-
-        float force_x = 0;
-        float force_y = 0;
-        for(int jump_id = 0; jump_id < 9; jump_id++){
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
-            float cur_w = w[jump_id];
-
-            //Get the shifted positions
-            int stream_buf_x = buf_x + cur_cx;
-            int stream_buf_y = buf_y + cur_cy;
-
-            int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
-
-            float psi_mult = middle_psi*psi_local[new_2d_buf_index];
-            force_x += cur_w * cur_cx * psi_mult;
-            force_y += cur_w * cur_cy * psi_mult;
-        }
-        const int two_d_index = y*nx + x;
-        force_x_global[two_d_index] = -cs*cs * G_chen * force_x;
-        force_y_global[two_d_index] = -cs*cs * G_chen * force_y;
-    }
-}
