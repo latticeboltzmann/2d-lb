@@ -168,6 +168,9 @@ class Rocket_Yeast_Forces_Only(object):
 
         ## Initialize hydrodynamic variables & Shan-chen variables
         self.rho = None # The simulation's density field
+        self.mom_x = None # Momentum in the x direction, i.e. rho*u
+        self.mom_y = None # Momentum in the y direction, i.e. rho*v
+
         self.surface_force_x = None # The simulation's velocity in the x direction (horizontal)
         self.surface_force_y = None # The simulation's velocity in the y direction (vertical)
 
@@ -305,17 +308,23 @@ class Rocket_Yeast_Forces_Only(object):
         # Send to device
         self.rho = cl.array.to_device(self.queue, rho_host)
 
-        #### VELOCITY ####
+        ### MOMENTUM ###
+        mom_x = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
+        mom_y = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
 
-        # Create u and v fields. Necessary to copy onto due to complex type issues...
+        self.mom_x = cl.array.to_device(self.queue, mom_x)
+        self.mom_y = cl.array.to_device(self.queue, mom_y)
+
+        #### FORCES ####
+
+        # Surface forces
         surface_force_x = np.zeros((nx, ny), dtype=np.float32, order='F')
         surface_force_y = np.zeros((nx, ny), dtype=np.float32, order='F')
 
         self.surface_force_x = cl.array.to_device(self.queue, surface_force_x)
         self.surface_force_y = cl.array.to_device(self.queue, surface_force_y)
 
-        ### CLUMPINESS ###
-
+        # Van-der-waals forces
         psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
         self.psi = cl.array.to_device(self.queue, psi_host)
 
@@ -393,7 +402,8 @@ class Rocket_Yeast_Forces_Only(object):
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
         self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                  self.f.data, self.rho.data,
+                                  self.f.data,
+                                  self.mom_x, self.mom_y, self.rho.data,
                                   self.nx, self.ny, self.num_populations).wait()
         self.update_forces()
 

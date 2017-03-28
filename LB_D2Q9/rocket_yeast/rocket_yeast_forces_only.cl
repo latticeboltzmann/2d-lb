@@ -1,6 +1,8 @@
 __kernel void
 update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
+           __global __read_only float *mom_x_global,
+           __global __read_only float *mom_y_global,
            __constant float *w,
            __constant int *cx,
            __constant int *cy,
@@ -15,6 +17,9 @@ update_feq(__global __write_only float *feq_global,
 
     if ((x < nx) && (y < ny)){
 
+        const float mom_x = mom_x_global[two_d_index];
+        const float mom_y = mom_y_global[two_d_index];
+
         // rho is three-dimensional now...have to loop over every field.
         for (int field_num=0; field_num < num_populations; field_num++){
             int three_d_index = field_num*nx*ny + two_d_index;
@@ -24,7 +29,12 @@ update_feq(__global __write_only float *feq_global,
                 int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
 
                 float cur_w = w[jump_id];
-                float new_feq = cur_w*rho;
+                int cur_cx = cx[jump_id];
+                int cur_cy = cy[jump_id];
+
+                float cur_c_dot_u = cur_cx*u + cur_cy*v;
+
+                float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
 
                 feq_global[four_d_index] = new_feq;
             }
@@ -35,7 +45,11 @@ update_feq(__global __write_only float *feq_global,
 
 __kernel void
 update_hydro(__global float *f_global,
+             __global float *mom_x_global,
+             __global float *mom_y_global,
              __global float *rho_global,
+             __constant int *cx,
+             __constant int *cy,
              const int nx, const int ny, const int num_populations)
 {
     // Assumes that u and v are imposed. Can be changed later.
@@ -50,11 +64,23 @@ update_hydro(__global float *f_global,
         for(int field_num = 0; field_num < num_populations; field_num++){
             int three_d_index = field_num*nx*ny + two_d_index;
 
-            float f_sum = 0;
+            float rho = 0;
+            float mom_x = 0;
+            float mom_y = 0;
+
             for(int jump_id = 0; jump_id < 9; jump_id++){
-                f_sum += f_global[jump_id*num_populations*nx*ny + three_d_index];
+                float cur_f = f_global[jump_id*num_populations*nx*ny + three_d_index]
+                rho += cur_f;
+
+                float cur_cx = cx[jump_id];
+                float cur_cy = cy[jump_id]
+
+                mom_x += cur_f * cur_cx
+                mom_y += cur_f * cur_cy
             }
-            rho_global[three_d_index] = f_sum;
+            rho_global[three_d_index] = rho;
+            mom_x_global[three_d_index] = rho*mom_x;
+            mom_y_global[three_d_index] = rho*mom_y;
         }
     }
 }
