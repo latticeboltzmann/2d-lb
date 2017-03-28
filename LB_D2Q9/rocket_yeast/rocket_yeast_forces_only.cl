@@ -44,9 +44,9 @@ update_feq(__global __write_only float *feq_global,
 
 __kernel void
 update_mobility(__global float *m_global,
-           __global __read_only float *rho_global,
-           const float f_o,
-           const int nx, const int ny, const int population_index)
+                __global __read_only float *rho_global,
+                const float m_o,
+                const int nx, const int ny, const int population_index)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -57,7 +57,7 @@ update_mobility(__global float *m_global,
 
         float cur_rho = rho_global[three_d_index];
         if (cur_rho < 0) cur_rho = 0;
-        m_global[two_d_index] = exp(-cur_rho/f_o);
+        m_global[two_d_index] = exp(-cur_rho/m_o);
     }
 }
 
@@ -123,10 +123,6 @@ collide_particles(__global float *f_global,
                             __global __read_only float *rho_global,
                             const float omega, const float omega_c,
                             const float G, const float Gc,
-                            __global __read_only float *pseudo_force_x,
-                            __global __read_only float *pseudo_force_y,
-                            __global __read_only float *surface_force_x,
-                            __global __read_only float *surface_force_y,
                             __constant float *w,
                             __constant int *cx,
                             __constant int *cy,
@@ -160,17 +156,7 @@ collide_particles(__global float *f_global,
             float relax = f*(1-omega) + omega*feq;
             float growth = cur_w*all_growth;
 
-            // Add in the external force
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
-
-            float Fx = pseudo_force_x[two_d_index] + surface_force_x[two_d_index];
-            float Fy = pseudo_force_y[two_d_index] + surface_force_y[two_d_index];
-
-            float f_dot_c = cur_cx * Fx + cur_cy * Fy;
-            float force_term = (cur_w * f_dot_c)/(cs*cs);
-
-            float new_f = relax + growth + force_term;
+            float new_f = relax + growth;
             if(new_f < 0) new_f = 0; // For stability?
 
             f_global[four_d_index] = new_f;

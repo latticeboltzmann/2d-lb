@@ -63,7 +63,7 @@ class Rocket_Yeast_Forces_Only(object):
     """
 
     def __init__(self, Lx=1.0, Ly=1.0, R0 = 5., epsilon=1., Dc = 1./4., Gc = 2.0,
-                 rho_o=1.0, G_chen=-1.0,
+                 rho_o=1.0, m_o = 0.5, G_chen=-1.0,
                  time_prefactor=1., N=10,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
@@ -90,6 +90,8 @@ class Rocket_Yeast_Forces_Only(object):
         self.epsilon = np.float32(epsilon) # Characteristic velocity coupling constant, deals with height vs. how concentration impacts surface tension
 
         self.R0 = R0 # Initial radius of the droplet
+
+        self.m_o = np.float32(m_o) # Fall off of mobility with population fraction
 
         # For clumpiness, self-attraction of yeast
         self.rho_o = np.float32(rho_o)
@@ -339,6 +341,8 @@ class Rocket_Yeast_Forces_Only(object):
 
         # Now initialize all forces present
         self.update_forces()
+        # Once we have the forces, determine the velocities
+        self.update_u_and_v()
 
     def redo_initial_condition(self, rho_field):
         """After you have specified your own IC"""
@@ -406,11 +410,30 @@ class Rocket_Yeast_Forces_Only(object):
         """
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
         """
-        self.kernels.update_hydro(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                  self.f.data,
-                                  self.mom_x, self.mom_y, self.rho.data,
-                                  self.nx, self.ny, self.num_populations).wait()
+        self.kernels.update_rho(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.f.data,
+                                self.rho.data,
+                                self.nx, self.ny, self.num_populations).wait()
         self.update_forces()
+        # Once you have updated the forces, velocity is proportional to force
+        self.update_u_and_v()
+
+    def update_u_and_v(self):
+        self.kernels.update_mobility(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                self.m.data,
+                                self.rho.data,
+                                self.m_o,
+                                self.nx, self.ny, self.pop_index).wait()
+
+        self.kernels.update_u_and_v(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                    self.u.data,
+                                    self.v.data,
+                                    self.m.data,
+                                    self.pseudo_force_x.data,
+                                    self.pseudo_force_y.data,
+                                    self.surface_force_x.data,
+                                    self.surface_force_y.data,
+                                    self.nx, self.ny, self.num_populations).wait()
 
     def update_forces(self):
 
