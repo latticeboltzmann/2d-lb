@@ -1,8 +1,6 @@
 __kernel void
 update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
-           __global __read_only float *mom_x_global,
-           __global __read_only float *mom_y_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
            __constant float *w,
@@ -19,61 +17,83 @@ update_feq(__global __write_only float *feq_global,
 
     if ((x < nx) && (y < ny)){
 
-        // **** POPULATION DENSITY ****
-        int field_num = 0;
-
-        const float mom_x = mom_x_global[two_d_index];
-        const float mom_y = mom_y_global[two_d_index];
-
-        int three_d_index = field_num*nx*ny + two_d_index;
-        float rho = rho_global[three_d_index];
-        // Now loop over every jumper
-        for(int jump_id=0; jump_id < 9; jump_id++){
-            int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
-
-            float cur_w = w[jump_id];
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
-
-            float cur_c_dot_mom = cur_cx*mom_x + cur_cy*mom_y;
-
-            float new_feq = cur_w*rho + cur_c_dot_mom/(cs*cs);
-
-            feq_global[four_d_index] = new_feq;
-        }
-
-        // ***** SURFACTANT *****
-        int field_num = 1;
-
         const float u = u_global[two_d_index];
         const float v = v_global[two_d_index];
 
-        int three_d_index = field_num*nx*ny + two_d_index;
-        float rho = rho_global[three_d_index];
-        // Now loop over every jumper
-        for(int jump_id=0; jump_id < 9; jump_id++){
-            int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
+        // rho is three-dimensional now...have to loop over every field.
+        for (int field_num=0; field_num < num_populations; field_num++){
+            int three_d_index = field_num*nx*ny + two_d_index;
+            float rho = rho_global[three_d_index];
+            // Now loop over every jumper
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
 
-            float cur_w = w[jump_id];
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
+                float cur_w = w[jump_id];
+                int cur_cx = cx[jump_id];
+                int cur_cy = cy[jump_id];
 
-            float cur_c_dot_u = cur_cx*u + cur_cy*v;
-            float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
-            feq_global[four_d_index] = new_feq;
+                float cur_c_dot_u = cur_cx*u + cur_cy*v;
+
+                float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
+
+                feq_global[four_d_index] = new_feq;
+            }
         }
+    }
+}
 
+__kernel void
+update_mobility(__global float *m_global,
+           __global __read_only float *rho_global,
+           const float f_o,
+           const int nx, const int ny, const int population_index)
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_index = population_index*ny*nx + two_d_index;
+
+        float cur_rho = rho_global[three_d_index];
+        if (cur_rho < 0) cur_rho = 0;
+        m_global[two_d_index] = exp(-cur_rho/f_o);
     }
 }
 
 
+
 __kernel void
-update_hydro(__global float *f_global,
-             __global float *mom_x_global,
-             __global float *mom_y_global,
-             __global float *rho_global,
-             __constant int *cx,
-             __constant int *cy,
+update_u_and_v(__global float *u_global,
+               __global float *v_global,
+               __global float *m_global,
+               __global __read_only float *pseudo_force_x,
+               __global __read_only float *pseudo_force_y,
+               __global __read_only float *surface_force_x,
+               __global __read_only float *surface_force_y,
+               const int nx, const int ny, const int num_populations)
+{
+    // Assumes that u and v are imposed. Can be changed later.
+    //This *MUST* be run after move_bc's, as that takes care of BC's
+    //Input should be a 2d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+
+        float cur_m = m_global[two_d_index];
+        float force_x_sum = pseudo_force_x + surface_force_x;
+        float force_y_sum = pseudo_force_y + surface_force_y;
+
+        u[two_d_index] = force_x_sum * cur_m;
+        v[two_d_index] = force_y_sum * cur_m;
+    }
+}
+
+__kernel void
+update_rho(__global __read_only float *f_global,
+             __global __write_only float *rho_global,
              const int nx, const int ny, const int num_populations)
 {
     // Assumes that u and v are imposed. Can be changed later.
@@ -84,40 +104,16 @@ update_hydro(__global float *f_global,
 
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
-        //**** POPULATION DENSITY ****
-        field_num = 0;
-        int three_d_index = field_num*nx*ny + two_d_index;
+        // Loop over fields.
+        for(int field_num = 0; field_num < num_populations; field_num++){
+            int three_d_index = field_num*nx*ny + two_d_index;
 
-        float rho = 0;
-        float mom_x = 0;
-        float mom_y = 0;
-
-        for(int jump_id = 0; jump_id < 9; jump_id++){
-            float cur_f = f_global[jump_id*num_populations*nx*ny + three_d_index]
-            rho += cur_f;
-
-            float cur_cx = cx[jump_id];
-            float cur_cy = cy[jump_id]
-
-            mom_x += cur_f * cur_cx
-            mom_y += cur_f * cur_cy
+            float f_sum = 0;
+            for(int jump_id = 0; jump_id < 9; jump_id++){
+                f_sum += f_global[jump_id*num_populations*nx*ny + three_d_index];
+            }
+            rho_global[three_d_index] = f_sum;
         }
-        rho_global[three_d_index] = rho;
-        mom_x_global[three_d_index] = rho*mom_x;
-        mom_y_global[three_d_index] = rho*mom_y;
-
-        // **** SURFACTANT ****
-
-        field_num = 1;
-        int three_d_index = field_num*nx*ny + two_d_index;
-
-        float rho = 0;
-
-        for(int jump_id = 0; jump_id < 9; jump_id++){
-            float cur_f = f_global[jump_id*num_populations*nx*ny + three_d_index]
-            rho += cur_f;
-        }
-        rho_global[three_d_index] = rho;
     }
 }
 
@@ -243,7 +239,7 @@ move_periodic(__global __read_only float *f_global,
 }
 
 __kernel void
-update_psi(__global float *psi_global,
+update_u_and_v(__global float *psi_global,
            __global __read_only float *rho_global,
            const float rho_o,
            const int nx, const int ny, const int population_index)

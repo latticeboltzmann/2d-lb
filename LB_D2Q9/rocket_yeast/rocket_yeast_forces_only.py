@@ -168,13 +168,14 @@ class Rocket_Yeast_Forces_Only(object):
 
         ## Initialize hydrodynamic variables & Shan-chen variables
         self.rho = None # The simulation's density field
-        self.mom_x = None # Momentum in the x direction, i.e. rho*u
-        self.mom_y = None # Momentum in the y direction, i.e. rho*v
+        self.u = None # Velocity in the x direction
+        self.v = None # Velocity in the y direction
+        self.m = None # Mobility field
 
         self.surface_force_x = None # The simulation's velocity in the x direction (horizontal)
         self.surface_force_y = None # The simulation's velocity in the y direction (vertical)
 
-        self.psi = None
+        self.psi = None # Accounts for vanderwalls forces between strains
         self.pseudo_force_x = None
         self.pseudo_force_y = None
 
@@ -308,12 +309,16 @@ class Rocket_Yeast_Forces_Only(object):
         # Send to device
         self.rho = cl.array.to_device(self.queue, rho_host)
 
-        ### MOMENTUM ###
-        mom_x = np.zeros((nx, ny), dtype=np.float32, order='F')
-        mom_y = np.zeros((nx, ny), dtype=np.float32, order='F')
+        ### Mobility ###
+        m = np.zeros((nx, ny), dtype=np.float32, order='F')
+        self.m = cl.array.to_device(self.queue, m)
 
-        self.mom_x = cl.array.to_device(self.queue, mom_x)
-        self.mom_y = cl.array.to_device(self.queue, mom_y)
+        ### Velocity ###
+        u = np.zeros((nx, ny), dtype=np.float32, order='F')
+        v = np.zeros((nx, ny), dtype=np.float32, order='F')
+
+        self.u = cl.array.to_device(self.queue, u)
+        self.v = cl.array.to_device(self.queue, v)
 
         #### FORCES ####
 
