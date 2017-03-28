@@ -124,9 +124,6 @@ collide_particles(__global float *f_global,
                             const float omega, const float omega_c,
                             const float G, const float Gc,
                             __constant float *w,
-                            __constant int *cx,
-                            __constant int *cy,
-                            const float cs,
                             const int nx, const int ny, const int num_populations)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.

@@ -480,9 +480,7 @@ class Rocket_Yeast_Forces_Only(object):
                                        self.rho.data,
                                        self.omega, self.omega_c,
                                        self.lb_G, self.lb_Gc,
-                                       self.pseudo_force_x.data, self.pseudo_force_y.data,
-                                       self.surface_force_x.data, self.surface_force_y.data,
-                                       self.w, self.cx, self.cy, cs,
+                                       self.w,
                                        self.nx, self.ny, self.num_populations).wait()
 
 
