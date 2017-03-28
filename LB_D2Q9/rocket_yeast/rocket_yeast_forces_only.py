@@ -309,8 +309,8 @@ class Rocket_Yeast_Forces_Only(object):
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         ### MOMENTUM ###
-        mom_x = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
-        mom_y = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
+        mom_x = np.zeros((nx, ny), dtype=np.float32, order='F')
+        mom_y = np.zeros((nx, ny), dtype=np.float32, order='F')
 
         self.mom_x = cl.array.to_device(self.queue, mom_x)
         self.mom_y = cl.array.to_device(self.queue, mom_y)

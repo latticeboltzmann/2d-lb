@@ -3,6 +3,8 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __global __read_only float *mom_x_global,
            __global __read_only float *mom_y_global,
+           __global __read_only float *u_global,
+           __global __read_only float *v_global,
            __constant float *w,
            __constant int *cx,
            __constant int *cy,
@@ -17,28 +19,50 @@ update_feq(__global __write_only float *feq_global,
 
     if ((x < nx) && (y < ny)){
 
+        // **** POPULATION DENSITY ****
+        int field_num = 0;
+
         const float mom_x = mom_x_global[two_d_index];
         const float mom_y = mom_y_global[two_d_index];
 
-        // rho is three-dimensional now...have to loop over every field.
-        for (int field_num=0; field_num < num_populations; field_num++){
-            int three_d_index = field_num*nx*ny + two_d_index;
-            float rho = rho_global[three_d_index];
-            // Now loop over every jumper
-            for(int jump_id=0; jump_id < 9; jump_id++){
-                int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
+        int three_d_index = field_num*nx*ny + two_d_index;
+        float rho = rho_global[three_d_index];
+        // Now loop over every jumper
+        for(int jump_id=0; jump_id < 9; jump_id++){
+            int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
 
-                float cur_w = w[jump_id];
-                int cur_cx = cx[jump_id];
-                int cur_cy = cy[jump_id];
+            float cur_w = w[jump_id];
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
 
-                float cur_c_dot_u = cur_cx*u + cur_cy*v;
+            float cur_c_dot_mom = cur_cx*mom_x + cur_cy*mom_y;
 
-                float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
+            float new_feq = cur_w*rho + cur_c_dot_mom/(cs*cs);
 
-                feq_global[four_d_index] = new_feq;
-            }
+            feq_global[four_d_index] = new_feq;
         }
+
+        // ***** SURFACTANT *****
+        int field_num = 1;
+
+        const float u = u_global[two_d_index];
+        const float v = v_global[two_d_index];
+
+        int three_d_index = field_num*nx*ny + two_d_index;
+        float rho = rho_global[three_d_index];
+        // Now loop over every jumper
+        for(int jump_id=0; jump_id < 9; jump_id++){
+            int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
+
+            float cur_w = w[jump_id];
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
+
+            float cur_c_dot_u = cur_cx*u + cur_cy*v;
+            float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
+            feq_global[four_d_index] = new_feq;
+        }
+
     }
 }
 
@@ -60,28 +84,40 @@ update_hydro(__global float *f_global,
 
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
-        // Loop over fields.
-        for(int field_num = 0; field_num < num_populations; field_num++){
-            int three_d_index = field_num*nx*ny + two_d_index;
+        //**** POPULATION DENSITY ****
+        field_num = 0;
+        int three_d_index = field_num*nx*ny + two_d_index;
 
-            float rho = 0;
-            float mom_x = 0;
-            float mom_y = 0;
+        float rho = 0;
+        float mom_x = 0;
+        float mom_y = 0;
 
-            for(int jump_id = 0; jump_id < 9; jump_id++){
-                float cur_f = f_global[jump_id*num_populations*nx*ny + three_d_index]
-                rho += cur_f;
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            float cur_f = f_global[jump_id*num_populations*nx*ny + three_d_index]
+            rho += cur_f;
 
-                float cur_cx = cx[jump_id];
-                float cur_cy = cy[jump_id]
+            float cur_cx = cx[jump_id];
+            float cur_cy = cy[jump_id]
 
-                mom_x += cur_f * cur_cx
-                mom_y += cur_f * cur_cy
-            }
-            rho_global[three_d_index] = rho;
-            mom_x_global[three_d_index] = rho*mom_x;
-            mom_y_global[three_d_index] = rho*mom_y;
+            mom_x += cur_f * cur_cx
+            mom_y += cur_f * cur_cy
         }
+        rho_global[three_d_index] = rho;
+        mom_x_global[three_d_index] = rho*mom_x;
+        mom_y_global[three_d_index] = rho*mom_y;
+
+        // **** SURFACTANT ****
+
+        field_num = 1;
+        int three_d_index = field_num*nx*ny + two_d_index;
+
+        float rho = 0;
+
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            float cur_f = f_global[jump_id*num_populations*nx*ny + three_d_index]
+            rho += cur_f;
+        }
+        rho_global[three_d_index] = rho;
     }
 }
 
