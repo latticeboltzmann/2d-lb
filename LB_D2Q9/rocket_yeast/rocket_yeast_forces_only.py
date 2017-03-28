@@ -57,7 +57,7 @@ def get_divisible_global(global_size, local_size):
     return tuple(new_size)
 
 
-class Rocket_Yeast(object):
+class Rocket_Yeast_Forces_Only(object):
     """
     Everything is in dimensionless units. It's just easier.
     """
@@ -107,8 +107,8 @@ class Rocket_Yeast(object):
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
-        self.delta_x = 1./N # How many squares characteristic length is broken into
-        self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
+        self.delta_x = np.float32(1./N) # How many squares characteristic length is broken into
+        self.delta_t = np.float32(time_prefactor * self.delta_x**2) # How many time iterations until the characteristic time, should be ~ \delta x^2
 
         # Characteristic LB speed corresponding to dimensionless speed of 1. Must be MUCH smaller than cs = .57 or so.
         self.ulb = self.delta_t/self.delta_x
@@ -151,6 +151,7 @@ class Rocket_Yeast(object):
         self.context = None     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
+        self.use_interop = use_interop
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
         # Allocate constants & local memory for opencl
@@ -441,8 +442,8 @@ class Rocket_Yeast(object):
                                        self.rho.data,
                                        self.omega, self.omega_c,
                                        self.lb_G, self.lb_Gc,
-                                       self.pseudo_force_x.data,
-                                       self.pseudo_force_y.data,
+                                       self.pseudo_force_x.data, self.pseudo_force_y.data,
+                                       self.surface_force_x.data, self.surface_force_y.data,
                                        self.w, self.cx, self.cy, cs,
                                        self.nx, self.ny, self.num_populations).wait()
 

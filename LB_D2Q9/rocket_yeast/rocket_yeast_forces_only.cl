@@ -65,8 +65,10 @@ collide_particles(__global float *f_global,
                             __global __read_only float *rho_global,
                             const float omega, const float omega_c,
                             const float G, const float Gc,
-                            __global __read_only float *force_x_global,
-                            __global __read_only float *force_y_global,
+                            __global __read_only float *pseudo_force_x,
+                            __global __read_only float *pseudo_force_y,
+                            __global __read_only float *surface_force_x,
+                            __global __read_only float *surface_force_y,
                             __constant float *w,
                             __constant int *cx,
                             __constant int *cy,
@@ -104,13 +106,16 @@ collide_particles(__global float *f_global,
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
 
-            float Fx = force_x_global[two_d_index];
-            float Fy = force_y_global[two_d_index];
+            float Fx = pseudo_force_x[two_d_index] + surface_force_x[two_d_index];
+            float Fy = pseudo_force_y[two_d_index] + surface_force_y[two_d_index];
 
             float f_dot_c = cur_cx * Fx + cur_cy * Fy;
             float force_term = (cur_w * f_dot_c)/(cs*cs);
 
-            f_global[four_d_index] = relax + growth + force_term;
+            float new_f = relax + growth + force_term;
+            if(new_f < 0) new_f = 0; // For stability?
+
+            f_global[four_d_index] = new_f;
         }
         //****** Surfactant ******
         cur_field = 1;
@@ -217,8 +222,8 @@ update_psi_sticky_repulsive(__global float *psi_global,
 
 __kernel void
 update_pseudo_force(__global __read_only float *psi_global,
-                    __global __write_only float *force_x_global,
-                    __global __write_only float *force_y_global,
+                    __global __write_only float *pseudo_force_x,
+                    __global __write_only float *pseudo_force_y,
                     const float G_chen,
                     const float cs,
                     __constant int *cx,
@@ -293,8 +298,8 @@ update_pseudo_force(__global __read_only float *psi_global,
             force_y += cur_w * cur_cy * psi_mult;
         }
         const int two_d_index = y*nx + x;
-        force_x_global[two_d_index] = -G_chen * force_x;
-        force_y_global[two_d_index] = -G_chen * force_y;
+        pseudo_force_x[two_d_index] = -G_chen * force_x;
+        pseudo_force_y[two_d_index] = -G_chen * force_y;
     }
 }
 
