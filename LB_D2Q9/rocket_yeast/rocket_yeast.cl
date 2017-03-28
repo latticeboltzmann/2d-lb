@@ -122,7 +122,10 @@ collide_particles(__global float *f_global,
             float f_dot_c = cur_cx * Fx + cur_cy * Fy;
             float force_term = (cur_w * f_dot_c)/(cs*cs);
 
-            f_global[four_d_index] = relax + growth + force_term;
+            float new_f = relax + growth + force_term;
+            if(new_f < 0) new_f = 0; // For stability?
+
+            f_global[four_d_index] = new_f;
         }
         //****** Surfactant ******
         cur_field = 1;

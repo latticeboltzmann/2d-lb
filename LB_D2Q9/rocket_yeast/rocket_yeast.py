@@ -427,17 +427,17 @@ class Rocket_Yeast(object):
 
     def update_force(self):
         # Now update psi, and adjust u accordingly. Probably in openCL.
-        # self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
-        #                         self.psi.data,
-        #                         self.rho.data,
-        #                         self.rho_o,
-        #                         self.nx, self.ny, self.pop_index).wait()
-
-        self.kernels.update_psi_sticky_repulsive(self.queue, self.two_d_global_size, self.two_d_local_size,
+        self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.psi.data,
                                 self.rho.data,
                                 self.rho_o,
                                 self.nx, self.ny, self.pop_index).wait()
+
+        # self.kernels.update_psi_sticky_repulsive(self.queue, self.two_d_global_size, self.two_d_local_size,
+        #                         self.psi.data,
+        #                         self.rho.data,
+        #                         self.rho_o,
+        #                         self.nx, self.ny, self.pop_index).wait()
 
         # Get the force from psi
         self.kernels.update_pseudo_force(self.queue, self.two_d_global_size, self.two_d_local_size,
