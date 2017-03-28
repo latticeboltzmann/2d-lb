@@ -102,6 +102,9 @@ class Rocket_Yeast_Forces_Only(object):
         self.pop_index = np.int32(0)
         self.surf_index = np.int32(1)
 
+        self.check_max_ulb = check_max_ulb
+        self.mach_tolerance = mach_tolerance
+
         # Get the characteristic length and time scales for the flow. Since this simulation is in dimensionless units
         # they should both be one!
         self.L = 1.0 # Fisher length
@@ -362,6 +365,8 @@ class Rocket_Yeast_Forces_Only(object):
         self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
                                 self.feq.data,
                                 self.rho.data,
+                                self.u.data,
+                                self.v.data,
                                 self.w, self.cx, self.cy, cs,
                                 self.nx, self.ny, self.num_populations).wait()
 
@@ -434,6 +439,12 @@ class Rocket_Yeast_Forces_Only(object):
                                     self.surface_force_x.data,
                                     self.surface_force_y.data,
                                     self.nx, self.ny, self.num_populations).wait()
+
+        if self.check_max_ulb:
+            max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
+
+            if max_ulb > cs*self.mach_tolerance:
+                print 'max_ulb is greater than cs/10! Ma=', max_ulb/cs
 
     def update_forces(self):
 

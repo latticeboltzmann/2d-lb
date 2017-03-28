@@ -83,11 +83,11 @@ update_u_and_v(__global float *u_global,
         const int two_d_index = y*nx + x;
 
         float cur_m = m_global[two_d_index];
-        float force_x_sum = pseudo_force_x + surface_force_x;
-        float force_y_sum = pseudo_force_y + surface_force_y;
+        float force_x_sum = pseudo_force_x[two_d_index] + surface_force_x[two_d_index];
+        float force_y_sum = pseudo_force_y[two_d_index] + surface_force_y[two_d_index];
 
-        u[two_d_index] = force_x_sum * cur_m;
-        v[two_d_index] = force_y_sum * cur_m;
+        u_global[two_d_index] = force_x_sum * cur_m;
+        v_global[two_d_index] = force_y_sum * cur_m;
     }
 }
 
@@ -222,7 +222,7 @@ move_periodic(__global __read_only float *f_global,
 }
 
 __kernel void
-update_u_and_v(__global float *psi_global,
+update_psi(__global float *psi_global,
            __global __read_only float *rho_global,
            const float rho_o,
            const int nx, const int ny, const int population_index)
@@ -263,8 +263,8 @@ update_psi_sticky_repulsive(__global float *psi_global,
 
 __kernel void
 update_pseudo_force(__global __read_only float *psi_global,
-                    __global __write_only float *pseudo_force_x,
-                    __global __write_only float *pseudo_force_y,
+                    __global float *pseudo_force_x,
+                    __global float *pseudo_force_y,
                     const float G_chen,
                     const float cs,
                     __constant int *cx,
