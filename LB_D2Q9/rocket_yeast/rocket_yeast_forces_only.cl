@@ -43,21 +43,21 @@ update_feq(__global __write_only float *feq_global,
 }
 
 __kernel void
-update_mobility(__global float *m_global,
+update_surf_tension(__global float *S_global,
                 __global __read_only float *rho_global,
-                const float m_o,
-                const int nx, const int ny, const int population_index)
+                const float c_o, const float alpha,
+                const int nx, const int ny, const int surf_index)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
-        int three_d_index = population_index*ny*nx + two_d_index;
+        int three_d_index = surf_index*ny*nx + two_d_index;
 
         float cur_rho = rho_global[three_d_index];
         if (cur_rho < 0) cur_rho = 0;
-        m_global[two_d_index] = exp(-cur_rho/m_o);
+        S_global[two_d_index] = pow(1.f - exp(-cur_rho/c_o), alpha);
     }
 }
 
@@ -66,7 +66,6 @@ update_mobility(__global float *m_global,
 __kernel void
 update_u_and_v(__global float *u_global,
                __global float *v_global,
-               __global float *m_global,
                __global __read_only float *pseudo_force_x,
                __global __read_only float *pseudo_force_y,
                __global __read_only float *surface_force_x,
@@ -82,12 +81,11 @@ update_u_and_v(__global float *u_global,
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
 
-        float cur_m = m_global[two_d_index];
         float force_x_sum = pseudo_force_x[two_d_index] + surface_force_x[two_d_index];
         float force_y_sum = pseudo_force_y[two_d_index] + surface_force_y[two_d_index];
 
-        u_global[two_d_index] = force_x_sum * cur_m;
-        v_global[two_d_index] = force_y_sum * cur_m;
+        u_global[two_d_index] = force_x_sum;
+        v_global[two_d_index] = force_y_sum;
     }
 }
 
@@ -345,17 +343,16 @@ update_pseudo_force(__global __read_only float *psi_global,
 }
 
 __kernel void
-update_surface_forces(__global __read_only float *rho_global,
+update_surface_forces(__global __read_only float *S_global,
                __global __write_only float *surface_force_x,
                __global __write_only float *surface_force_y,
-               const float delta_x,
                const int surf_index,
                const float cs,
                const float epsilon,
                __constant int *cx,
                __constant int *cy,
                __constant float *w,
-               __local float *rho_local,
+               __local float *S_local,
                const int nx, const int ny,
                const int buf_nx, const int buf_ny,
                const int halo)
@@ -395,7 +392,7 @@ update_surface_forces(__global __read_only float *rho_global,
             if (temp_y >= ny) temp_y -= ny;
             if (temp_y < 0) temp_y += ny;
 
-            rho_local[row*buf_nx + idx_1D] = rho_global[surf_index*ny*nx + temp_y*nx + temp_x];
+            S_local[row*buf_nx + idx_1D] = S_global[temp_y*nx + temp_x];
 
         }
     }
@@ -418,15 +415,14 @@ update_surface_forces(__global __read_only float *rho_global,
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            float cur_rho = rho_local[new_2d_buf_index];
-            grad_x += cur_w * cur_cx * cur_rho;
-            grad_y += cur_w * cur_cy * cur_rho;
+            float cur_S = S_local[new_2d_buf_index];
+            grad_x += cur_w * cur_cx * cur_S;
+            grad_y += cur_w * cur_cy * cur_S;
         }
         const int two_d_index = y*nx + x;
         const float inv_cs_sq = 1./(cs*cs);
-        const float area_per_pixel = delta_x * delta_x;
-        surface_force_x[two_d_index] = (-epsilon * inv_cs_sq * grad_x) * area_per_pixel;
-        surface_force_y[two_d_index] = (-epsilon * inv_cs_sq * grad_y) * area_per_pixel;
+        surface_force_x[two_d_index] = -epsilon * inv_cs_sq * grad_x;
+        surface_force_y[two_d_index] = -epsilon * inv_cs_sq * grad_y;
     }
 }
 

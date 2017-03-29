@@ -63,7 +63,7 @@ class Rocket_Yeast_Forces_Only(object):
     """
 
     def __init__(self, Lx=1.0, Ly=1.0, R0 = 5., epsilon=1., Dc = 1./4., Gc = 2.0,
-                 rho_o=1.0, m_o = 0.5, G_chen=-1.0,
+                 rho_o=1.0, c_o = 0.25, alpha=2.0, G_chen=-1.0,
                  time_prefactor=1., N=10,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
@@ -91,7 +91,8 @@ class Rocket_Yeast_Forces_Only(object):
 
         self.R0 = R0 # Initial radius of the droplet
 
-        self.m_o = np.float32(m_o) # Fall off of mobility with population fraction
+        self.c_o = np.float32(c_o) # The characteristic concentration where surface decrease is saturated
+        self.alpha = np.float32(alpha) # Tuning the nonlinearity in the falloff of surface tension decrease
 
         # For clumpiness, self-attraction of yeast
         self.rho_o = np.float32(rho_o)
@@ -175,7 +176,7 @@ class Rocket_Yeast_Forces_Only(object):
         self.rho = None # The simulation's density field
         self.u = None # Velocity in the x direction
         self.v = None # Velocity in the y direction
-        self.m = None # Mobility field
+        self.S = None # S(c): how the surfactant saturates the surface as a function of c
 
         self.surface_force_x = None # The simulation's velocity in the x direction (horizontal)
         self.surface_force_y = None # The simulation's velocity in the y direction (vertical)
@@ -316,7 +317,7 @@ class Rocket_Yeast_Forces_Only(object):
 
         ### Mobility ###
         m = np.zeros((nx, ny), dtype=np.float32, order='F')
-        self.m = cl.array.to_device(self.queue, m)
+        self.S = cl.array.to_device(self.queue, m)
 
         ### Velocity ###
         u = np.zeros((nx, ny), dtype=np.float32, order='F')
@@ -424,16 +425,10 @@ class Rocket_Yeast_Forces_Only(object):
         self.update_u_and_v()
 
     def update_u_and_v(self):
-        self.kernels.update_mobility(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.m.data,
-                                self.rho.data,
-                                self.m_o,
-                                self.nx, self.ny, self.pop_index).wait()
 
         self.kernels.update_u_and_v(self.queue, self.two_d_global_size, self.two_d_local_size,
                                     self.u.data,
                                     self.v.data,
-                                    self.m.data,
                                     self.pseudo_force_x.data,
                                     self.pseudo_force_y.data,
                                     self.surface_force_x.data,
@@ -449,8 +444,14 @@ class Rocket_Yeast_Forces_Only(object):
     def update_forces(self):
 
         ### Forces due to fluid shear ###
+        self.kernels.update_surf_tension(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                     self.S.data,
+                                     self.rho.data,
+                                     self.c_o,
+                                     self.alpha,
+                                     self.nx, self.ny, self.surf_index).wait()
         self.kernels.update_surface_forces(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    self.rho.data, self.surface_force_x.data, self.surface_force_y.data,
+                                    self.S.data, self.surface_force_x.data, self.surface_force_y.data,
                                     self.delta_x,
                                     self.surf_index, cs, self.epsilon,
                                     self.cx, self.cy, self.w,
