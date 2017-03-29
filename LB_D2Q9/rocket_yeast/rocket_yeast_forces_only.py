@@ -451,8 +451,8 @@ class Rocket_Yeast_Forces_Only(object):
                                      self.alpha,
                                      self.nx, self.ny, self.surf_index).wait()
         self.kernels.update_surface_forces(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    self.S.data, self.surface_force_x.data, self.surface_force_y.data,
-                                    self.delta_x,
+                                    self.S.data,
+                                    self.surface_force_x.data, self.surface_force_y.data,
                                     self.surf_index, cs, self.epsilon,
                                     self.cx, self.cy, self.w,
                                     self.psi_local,
