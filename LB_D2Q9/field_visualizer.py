@@ -1,6 +1,8 @@
 import numpy as np
 import vispy as vp
 import vispy.app
+import vispy.io
+import vispy.gloo.util
 import pyopencl as cl
 import matplotlib.pyplot as plt
 
@@ -59,11 +61,15 @@ void main()
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
-                 cmap=plt.cm.magma, num_colors=1024):
+                 cmap=plt.cm.magma, num_colors=1024, save_images=False, render_dpi=300):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
         self.W, self.H = sim.nx, sim.ny
+
+        self.save_images = save_images
+        self.render_dpi = render_dpi
+
         vp.app.Canvas.__init__(self, keys='interactive', size=((self.W * 5), (self.H * 5)))
 
         # Setup necessary buffers, projections, etc.
@@ -143,3 +149,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
 
         self.texture.set_data(self.I)
         self.program.draw('triangle_strip')
+
+        if self.save_images:
+            screenshot = vp.gloo.util._screenshot()
+            vispy.io.write_png(str(self.total_num_steps) + '.png', screenshot)
