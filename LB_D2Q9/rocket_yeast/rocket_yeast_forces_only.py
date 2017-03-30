@@ -459,24 +459,13 @@ class Rocket_Yeast_Forces_Only(object):
                                     self.nx, self.ny,
                                     self.buf_nx, self.buf_ny, self.halo).wait()
 
-        ### Forces due to van-der waals interactions ###
-        self.kernels.update_psi(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.psi.data,
-                                self.rho.data,
-                                self.rho_o,
-                                self.nx, self.ny, self.pop_index).wait()
-
-        # self.kernels.update_psi_sticky_repulsive(self.queue, self.two_d_global_size, self.two_d_local_size,
-        #                         self.psi.data,
-        #                         self.rho.data,
-        #                         self.rho_o,
-        #                         self.nx, self.ny, self.pop_index).wait()
-
-        self.kernels.update_pseudo_force(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                         self.psi.data,
+        self.kernels.update_pressure_force(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                         self.rho.data,
+                                         self.pop_index,
                                          self.pseudo_force_x.data,
                                          self.pseudo_force_y.data,
                                          self.G_chen,
+                                         self.rho_o,
                                          cs,
                                          self.cx,
                                          self.cy,

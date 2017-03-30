@@ -220,55 +220,17 @@ move_periodic(__global __read_only float *f_global,
 }
 
 __kernel void
-update_psi(__global float *psi_global,
-           __global __read_only float *rho_global,
-           const float rho_o,
-           const int nx, const int ny, const int population_index)
-{
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        const int two_d_index = y*nx + x;
-        int three_d_index = population_index*ny*nx + two_d_index;
-
-        float cur_rho = rho_global[three_d_index];
-        if (cur_rho < 0) cur_rho = 0;
-        psi_global[two_d_index] = rho_o * (1 - exp(-cur_rho/rho_o));
-
-    }
-}
-
-__kernel void
-update_psi_sticky_repulsive(__global float *psi_global,
-                            __global __read_only float *rho_global,
-                            const float rho_o,
-                            const int nx, const int ny, const int population_index)
-{
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        const int two_d_index = y*nx + x;
-        int three_d_index = population_index*ny*nx + two_d_index;
-
-        float cur_rho = rho_global[three_d_index];
-        if (cur_rho < 0) cur_rho = 0;
-        psi_global[two_d_index] = cur_rho - rho_o * cur_rho * cur_rho;
-
-    }
-}
-
-__kernel void
-update_pseudo_force(__global __read_only float *psi_global,
+update_pressure_force(__global __read_only float *rho_global,
+                    const int pop_index,
                     __global float *pseudo_force_x,
                     __global float *pseudo_force_y,
                     const float G_chen,
+                    const float rho_o,
                     const float cs,
                     __constant int *cx,
                     __constant int *cy,
                     __constant float *w,
-                    __local float *psi_local,
+                    __local float *rho_local,
                     const int nx, const int ny,
                     const int buf_nx, const int buf_ny,
                     const int halo)
@@ -308,7 +270,7 @@ update_pseudo_force(__global __read_only float *psi_global,
             if (temp_y >= ny) temp_y -= ny;
             if (temp_y < 0) temp_y += ny;
 
-            psi_local[row*buf_nx + idx_1D] = psi_global[temp_y*nx + temp_x];
+            rho_local[row*buf_nx + idx_1D] = rho_global[pop_index*ny*nx + temp_y*nx + temp_x];
 
         }
     }
@@ -317,10 +279,10 @@ update_pseudo_force(__global __read_only float *psi_global,
     //Now that all desired psi are read in, do the multiplication
     if ((x < nx) && (y < ny)){
         const int old_2d_buf_index = buf_y*buf_nx + buf_x;
-        const float middle_psi = psi_local[old_2d_buf_index];
+        const float middle_rho = rho_local[old_2d_buf_index];
 
-        float force_x = 0;
-        float force_y = 0;
+        float rho_grad_x = 0;
+        float rho_grad_y = 0;
         for(int jump_id = 0; jump_id < 9; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
@@ -332,13 +294,20 @@ update_pseudo_force(__global __read_only float *psi_global,
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            float psi_mult = middle_psi*psi_local[new_2d_buf_index];
-            force_x += cur_w * cur_cx * psi_mult;
-            force_y += cur_w * cur_cy * psi_mult;
+            float new_rho = rho_local[new_2d_buf_index];
+            rho_grad_x += cur_w * cur_cx * new_rho;
+            rho_grad_y += cur_w * cur_cy * new_rho;
         }
         const int two_d_index = y*nx + x;
-        pseudo_force_x[two_d_index] = -G_chen * force_x;
-        pseudo_force_y[two_d_index] = -G_chen * force_y;
+
+        const float inv_cs_sq = 1./(cs*cs);
+        rho_grad_x *= inv_cs_sq; // To make the gradient actually correct
+        rho_grad_y *= inv_cs_sq;
+
+        //Now calculate the pressure gradient
+
+        pseudo_force_x[two_d_index] = -G_chen * rho_grad_x * (middle_rho - rho_o);
+        pseudo_force_y[two_d_index] = -G_chen * rho_grad_y * (middle_rho - rho_o);
     }
 }
 
