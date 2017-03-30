@@ -307,7 +307,7 @@ class Rocket_Yeast_Forces_Only(object):
         rho_host = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
 
         ## Population field
-        rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .00*np.random.randn(nx, ny))
+        rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
 
         ## Surfactant field
         rho_host[:, :, self.surf_index] = 0.0 # No surfactant initially
