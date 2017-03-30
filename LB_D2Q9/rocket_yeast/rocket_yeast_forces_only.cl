@@ -138,7 +138,9 @@ collide_particles(__global float *f_global,
         //****** POPULATION ******
         int cur_field = 0;
 
+        // No growth when you are more dense than 1...but you don't shrink in amplitude!!!
         float all_growth = G * cur_rho * (1 - cur_rho);
+        if (cur_rho > 1.0) all_growth = 0;
 
         int three_d_index = cur_field*ny*nx + two_d_index;
         for(int jump_id=0; jump_id < 9; jump_id++){
