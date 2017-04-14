@@ -8,7 +8,7 @@ Black video card!
 
 For more details on the project and the Lattice Boltzmann technique, see our project website at
 
-http://www.latticeboltzmann.us/
+https://sites.google.com/site/latticeboltzmannmethodcs205/
 
 # Table of Contents
 
