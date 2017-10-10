@@ -1,0 +1,9 @@
+*.pyc
+*.ipynb_checkpoints
+*.c
+*.so
+*.html
+.idea/
+*.egg-info
+build/
+dist/
