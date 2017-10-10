@@ -55,8 +55,7 @@ update_feq(__global __write_only float *feq_global,
         float cur_c_dot_u = cur_cx*u + cur_cy*v;
         float velocity_squared = u*u + v*v;
 
-        float inner_feq = 1.f + cur_c_dot_u/cs2 + cur_c_dot_u*cur_c_dot_u/two_cs4 - velocity_squared/two_cs2;
-
+        float inner_feq = rho + 3.*cur_c_dot_u + (9./2.)*(cur_c_dot_u*cur_c_dot_u) - (3./2.)*velocity_squared;
         float new_feq =  cur_w*rho*inner_feq;
 
         feq_global[three_d_index] = new_feq;
@@ -88,14 +87,11 @@ update_hydro(__global float *f_global,
         float f7 = f_global[7*ny*nx + two_d_index];
         float f8 = f_global[8*ny*nx + two_d_index];
 
-        //This *MUST* be run after move_bc's, as that takes care of BC's
-        float rho = f0+f1+f2+f3+f4+f5+f6+f7+f8;
-        rho_global[two_d_index] = rho;
-        float inverse_rho = 1./rho;
-
-        u_global[two_d_index] = (f1-f3+f5-f6-f7+f8)*inverse_rho;
-        v_global[two_d_index] = (f5+f2+f6-f7-f4-f8)*inverse_rho;
-
+        // Boundaries are handled elsewhere. This *must* be called after move_bcs,
+        // as it adjusts fi so that these rules hold!
+        rho_global[two_d_index] = f0+f1+f2+f3+f4+f5+f6+f7+f8;;
+        u_global[two_d_index] = (f1 + f5 + f8 -f6 -f3 -f7);
+        v_global[two_d_index] = (f6 + f2 + f5 -f7 -f4 -f8);
     }
 }
 
@@ -196,27 +192,29 @@ move_bcs(__global float *f_global,
 
         //INLET: constant pressure
         if ((x==0) && (y >= 1)&&(y < ny-1)){
-            float u = -((f0+f2+2*f3+f4+2*f6+2*f7-inlet_rho)/inlet_rho);
-            f_global[1*ny*nx + two_d_index] = f3 + (2./3.)*inlet_rho*u;
-            f_global[5*ny*nx + two_d_index] = -.5*f2 +.5*f4 + f7 + (1./6.)*u*inlet_rho;
-            f_global[8*ny*nx + two_d_index] = .5*f2- .5*f4 + f6 + (1./6.)*u*inlet_rho;
+            float u = -f0 -f2 -2*f3 -f4 -2*f6 -2*f7 + inlet_rho;
+            f_global[1*ny*nx + two_d_index] = (1./3.)*(3*f3 + 2*u);
+            f_global[5*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4 + 6*f7 + u);
+            f_global[8*ny*nx + two_d_index] = (1./6.)*(3*f2 - 3*f4 + 6*f6 + u);
         }
         //OUTLET: constant pressure
         if ((x==nx - 1) && (y >= 1)&&(y < ny -1)){
-            float u = -1 + (f0+2*f1+f2+f4+2*f5+2*f8)/outlet_rho;
-            f_global[3*ny*nx + two_d_index] = f1 - (2./3.)*outlet_rho*u;
-            f_global[6*ny*nx + two_d_index] = -.5*f2 + .5*f4 + f8 - (1./6.)*u*outlet_rho;
-            f_global[7*ny*nx + two_d_index] = .5*f2 - .5*f4 + f5 -(1./6.)*u*outlet_rho;
+            float u = f0 + 2*f1 + f2 + f4 + 2*f5 + 2*f8 - outlet_rho;
+            f_global[3*ny*nx + two_d_index] = (1./3.)*(3*f1 - 2*u);
+            f_global[6*ny*nx + two_d_index] = (1./6.)*(-3*f2 + 3*f4+ 6*f8 -u);
+            f_global[7*ny*nx + two_d_index] = (1./6.)*(3*f2 - 3*f4 + 6*f5 -u);
         }
 
         //NORTH: solid
         if ((y == ny-1) && (x >= 1) && (x< nx-1)){
+            float rho = f0 + f1 + 2*f2 + f3 + 2*f5 + 2*f6;
             f_global[4*ny*nx + two_d_index] = f2;
             f_global[8*ny*nx + two_d_index] = .5*(-f1+f3+2*f6);
             f_global[7*ny*nx + two_d_index] = .5*(f1-f3+2*f5);
         }
         //SOUTH: solid
         if ((y == 0) && (x >= 1) && (x < nx-1)){
+            float rho = f0 + f1 + f3 + 2*f4 + 2*f7 + 2*f8;
             f_global[2*ny*nx + two_d_index] = f4;
             f_global[6*ny*nx + two_d_index] = .5*(f1-f3+2*f8);
             f_global[5*ny*nx + two_d_index] = .5*(-f1+f3+2*f7);

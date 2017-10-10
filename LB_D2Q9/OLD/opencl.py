@@ -193,7 +193,7 @@ class Pipe_Flow(object):
                                 np.int32(self.nx), np.int32(self.ny)).wait()
 
     def move(self):
-        # Always copy f, then f_streamed
+        # Always copy f, then f_temporary
         self.kernels.move(self.queue, self.three_d_global_size, self.three_d_local_size,
                                 self.f, self.f_streamed,
                                 self.cx, self.cy,

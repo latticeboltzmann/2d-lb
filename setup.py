@@ -17,7 +17,7 @@ extensions = [
 setup(
     name='2d-lb',
     version='0.1',
-    packages=['LB_D2Q9', 'LB_D2Q9.OLD', 'LB_D2Q9.dimensionless'],
+    packages=['LB_D2Q9'],
     include_package_data=True,
     url='',
     license='',

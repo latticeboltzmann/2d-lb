@@ -2,7 +2,6 @@ import numpy as np
 import os
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 import pyopencl as cl
-import pyopencl.tools
 import ctypes as ct
 
 # Required to draw obstacles
@@ -63,7 +62,7 @@ class Pipe_Flow(object):
 
     def __init__(self, diameter=None, rho=None, viscosity=None, pressure_grad=None, pipe_length=None,
                  N=200, time_prefactor = 1.,
-                 two_d_local_size=(32,32), three_d_local_size=(32,32,1), use_interop=False):
+                 two_d_local_size=(32,32), three_d_local_size=(32,32,1)):
         """
         If an input parameter is physical, use "physical" units, i.e. a diameter could be specified in meters.
 
@@ -87,10 +86,7 @@ class Pipe_Flow(object):
         self.phys_rho = rho
         self.phys_visc = viscosity
         self.phys_pressure_grad = pressure_grad
-        self.phys_pressure_grad_div_rho = self.phys_pressure_grad / self.phys_rho
         self.phys_pipe_length = pipe_length
-
-        self.use_interop=use_interop
 
         # Get the characteristic length and time scales for the flow
         self.L = None # Characteristic length scale
@@ -99,25 +95,14 @@ class Pipe_Flow(object):
         print 'Characteristic L:', self.L
         print 'Characteristic T:', self.T
 
-        # Initialize the Weinstein (lol) number
-        self.W = (np.abs(self.phys_pressure_grad_div_rho)*self.L*self.T)/self.phys_visc
-        print 'Weinstein number:', self.W
+        # Initialize the reynolds number
+        self.Re = self.L**2/(self.phys_visc*self.T**2)
+        print 'Reynolds number:', self.Re
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
         self.delta_x = 1./N # How many squares characteristic length is broken into
         self.delta_t = time_prefactor * self.delta_x**2 # How many time iterations until the characteristic time, should be ~ \delta x^2
-
-        self.ulb = self.delta_t/self.delta_x
-        print 'u_lb:', self.ulb
-
-        # Get omega from lb_viscosity
-        # Note that lb_viscosity is basically constant as a function of grid size, as delta_t ~ delta_x**2.
-        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.W) # Viscosity of the lattice boltzmann simulation
-
-        self.omega = (3*self.lb_viscosity + 0.5)**-1. # The relaxation time of the jumpers in the simulation
-        print 'omega', self.omega
-        assert self.omega < 2.
 
         # Initialize grid dimensions
         self.lx = None # Number of grid points in the x direction, ignoring the boundary
@@ -125,6 +110,13 @@ class Pipe_Flow(object):
         self.nx = None # Number of grid points in the x direction with the boundray
         self.ny = None # Number of grid points in the y direction with the boundary
         self.initialize_grid_dims()
+
+        self.lb_viscosity = (self.delta_t/self.delta_x**2) * (1./self.Re) # Viscosity of the lattice boltzmann simulation
+
+        # Get omega from lb_viscosity
+        self.omega = (self.lb_viscosity/cs2 + 0.5)**-1. # The relaxation time of the jumpers in the simulation
+        print 'omega', self.omega
+        assert self.omega < 2.
 
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size        # The local size to be used for 2-d workgroups
@@ -185,8 +177,7 @@ class Pipe_Flow(object):
         theoretical maximum to to move a distance of L.
         """
         self.L = self.phys_diameter
-        zeta = np.abs(self.phys_pressure_grad)/self.phys_rho
-        self.T = np.sqrt(self.phys_diameter/zeta)
+        self.T = (8*self.phys_rho*self.phys_visc)/(np.abs(self.phys_pressure_grad)*self.L)
 
     def initialize_grid_dims(self):
         """
@@ -227,19 +218,14 @@ class Pipe_Flow(object):
 
         # Create a context with all the devices
         devices = platforms[0].get_devices()
-        if not self.use_interop:
-            self.context = cl.Context(devices)
-        else:
-            self.context = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])]
-                                                 + cl.tools.get_gl_sharing_context_properties(),
-                                      devices= devices)
+        self.context = cl.Context(devices)
         print 'This context is associated with ', len(self.context.devices), 'devices'
 
         # Create a simple queue
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(parent_dir + '/D2Q9i.cl').read()).build(options='')
 
     def allocate_constants(self):
         """
@@ -264,10 +250,9 @@ class Pipe_Flow(object):
         ny = self.ny
 
         # Create the inlet & outlet densities
-        #nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
-        nondim_gradP = 1.
+        nondim_deltaP = (self.T**2/(self.phys_rho*self.L))*self.phys_pressure_grad
         # Obtain the difference in density (pressure) at the inlet & outlet
-        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_gradP
+        delta_rho = self.nx*(self.delta_t**2/self.delta_x)*(1./cs2)*nondim_deltaP
 
         self.outlet_rho = 1.
         self.inlet_rho = 1. + np.abs(delta_rho)
@@ -452,8 +437,7 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
         theoretical maximum to move over the cylinder.
         """
         self.L = self.phys_cylinder_radius
-        zeta = np.abs(self.phys_pressure_grad) / self.phys_rho
-        self.T = np.sqrt(self.phys_cylinder_radius / zeta)
+        self.T = (8*self.phys_rho*self.phys_visc*self.L)/(np.abs(self.phys_pressure_grad)*self.phys_diameter**2)
 
     def initialize_grid_dims(self):
         """Initializes the grid, like the superclass, but also initializes an appropriate mask of the obstacle."""
@@ -503,6 +487,16 @@ class Pipe_Flow_Cylinder(Pipe_Flow):
                                        hostbuf=self.obstacle_mask_host)
 
         # Based on where the obstacle mask is, set velocity to zero, as appropriate.
+        self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                                   self.obstacle_mask, self.u, self.v,
+                                                   np.int32(self.nx), np.int32(self.ny)).wait()
+
+    def update_hydro(self):
+        """
+        Overrides the init_hydro method in Pipe_Flow.
+        """
+        super(Pipe_Flow_Cylinder, self).update_hydro()
+        # The velocity inside the obstacle must be zero.
         self.kernels.set_zero_velocity_in_obstacle(self.queue, self.two_d_global_size, self.two_d_local_size,
                                                    self.obstacle_mask, self.u, self.v,
                                                    np.int32(self.nx), np.int32(self.ny)).wait()
