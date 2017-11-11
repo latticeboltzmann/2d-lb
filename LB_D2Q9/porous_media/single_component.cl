@@ -143,42 +143,42 @@ collide_particles(__global float *f_global,
     const int y = get_global_id(1);
 
     if ((x < nx) && (y < ny)){
-        int cur_field = 0;
+        for (int cur_field=0; cur_field < num_populations; cur_field++){
+            const int two_d_index = y*nx + x;
+            int three_d_index = cur_field*ny*nx + two_d_index;
 
-        const int two_d_index = y*nx + x;
-        int three_d_index = cur_field*ny*nx + two_d_index;
+            rho = rho_global[three_d_index];
+            u = u_global[three_d_index];
+            v = v_global[three_d_index];
+            Fx = Fx_global[three_d_index];
+            Fy = Fy_global[three_d_index];
 
-        rho = rho_global[three_d_index];
-        u = u_global[three_d_index];
-        v = v_global[three_d_index];
-        Fx = Fx_global[three_d_index];
-        Fy = Fy_global[three_d_index];
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
-        for(int jump_id=0; jump_id < 9; jump_id++){
-            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+                float f = f_global[four_d_index];
+                float feq = feq_global[four_d_index];
+                float cur_w = w[jump_id];
+                int cur_cx = cx[jump_id];
+                int cur_cy = cy[jump_id];
 
-            float f = f_global[four_d_index];
-            float feq = feq_global[four_d_index];
-            float cur_w = w[jump_id];
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
+                float relax = f*(1-omega) + omega*feq;
+                //Calculate Fi
+                float c_dot_F = cur_cx * Fx + cur_cy * Fy;
+                float c_dot_u = cur_cx * u  + cur_cy * v;
+                float u_dot_F = Fx * u + Fy * v;
 
-            float relax = f*(1-omega) + omega*feq;
-            //Calculate Fi
-            float c_dot_F = cur_cx * Fx + cur_cy * Fy;
-            float c_dot_u = cur_cx * u  + cur_cy * v;
-            float u_dot_F = Fx * u + Fy * v;
+                float Fi = cur_w*rho*(1 - .5*omega)*(
+                    1.
+                    + c_dot_F/(cs*cs)
+                    + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
+                    - u_dot_F/(cs*cs*epsilon)
+                );
 
-            float Fi = cur_w*rho*(1 - .5*omega)*(
-                1.
-                + c_dot_F/(cs*cs)
-                + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
-                - u_dot_F/(cs*cs*epsilon)
-            );
+                float new_f = relax + Fi;
 
-            float new_f = relax + Fi;
-
-            f_global[four_d_index] = new_f;
+                f_global[four_d_index] = new_f;
+            }
         }
     }
 }
