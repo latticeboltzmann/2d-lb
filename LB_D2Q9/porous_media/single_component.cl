@@ -125,65 +125,60 @@ update_rho(__global __read_only float *f_global,
 
 __kernel void
 collide_particles(__global float *f_global,
-                            __global __read_only float *feq_global,
-                            __global __read_only float *rho_global,
-                            const float omega, const float omega_c,
-                            const float G, const float Gc,
-                            __constant float *w,
-                            const int nx, const int ny, const int num_populations)
+                  __global __read_only float *feq_global,
+                  __global __read_only float *rho_global,
+                  __global __read_only float *u_global,
+                  __global __read_only float *v_global,
+                  __global __read_only float *Fx_global,
+                  __global __read_only float *Fy_global,
+                  const float epsilon,
+                  const float omega,
+                  __constant float *w,
+                  __constant int *cx,
+                  __constant int *cy,
+                  const int nx, const int ny, const int num_populations)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
     if ((x < nx) && (y < ny)){
-
-        const int two_d_index = y*nx + x;
-
-        float cur_rho = rho_global[0*ny*nx + two_d_index]; // Density
-        float cur_c = rho_global[1*ny*nx + two_d_index]; // Surfactant concentration
-
-        //****** POPULATION ******
         int cur_field = 0;
 
-        // No growth when you are more dense than 1...but you don't shrink in amplitude!!!
-        float all_growth = G * cur_rho * (1 - cur_rho);
-        if (cur_rho > 1.0) all_growth = 0;
-
+        const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
+
+        rho = rho_global[three_d_index];
+        u = u_global[three_d_index];
+        v = v_global[three_d_index];
+        Fx = Fx_global[three_d_index];
+        Fy = Fy_global[three_d_index];
+
         for(int jump_id=0; jump_id < 9; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
             float f = f_global[four_d_index];
             float feq = feq_global[four_d_index];
             float cur_w = w[jump_id];
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
 
             float relax = f*(1-omega) + omega*feq;
-            float growth = cur_w*all_growth;
+            //Calculate Fi
+            float c_dot_F = cur_cx * Fx + cur_cy * Fy;
+            float c_dot_u = cur_cx * u  + cur_cy * v;
+            float u_dot_F = Fx * u + Fy * v;
 
-            float new_f = relax + growth;
-            if(new_f < 0) new_f = 0; // For stability?
+            float Fi = cur_w*rho*(1 - .5*omega)*(
+                1.
+                + c_dot_F/(cs*cs)
+                + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
+                - u_dot_F/(cs*cs*epsilon)
+            );
+
+            float new_f = relax + Fi;
 
             f_global[four_d_index] = new_f;
-        }
-        //****** Surfactant ******
-        cur_field = 1;
-
-        all_growth = Gc*cur_rho;
-
-        three_d_index = cur_field*ny*nx + two_d_index;
-        for(int jump_id=0; jump_id < 9; jump_id++){
-            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
-
-            float f = f_global[four_d_index];
-            float feq = feq_global[four_d_index];
-            float cur_w = w[jump_id];
-
-            float relax = f*(1-omega_c) + omega_c*feq;
-            //Nutrients are depleted at the same rate cells grow...so subtract
-            float growth = cur_w*all_growth;
-
-            f_global[four_d_index] = relax + growth;
         }
     }
 }
