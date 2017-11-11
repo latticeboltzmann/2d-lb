@@ -3,6 +3,7 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
+           constant float epsilon,
            __constant float *w,
            __constant int *cx,
            __constant int *cy,
@@ -33,8 +34,15 @@ update_feq(__global __write_only float *feq_global,
                 int cur_cy = cy[jump_id];
 
                 float cur_c_dot_u = cur_cx*u + cur_cy*v;
+                float u_squared = u*u + v*v;
 
-                float new_feq = cur_w*rho*(1.f + cur_c_dot_u/(cs*cs));
+                float new_feq =
+                cur_w*rho*(
+                1.f
+                + cur_c_dot_u/(cs*cs)
+                + cur_c_dot_u*cur_c_dot_u/(2*cs*cs*cs*cs*epsilon)
+                - u_squared/(2*cs*cs*epsilon)
+                );
 
                 feq_global[four_d_index] = new_feq;
             }
