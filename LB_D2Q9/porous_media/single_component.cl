@@ -51,6 +51,105 @@ update_feq(__global __write_only float *feq_global,
 }
 
 __kernel void
+collide_particles(__global float *f_global,
+                  __global __read_only float *feq_global,
+                  __global __read_only float *rho_global,
+                  __global __read_only float *u_global,
+                  __global __read_only float *v_global,
+                  __global __read_only float *Fx_global,
+                  __global __read_only float *Fy_global,
+                  const float epsilon,
+                  const float omega,
+                  __constant float *w,
+                  __constant int *cx,
+                  __constant int *cy,
+                  const int nx, const int ny, const int num_populations)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        for (int cur_field=0; cur_field < num_populations; cur_field++){
+            const int two_d_index = y*nx + x;
+            int three_d_index = cur_field*ny*nx + two_d_index;
+
+            rho = rho_global[three_d_index];
+            u = u_global[three_d_index];
+            v = v_global[three_d_index];
+            Fx = Fx_global[three_d_index];
+            Fy = Fy_global[three_d_index];
+
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+
+                float f = f_global[four_d_index];
+                float feq = feq_global[four_d_index];
+                float cur_w = w[jump_id];
+                int cur_cx = cx[jump_id];
+                int cur_cy = cy[jump_id];
+
+                float relax = f*(1-omega) + omega*feq;
+                //Calculate Fi
+                float c_dot_F = cur_cx * Fx + cur_cy * Fy;
+                float c_dot_u = cur_cx * u  + cur_cy * v;
+                float u_dot_F = Fx * u + Fy * v;
+
+                float Fi = cur_w*rho*(1 - .5*omega)*(
+                    1.
+                    + c_dot_F/(cs*cs)
+                    + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
+                    - u_dot_F/(cs*cs*epsilon)
+                );
+
+                float new_f = relax + Fi;
+
+                f_global[four_d_index] = new_f;
+            }
+        }
+    }
+}
+
+__kernel void
+update_hydro(__global __read_only float *f_global,
+             __global float *rho_global,
+             __global float *u_global,
+             __global float *v_global,
+             __global __read_only float *Fx_global,
+             __global __read_only float *Fy_global,
+             const float epsilon,
+             __constant float *w,
+             __constant int *cx,
+             __constant int *cy,
+             const int nx, const int ny, const int num_populations)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        for (int cur_field=0; cur_field < num_populations; cur_field++){
+            const int two_d_index = y*nx + x;
+            int three_d_index = cur_field*ny*nx + two_d_index;
+
+            u = u_global[three_d_index];
+            v = v_global[three_d_index];
+            Fx = Fx_global[three_d_index];
+            Fy = Fy_global[three_d_index];
+
+            // Update rho!
+            float new_rho = 0;
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;               float f = f_global[four_d_index];
+                new_rho += f;
+            }
+            rho_global[three_d_index] = new_rho;
+            //TODO: START HERE
+        }
+    }
+}
+
+__kernel void
 update_surf_tension(__global float *S_global,
                 __global __read_only float *rho_global,
                 const float c_o, const float alpha,
@@ -123,65 +222,7 @@ update_rho(__global __read_only float *f_global,
     }
 }
 
-__kernel void
-collide_particles(__global float *f_global,
-                  __global __read_only float *feq_global,
-                  __global __read_only float *rho_global,
-                  __global __read_only float *u_global,
-                  __global __read_only float *v_global,
-                  __global __read_only float *Fx_global,
-                  __global __read_only float *Fy_global,
-                  const float epsilon,
-                  const float omega,
-                  __constant float *w,
-                  __constant int *cx,
-                  __constant int *cy,
-                  const int nx, const int ny, const int num_populations)
-{
-    //Input should be a 2d workgroup! Loop over the third dimension.
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
 
-    if ((x < nx) && (y < ny)){
-        for (int cur_field=0; cur_field < num_populations; cur_field++){
-            const int two_d_index = y*nx + x;
-            int three_d_index = cur_field*ny*nx + two_d_index;
-
-            rho = rho_global[three_d_index];
-            u = u_global[three_d_index];
-            v = v_global[three_d_index];
-            Fx = Fx_global[three_d_index];
-            Fy = Fy_global[three_d_index];
-
-            for(int jump_id=0; jump_id < 9; jump_id++){
-                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
-
-                float f = f_global[four_d_index];
-                float feq = feq_global[four_d_index];
-                float cur_w = w[jump_id];
-                int cur_cx = cx[jump_id];
-                int cur_cy = cy[jump_id];
-
-                float relax = f*(1-omega) + omega*feq;
-                //Calculate Fi
-                float c_dot_F = cur_cx * Fx + cur_cy * Fy;
-                float c_dot_u = cur_cx * u  + cur_cy * v;
-                float u_dot_F = Fx * u + Fy * v;
-
-                float Fi = cur_w*rho*(1 - .5*omega)*(
-                    1.
-                    + c_dot_F/(cs*cs)
-                    + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
-                    - u_dot_F/(cs*cs*epsilon)
-                );
-
-                float new_f = relax + Fi;
-
-                f_global[four_d_index] = new_f;
-            }
-        }
-    }
-}
 
 __kernel void
 move_periodic(__global __read_only float *f_global,
