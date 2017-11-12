@@ -117,7 +117,12 @@ update_hydro(__global __read_only float *f_global,
              __global float *v_global,
              __global __read_only float *Fx_global,
              __global __read_only float *Fy_global,
+             __global __read_only float *Gx_global,
+             __global __read_only float *Gy_global,
              const float epsilon,
+             const float nu_fluid,
+             const float Fe,
+             const float K,
              __constant float *w,
              __constant int *cx,
              __constant int *cy,
@@ -137,6 +142,9 @@ update_hydro(__global __read_only float *f_global,
             Fx = Fx_global[three_d_index];
             Fy = Fy_global[three_d_index];
 
+            Gx = Gx_global[three_d_index];
+            Gy = Gy_global[three_d_index];
+
             // Update rho!
             float new_rho = 0;
             for(int jump_id=0; jump_id < 9; jump_id++){
@@ -144,7 +152,35 @@ update_hydro(__global __read_only float *f_global,
                 new_rho += f;
             }
             rho_global[three_d_index] = new_rho;
-            //TODO: START HERE
+            //Now determine the new velocity
+            float rho_u_temp = 0;
+            float rho_v_temp = 0;
+
+            for(int jump_id=0; jump_id < 9; jump_id++){
+                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+                float f = f_global[four_d_index];
+                float cur_cx = cx[jump_id];
+                float cur_cy = cy[jump_id];
+
+                rho_u_temp += cur_cx * f
+                rho_v_temp += cur_cy * f
+            }
+            rho_u_temp += .5*epsilon*new_rho*Gx;
+            rho_v_temp += .5*epsilon*new_rho*Gy;
+
+            float u_temp = rho_u_temp/new_rho;
+            float v_temp = rho_v_temp/new_rho;
+
+            c0 = .5*(1 + .5*epsilon*nu_fluid/K);
+            c1 = epsilon*.5*Fe/sqrt(K);
+
+            temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
+
+            float new_u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+            float new_v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+
+            u_global[three_d_index] = new_u;
+            v_global[three_d_index] = new_v;
         }
     }
 }
