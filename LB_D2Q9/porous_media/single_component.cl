@@ -67,7 +67,8 @@ collide_particles(__global float *f_global,
                   __constant int *cy_arr,
                   const int nx, const int ny,
                   const int cur_field,
-                  const int num_populations)
+                  const int num_populations,
+                  const float delta_t)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -108,7 +109,7 @@ collide_particles(__global float *f_global,
                 - u_dot_F/(cs*cs*epsilon)
             );
 
-            float new_f = relax + Fi;
+            float new_f = relax + delta_t * Fi;
 
             f_global[four_d_index] = new_f;
         }
@@ -145,13 +146,16 @@ update_hydro(__global __read_only float *f_global,
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        u = u_global[three_d_index];
-        v = v_global[three_d_index];
         Fx = Fx_global[three_d_index];
         Fy = Fy_global[three_d_index];
 
         Gx = Gx_global[three_d_index];
         Gy = Gy_global[three_d_index];
+
+        epsilon = epsilon_arr[cur_field];
+        nu_fluid = nu_fluid_arr[cur_field];
+        Fe = Fe_arr[cur_field];
+        K = K_arr[cur_field];
 
         // Update rho!
         float new_rho = 0;
@@ -184,11 +188,30 @@ update_hydro(__global __read_only float *f_global,
 
         temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
 
-        float new_u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
-        float new_v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+        float u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+        float v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
 
-        u_global[three_d_index] = new_u;
-        v_global[three_d_index] = new_v;
+        u_global[three_d_index] = u;
+        v_global[three_d_index] = v;
+
+        // Based on the new velocity, determine the force.
+        // Note that you have to calculate the new velocity first in this formalism!
+        float Fx = 0;
+        float Fy = 0;
+
+        Fx += -(epsilon * nu_fluid*u)/K;
+        Fy += -(epsilon * nu_fluid*v)/K;
+
+        float vel_mag = sqrt(u*u + v*v);
+
+        Fx += -(epsilon * Fe * vel_mag * u)/sqrt(K);
+        Fy += -(epsilon * Fe * vel_mag * v)/sqrt(K);
+
+        Fx += epsilon*Gx;
+        Fy += epsilon*Gy;
+
+        Fx_global[three_d_index] = Fx;
+        Fy_global[three_d_index} = Fy;
     }
 }
 
