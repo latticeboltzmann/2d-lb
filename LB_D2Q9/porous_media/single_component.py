@@ -6,7 +6,6 @@ import pyopencl.tools
 import pyopencl.clrandom
 import pyopencl.array
 import ctypes as ct
-from LB_D2Q9.spectral_poisson import screened_poisson as sp
 import matplotlib.pyplot as plt
 
 # Required to draw obstacles
@@ -58,7 +57,9 @@ def get_divisible_global(global_size, local_size):
 
 class Pourous_Media(object):
 
-    def __init__(self, field_index, nu_e = 1.0, epsilon = 1.0, K=1.0, Fe=1.0):
+    def __init__(self, sim, field_index, nu_e = 1.0, epsilon = 1.0, K=1.0, Fe=1.0):
+
+        self.sim = sim # TODO: MAKE THIS A WEAKREF
 
         self.field_index = np.int32(field_index)
 
@@ -66,6 +67,52 @@ class Pourous_Media(object):
         self.epsilon = np.float32(epsilon)
         self.K = np.float32(K)
         self.Fe = np.float32(Fe)
+
+        # Determine the viscosity
+        self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
+        self.tau = np.float32((.5 + self.lb_nu_e / cs ** 2))
+        self.omega =  self.tau ** -1.  # The relaxation time of the jumpers in the simulation
+        print 'omega', self.omega
+        assert self.omega < 2.
+
+    def initialize(self, u_arr, v_arr, rho_arr):
+        """
+        User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
+        distribution functions.
+        """
+
+        nx = self.sim.nx
+        ny = self.sim.ny
+
+        #### VELOCITY ####
+        u_host = self.sim.u.get()
+        v_host = self.sim.v.get()
+
+        u_host[...] = u_arr
+        v_host[...] = v_arr
+
+        self.sim.u = cl.array.to_device(self.sim.queue, u_host)
+        self.sim.v = cl.array.to_device(self.sim.queue, v_host)
+
+        #### DENSITY #####
+        rho_host = self.sim.rho.get()
+
+        rho_host[:, :, self.field_index] = rho_arr
+        self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
+
+        #### UPDATE HOPPERS ####
+        self.update_feq() # Based on the hydrodynamic fields, create feq
+
+        # Now initialize the nonequilibrium f
+        # In order to stream in parallel without communication between workgroups, we need two buffers (as far as the
+        # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
+        # after the particles have streamed.
+
+        self.f = None
+        self.f_streamed = None
+
+        self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+
 
     def update_feq(self, sim):
         """
@@ -87,8 +134,7 @@ class Simulation_Runner(object):
     """
 
     def __init__(self, Lx=1.0, Ly=1.0,
-                 nu_e = 1.0, epsilon = 1.0, K=1.0, Fe=1.0,
-                 time_prefactor=1., N=10,
+                 time_prefactor=1., N=10, num_populations=1,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
         """
@@ -101,10 +147,11 @@ class Simulation_Runner(object):
         :param two_d_local_size: A tuple of the local size to be used in 2d, i.e. (32, 32)
         """
 
-        # Physical units
+        self.num_populations = num_populations
+
+        # Dimensionless units
         self.Lx = Lx
         self.Ly = Ly
-
 
         # Book-keeping
         self.num_populations = np.int32(1)
@@ -112,8 +159,7 @@ class Simulation_Runner(object):
         self.check_max_ulb = check_max_ulb
         self.mach_tolerance = mach_tolerance
 
-        # Get the characteristic length and time scales for the flow. Since this simulation is in dimensionless units
-        # they should both be one!
+        # Get the characteristic length and time scales for the flow.
         self.L = 1.0 # mm
         self.T = 1.0 # Time in generations
 
@@ -125,13 +171,6 @@ class Simulation_Runner(object):
         # Characteristic LB speed corresponding to dimensionless speed of 1. Must be MUCH smaller than cs = .57 or so.
         self.ulb = self.delta_t/self.delta_x
         print 'u_lb:', self.ulb
-
-        # Population field
-        self.lb_nu_e = self.nu_e * (self.delta_t / self.delta_x ** 2)
-        self.omega = (.5 + self.lb_nu_e / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        self.omega = np.float32(self.omega)
-        print 'omega', self.omega
-        assert self.omega < 2.
 
         # Initialize grid dimensions
         self.nx = None # Number of grid points in the x direction with the boundray
@@ -165,32 +204,45 @@ class Simulation_Runner(object):
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables & Shan-chen variables
-        self.rho = None # The simulation's density field. Defined for each field.
-        self.u = None # Velocity in the x direction; one per sim.
-        self.v = None # Velocity in the y direction; one per sim.
+
+        rho_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        self.rho = cl.array.to_device(self.queue, rho_host)
+
+        u_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        v_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        self.u = cl.array.to_device(self.queue, u_host) # Velocity in the x direction; one per sim!
+        self.v = cl.array.to_device(self.queue, v_host) # Velocity in the y direction; one per sim.
+
+        # Intitialize the underlying feq equilibrium field
+        feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
+        self.feq = cl.array.to_device(self.queue, feq_host)
+
+        f_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
+        self.f = cl.array.to_device(self.queue, feq_host)
+
+
+        #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
 
         self.x_center = None
         self.y_center = None
         self.X_dim = None
         self.Y_dim = None
 
-        self.init_hydro() # Create the hydrodynamic fields
+        self.x_center = self.nx / 2
+        self.y_center = self.ny / 2
 
-        # Intitialize the underlying feq equilibrium field
-        feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
-        self.feq = cl.array.to_device(self.queue, feq_host)
+        xvalues = np.arange(self.nx)
+        yvalues = np.arange(self.ny)
+        Y, X = np.meshgrid(yvalues, xvalues)
+        X = X.astype(np.float)
+        Y = Y.astype(np.float)
 
-        self.update_feq() # Based on the hydrodynamic fields, create feq
+        deltaX = X - self.x_center
+        deltaY = Y - self.y_center
 
-        # Now initialize the nonequilibrium f
-        # In order to stream in parallel without communication between workgroups, we need two buffers (as far as the
-        # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
-        # after the particles have streamed.
-
-        self.f = None
-        self.f_streamed = None
-
-        self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+        # Convert to dimensionless coordinates
+        self.X = deltaX / self.N
+        self.Y = deltaY / self.N
 
 
     def initialize_grid_dims(self):
@@ -259,52 +311,6 @@ class Simulation_Runner(object):
         self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
         self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
 
-
-    def init_hydro(self):
-        """
-        Based on the initial conditions, initialize the hydrodynamic fields, like density and velocity.
-        This involves creating the poisson solver and solving for the velocity fields.
-        """
-
-        nx = self.nx
-        ny = self.ny
-
-        #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
-        self.x_center = nx/2
-        self.y_center = ny/2
-
-        # Now initialize the gaussian
-        xvalues = np.arange(nx)
-        yvalues = np.arange(ny)
-        Y, X = np.meshgrid(yvalues, xvalues)
-        X = X.astype(np.float)
-        Y = Y.astype(np.float)
-
-        deltaX = X - self.x_center
-        deltaY = Y - self.y_center
-
-        # Convert to dimensionless coordinates
-        self.X = deltaX / self.N
-        self.Y = deltaY / self.N
-
-        #### DENSITY #####
-        rho_host = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
-
-        ## Population field
-        rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2))*(1 + .01*np.random.randn(nx, ny))
-
-        ## Surfactant field
-        rho_host[:, :, self.surf_index] = 0.0 # No surfactant initially
-
-        # Send to device
-        self.rho = cl.array.to_device(self.queue, rho_host)
-
-        ### Velocity ###
-        u = np.zeros((nx, ny), dtype=np.float32, order='F')
-        v = np.zeros((nx, ny), dtype=np.float32, order='F')
-
-        self.u = cl.array.to_device(self.queue, u)
-        self.v = cl.array.to_device(self.queue, v)
 
 
 
