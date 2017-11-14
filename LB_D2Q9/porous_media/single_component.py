@@ -56,14 +56,38 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
+class Pourous_Media(object):
 
-class Porous_Media(object):
+    def __init__(self, field_index, nu_e = 1.0, epsilon = 1.0, K=1.0, Fe=1.0):
+
+        self.field_index = np.int32(field_index)
+
+        self.nu_e = np.float32(nu_e)
+        self.epsilon = np.float32(epsilon)
+        self.K = np.float32(K)
+        self.Fe = np.float32(Fe)
+
+    def update_feq(self, sim):
+        """
+        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
+        Implemented in OpenCL.
+        """
+        self.kernels.update_feq_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                                self.feq.data,
+                                self.rho.data,
+                                self.u.data,
+                                self.v.data,
+                                sim.w, sim.cx, sim.cy, cs,
+                                sim.nx, sim.ny, sim.num_populations).wait()
+
+
+class Simulation_Runner(object):
     """
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0, R0 = 5., epsilon=1., Dc = 1./4., Gc = 2.0,
-                 rho_o=1.0, c_o = 0.25, alpha=2.0, G_chen=-1.0,
+    def __init__(self, Lx=1.0, Ly=1.0,
+                 nu_e = 1.0, epsilon = 1.0, K=1.0, Fe=1.0,
                  time_prefactor=1., N=10,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
@@ -80,35 +104,17 @@ class Porous_Media(object):
         # Physical units
         self.Lx = Lx
         self.Ly = Ly
-        # Population growth and diffusion constant are set by our non-dimensionalization
-        self.D = 1./4.
-        self.G = 1.
 
-        # Surfactant diffusion constant and "growth rate" are set by the user
-        self.Dc = (1./4.)*np.float32(Dc)
-        self.Gc = np.float32(Gc)
-        self.epsilon = np.float32(epsilon) # Characteristic velocity coupling constant, deals with height vs. how concentration impacts surface tension
-
-        self.R0 = R0 # Initial radius of the droplet
-
-        self.c_o = np.float32(c_o) # The characteristic concentration where surface decrease is saturated
-        self.alpha = np.float32(alpha) # Tuning the nonlinearity in the falloff of surface tension decrease
-
-        # For clumpiness, self-attraction of yeast
-        self.rho_o = np.float32(rho_o)
-        self.G_chen = np.float32(G_chen)
 
         # Book-keeping
-        self.num_populations = np.int32(2) # Population and surfactant
-        self.pop_index = np.int32(0)
-        self.surf_index = np.int32(1)
+        self.num_populations = np.int32(1)
 
         self.check_max_ulb = check_max_ulb
         self.mach_tolerance = mach_tolerance
 
         # Get the characteristic length and time scales for the flow. Since this simulation is in dimensionless units
         # they should both be one!
-        self.L = 1.0 # Fisher length
+        self.L = 1.0 # mm
         self.T = 1.0 # Time in generations
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
@@ -121,25 +127,11 @@ class Porous_Media(object):
         print 'u_lb:', self.ulb
 
         # Population field
-        self.lb_D = self.D * (self.delta_t / self.delta_x ** 2) # Diffusion constant in LB units
-        self.lb_D = np.float32(self.lb_D)
-        self.omega = (.5 + self.lb_D / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
+        self.lb_nu_e = self.nu_e * (self.delta_t / self.delta_x ** 2)
+        self.omega = (.5 + self.lb_nu_e / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
         self.omega = np.float32(self.omega)
         print 'omega', self.omega
         assert self.omega < 2.
-
-        self.lb_G = np.float32(self.G * self.delta_t)
-
-        # Surfactant Field
-        self.lb_Dc = self.Dc * (self.delta_t / self.delta_x ** 2)  # Diffusion constant in LB units
-        self.lb_Dc = np.float32(self.lb_Dc)
-
-        self.omega_c = (.5 + self.lb_Dc / cs ** 2) ** -1.  # The relaxation time of the jumpers in the simulation
-        self.omega_c = np.float32(self.omega_c)
-        print 'omega_s', self.omega_c
-        assert self.omega_c < 2.
-
-        self.lb_Gc = np.float32(self.Gc * self.delta_t)
 
         # Initialize grid dimensions
         self.nx = None # Number of grid points in the x direction with the boundray
@@ -173,24 +165,16 @@ class Porous_Media(object):
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables & Shan-chen variables
-        self.rho = None # The simulation's density field
-        self.u = None # Velocity in the x direction
-        self.v = None # Velocity in the y direction
-        self.S = None # S(c): how the surfactant saturates the surface as a function of c
-
-        self.surface_force_x = None # The simulation's velocity in the x direction (horizontal)
-        self.surface_force_y = None # The simulation's velocity in the y direction (vertical)
-
-        self.psi = None # Accounts for vanderwalls forces between strains
-        self.pseudo_force_x = None
-        self.pseudo_force_y = None
+        self.rho = None # The simulation's density field. Defined for each field.
+        self.u = None # Velocity in the x direction; one per sim.
+        self.v = None # Velocity in the y direction; one per sim.
 
         self.x_center = None
         self.y_center = None
         self.X_dim = None
         self.Y_dim = None
 
-        self.init_hydro() # Create the hydrodynamic fields, and also intialize the poisson solver
+        self.init_hydro() # Create the hydrodynamic fields
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
@@ -307,17 +291,13 @@ class Porous_Media(object):
         rho_host = np.zeros((nx, ny, self.num_populations), dtype=np.float32, order='F')
 
         ## Population field
-        rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2)/self.R0**2)*(1 + .05*np.random.randn(nx, ny))
+        rho_host[:, :, self.pop_index] = 1.0*np.exp(-(self.X**2 + self.Y**2))*(1 + .01*np.random.randn(nx, ny))
 
         ## Surfactant field
         rho_host[:, :, self.surf_index] = 0.0 # No surfactant initially
 
         # Send to device
         self.rho = cl.array.to_device(self.queue, rho_host)
-
-        ### Mobility ###
-        m = np.zeros((nx, ny), dtype=np.float32, order='F')
-        self.S = cl.array.to_device(self.queue, m)
 
         ### Velocity ###
         u = np.zeros((nx, ny), dtype=np.float32, order='F')
@@ -326,27 +306,7 @@ class Porous_Media(object):
         self.u = cl.array.to_device(self.queue, u)
         self.v = cl.array.to_device(self.queue, v)
 
-        #### FORCES ####
 
-        # Surface forces
-        surface_force_x = np.zeros((nx, ny), dtype=np.float32, order='F')
-        surface_force_y = np.zeros((nx, ny), dtype=np.float32, order='F')
-
-        self.surface_force_x = cl.array.to_device(self.queue, surface_force_x)
-        self.surface_force_y = cl.array.to_device(self.queue, surface_force_y)
-
-        # Van-der-waals forces
-        psi_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
-        self.psi = cl.array.to_device(self.queue, psi_host)
-
-        pseudo_force_host = np.zeros((self.ny, self.ny), dtype=np.float32, order='F')
-        self.pseudo_force_x = cl.array.to_device(self.queue, pseudo_force_host)
-        self.pseudo_force_y = self.pseudo_force_x.copy()
-
-        # Now initialize all forces present
-        self.update_forces()
-        # Once we have the forces, determine the velocities
-        self.update_u_and_v()
 
     def redo_initial_condition(self, rho_field):
         """After you have specified your own IC"""

@@ -3,8 +3,8 @@ update_feq(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
-           __constant float *epsilon_arr,
-           __constant float *w_arr,
+           const float epsilon,
+           const float w,
            __constant int *cx_arr,
            __constant int *cy_arr,
            const float cs,
@@ -26,7 +26,6 @@ update_feq(__global __write_only float *feq_global,
         float rho = rho_global[three_d_index];
         const float u = u_global[three_d_index];
         const float v = v_global[three_d_index];
-        const float epsilon = epsilon_arr[field_num];
 
         // Now loop over every jumper
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
