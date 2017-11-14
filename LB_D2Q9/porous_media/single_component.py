@@ -81,9 +81,6 @@ class Pourous_Media(object):
         distribution functions.
         """
 
-        nx = self.sim.nx
-        ny = self.sim.ny
-
         #### VELOCITY ####
         u_host = self.sim.u.get()
         v_host = self.sim.v.get()
@@ -108,24 +105,43 @@ class Pourous_Media(object):
         # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
         # after the particles have streamed.
 
-        self.f = None
-        self.f_streamed = None
-
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
 
-    def update_feq(self, sim):
+    def update_feq(self):
         """
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
         Implemented in OpenCL.
         """
-        self.kernels.update_feq_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
-                                self.feq.data,
-                                self.rho.data,
-                                self.u.data,
-                                self.v.data,
+
+        sim = self.sim
+
+        self.sim.kernels.update_feq_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                                sim.feq.data,
+                                sim.rho.data,
+                                sim.u.data,
+                                sim.v.data,
                                 sim.w, sim.cx, sim.cy, cs,
                                 sim.nx, sim.ny, sim.num_populations).wait()
+
+    def init_pop(self, amplitude=0.001):
+        """Based on feq, create the initial population of jumpers."""
+
+        nx = self.sim.nx
+        ny = self.sim.ny
+
+        # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
+        f_host = self.sim.feq.get() #TODO: START HERE, FIGURE OUT HOW TO UPDATE THIS FIELD ALONE...
+        cur_f = f_host[:, :, self.field_index, :]
+
+        # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
+        # from sall fluctuations. Sooo...be careful.
+        perturb = (1. + amplitude * np.random.randn(nx, ny, NUM_JUMPERS))
+        cur_f *= perturb
+
+        # Now send f to the GPU
+        f_host[:, :, self.field_index, :] = cur_f
+        self.sim.f = cl.array.to_device(self.sim.queue, f_host)
 
 
 class Simulation_Runner(object):
@@ -218,8 +234,8 @@ class Simulation_Runner(object):
         self.feq = cl.array.to_device(self.queue, feq_host)
 
         f_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
-        self.f = cl.array.to_device(self.queue, feq_host)
-
+        self.f = cl.array.to_device(self.queue, f_host)
+        self.f_streamed = self.f.copy()
 
         #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
 
@@ -336,26 +352,6 @@ class Simulation_Runner(object):
                                 self.v.data,
                                 self.w, self.cx, self.cy, cs,
                                 self.nx, self.ny, self.num_populations).wait()
-
-    def init_pop(self, amplitude=0):
-        """Based on feq, create the initial population of jumpers."""
-
-        nx = self.nx
-        ny = self.ny
-
-        # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
-        f_host = self.feq.get()
-
-        # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
-        # from sall fluctuations. Sooo...be careful.
-        perturb = (1. + amplitude*np.random.randn(nx, ny, self.num_populations, NUM_JUMPERS))
-        f_host *= perturb
-
-        # Now send f to the GPU
-        self.f = cl.array.to_device(self.queue, f_host)
-
-        # f_temporary will be the buffer that f moves into in parallel.
-        self.f_streamed = self.f.copy()
 
     def move_bcs(self):
         """
