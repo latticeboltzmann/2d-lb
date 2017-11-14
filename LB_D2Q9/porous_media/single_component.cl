@@ -159,7 +159,8 @@ update_hydro_pourous(__global __read_only float *f_global,
         // Update rho!
         float new_rho = 0;
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;               float f = f_global[four_d_index];
+            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+            float f = f_global[four_d_index];
             new_rho += f;
         }
         rho_global[three_d_index] = new_rho;

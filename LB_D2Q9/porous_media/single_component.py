@@ -75,7 +75,7 @@ class Pourous_Media(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
-    def initialize(self, u_arr, v_arr, rho_arr):
+    def initialize(self, u_arr, v_arr, rho_arr, Gx_arr, Gy_arr):
         """
         User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
         distribution functions.
@@ -97,6 +97,10 @@ class Pourous_Media(object):
         rho_host[:, :, self.field_index] = rho_arr
         self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
 
+        # Initialize G
+        self.Gx = cl.array.to_device(self.sim.queue, Gx_arr)
+        self.Gy = cl.array.to_device(self.sim.queue, Gy_arr)
+
         #### UPDATE HOPPERS ####
         self.update_feq() # Based on the hydrodynamic fields, create feq
 
@@ -106,6 +110,7 @@ class Pourous_Media(object):
         # after the particles have streamed.
 
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+
 
 
     def update_feq(self):
