@@ -97,9 +97,15 @@ class Pourous_Media(object):
         rho_host[:, :, self.field_index] = rho_arr
         self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
 
-        # Initialize G
-        self.Gx = cl.array.to_device(self.sim.queue, Gx_arr)
-        self.Gy = cl.array.to_device(self.sim.queue, Gy_arr)
+        #### BODY FORCES ####
+        Gx_host = self.sim.Gx.get()
+        Gy_host = self.sim.Gy.get()
+
+        Gx_host[:, :, self.field_index] = Gx_arr
+        Gy_host[:, :, self.field_index] = Gy_arr
+
+        self.sim.Gx = cl.array.to_device(self.sim.queue, Gx_host)
+        self.sim.Gy = cl.array.to_device(self.sim.queue, Gy_host)
 
         #### UPDATE HOPPERS ####
         self.update_feq() # Based on the hydrodynamic fields, create feq
@@ -326,6 +332,12 @@ class Simulation_Runner(object):
         f_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
+
+        # Initialize G: the body force acting on each phase
+        Gx_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        Gy_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        self.Gx = cl.array.to_device(self.sim.queue, Gx_host)
+        self.Gy = cl.array.to_device(self.sim.queue, Gy_host)
 
         #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
 
