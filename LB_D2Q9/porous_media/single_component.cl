@@ -1,5 +1,5 @@
 __kernel void
-update_feq(__global __write_only float *feq_global,
+update_feq_pourous(__global __write_only float *feq_global,
            __global __read_only float *rho_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
@@ -116,7 +116,7 @@ collide_particles(__global float *f_global,
 }
 
 __kernel void
-update_hydro(__global __read_only float *f_global,
+update_hydro_pourous(__global __read_only float *f_global,
              __global float *rho_global,
              __global float *u_global,
              __global float *v_global,

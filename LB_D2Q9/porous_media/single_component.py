@@ -131,7 +131,7 @@ class Pourous_Media(object):
         ny = self.sim.ny
 
         # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
-        f_host = self.sim.feq.get() #TODO: START HERE, FIGURE OUT HOW TO UPDATE THIS FIELD ALONE...
+        f_host = self.sim.feq.get()
         cur_f = f_host[:, :, self.field_index, :]
 
         # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
@@ -143,6 +143,91 @@ class Pourous_Media(object):
         f_host[:, :, self.field_index, :] = cur_f
         self.sim.f = cl.array.to_device(self.sim.queue, f_host)
 
+    def move_bcs(self):
+        """
+        Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
+        Implemented in OpenCL.
+        """
+        pass # Implemented in move_periodic in this case...it's just easier
+
+    def move(self):
+        """
+        Move all other jumpers than those on the boundary. Implemented in OpenCL. Consists of two steps:
+        streaming f into a new buffer, and then copying that new buffer onto f. We could not think of a way to stream
+        in parallel without copying the temporary buffer back onto f.
+        """
+
+        sim = self.sim
+
+        self.sim.kernels.move_periodic(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                                sim.f.data, sim.f_streamed.data,
+                                sim.cx, sim.cy,
+                                sim.nx, sim.ny, sim.num_populations).wait()
+
+        # Copy the streamed buffer into f so that it is correctly updated.
+        cl.enqueue_copy(sim.queue, sim.f.data, sim.f_streamed.data)
+
+    def update_hydro(self):
+        """
+        Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
+        """
+
+        sim = self.sim
+
+        sim.kernels.update_hydro_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                                sim.f.data,
+                                sim.rho.data,
+                                sim.nx, sim.ny, sim.num_populations).wait()
+        self.update_forces()
+
+        if sim.check_max_ulb:
+            max_ulb = cl.array.max((sim.u**2 + sim.v**2)**.5, queue=self.queue)
+
+            if max_ulb > cs*self.mach_tolerance:
+                print 'max_ulb is greater than cs/10! Ma=', max_ulb/cs
+
+    def update_forces(self):
+
+        ### Forces due to fluid shear ###
+        self.kernels.update_surf_tension(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                     self.S.data,
+                                     self.rho.data,
+                                     self.c_o,
+                                     self.alpha,
+                                     self.nx, self.ny, self.surf_index).wait()
+        self.kernels.update_surface_forces(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                    self.S.data,
+                                    self.surface_force_x.data, self.surface_force_y.data,
+                                    self.surf_index, cs, self.epsilon,
+                                    self.cx, self.cy, self.w,
+                                    self.psi_local,
+                                    self.nx, self.ny,
+                                    self.buf_nx, self.buf_ny, self.halo).wait()
+
+        self.kernels.update_pressure_force(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                         self.rho.data,
+                                         self.pop_index,
+                                         self.pseudo_force_x.data,
+                                         self.pseudo_force_y.data,
+                                         self.G_chen,
+                                         self.rho_o,
+                                         cs,
+                                         self.cx,
+                                         self.cy,
+                                         self.w,
+                                         self.psi_local,
+                                         self.nx, self.ny, self.buf_nx, self.buf_ny,
+                                         self.halo).wait()
+
+    def collide_particles(self):
+        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                       self.f.data,
+                                       self.feq.data,
+                                       self.rho.data,
+                                       self.omega, self.omega_c,
+                                       self.lb_G, self.lb_Gc,
+                                       self.w,
+                                       self.nx, self.ny, self.num_populations).wait()
 
 class Simulation_Runner(object):
     """
@@ -339,112 +424,6 @@ class Simulation_Runner(object):
 
         self.update_feq()  # Based on the hydrodynamic fields, create feq
         self.init_pop()  # Based on feq, create the hopping non-equilibrium fields
-
-    def update_feq(self):
-        """
-        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
-        Implemented in OpenCL.
-        """
-        self.kernels.update_feq(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.feq.data,
-                                self.rho.data,
-                                self.u.data,
-                                self.v.data,
-                                self.w, self.cx, self.cy, cs,
-                                self.nx, self.ny, self.num_populations).wait()
-
-    def move_bcs(self):
-        """
-        Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
-        Implemented in OpenCL.
-        """
-        pass # Implemented in move_periodic in this case...it's just easier
-
-    def move(self):
-        """
-        Move all other jumpers than those on the boundary. Implemented in OpenCL. Consists of two steps:
-        streaming f into a new buffer, and then copying that new buffer onto f. We could not think of a way to stream
-        in parallel without copying the temporary buffer back onto f.
-        """
-        self.kernels.move_periodic(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f.data, self.f_streamed.data,
-                                self.cx, self.cy,
-                                self.nx, self.ny, self.num_populations).wait()
-
-        # Copy the streamed buffer into f so that it is correctly updated.
-        cl.enqueue_copy(self.queue, self.f.data, self.f_streamed.data)
-
-    def update_hydro(self):
-        """
-        Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
-        """
-        self.kernels.update_rho(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                self.f.data,
-                                self.rho.data,
-                                self.nx, self.ny, self.num_populations).wait()
-        self.update_forces()
-        # Once you have updated the forces, velocity is proportional to force
-        self.update_u_and_v()
-
-    def update_u_and_v(self):
-
-        self.kernels.update_u_and_v(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    self.u.data,
-                                    self.v.data,
-                                    self.pseudo_force_x.data,
-                                    self.pseudo_force_y.data,
-                                    self.surface_force_x.data,
-                                    self.surface_force_y.data,
-                                    self.nx, self.ny, self.num_populations).wait()
-
-        if self.check_max_ulb:
-            max_ulb = cl.array.max((self.u**2 + self.v**2)**.5, queue=self.queue)
-
-            if max_ulb > cs*self.mach_tolerance:
-                print 'max_ulb is greater than cs/10! Ma=', max_ulb/cs
-
-    def update_forces(self):
-
-        ### Forces due to fluid shear ###
-        self.kernels.update_surf_tension(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                     self.S.data,
-                                     self.rho.data,
-                                     self.c_o,
-                                     self.alpha,
-                                     self.nx, self.ny, self.surf_index).wait()
-        self.kernels.update_surface_forces(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    self.S.data,
-                                    self.surface_force_x.data, self.surface_force_y.data,
-                                    self.surf_index, cs, self.epsilon,
-                                    self.cx, self.cy, self.w,
-                                    self.psi_local,
-                                    self.nx, self.ny,
-                                    self.buf_nx, self.buf_ny, self.halo).wait()
-
-        self.kernels.update_pressure_force(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                         self.rho.data,
-                                         self.pop_index,
-                                         self.pseudo_force_x.data,
-                                         self.pseudo_force_y.data,
-                                         self.G_chen,
-                                         self.rho_o,
-                                         cs,
-                                         self.cx,
-                                         self.cy,
-                                         self.w,
-                                         self.psi_local,
-                                         self.nx, self.ny, self.buf_nx, self.buf_ny,
-                                         self.halo).wait()
-
-    def collide_particles(self):
-        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                       self.f.data,
-                                       self.feq.data,
-                                       self.rho.data,
-                                       self.omega, self.omega_c,
-                                       self.lb_G, self.lb_Gc,
-                                       self.w,
-                                       self.nx, self.ny, self.num_populations).wait()
 
 
     def run(self, num_iterations):
