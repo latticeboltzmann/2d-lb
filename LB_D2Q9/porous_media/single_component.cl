@@ -4,7 +4,7 @@ update_feq_pourous(__global __write_only float *feq_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
            const float epsilon,
-           const float w,
+           __constant float *w,
            __constant int *cx_arr,
            __constant int *cy_arr,
            const float cs,
@@ -221,12 +221,11 @@ update_hydro_pourous(__global __read_only float *f_global,
         float u_prime = u_prime_global[two_d_index];
         float v_prime = v_prime_global[two_d_index];
 
-        //TODO: I CAN'T FIGURE OUT IF THIS SHOULD BE MULTIPLIED BY RHO OR NOT
         float u_temp = u_prime + (.5*delta_t*epsilon*Gx)/(new_rho);
         float v_temp = v_prime + (.5*delta_t*epsilon*Gy)/new_rho;
 
         float c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
-        float c1 = epsilon*.5*delta_t*Fe/sqrt(K);
+        float c1 = (epsilon*.5*delta_t*Fe)/sqrt(K);
 
         temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
 
@@ -258,30 +257,13 @@ update_hydro_pourous(__global __read_only float *f_global,
 }
 
 __kernel void
-update_surf_tension(__global float *S_global,
-                __global __read_only float *rho_global,
-                const float c_o, const float alpha,
-                const int nx, const int ny, const int surf_index)
-{
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        const int two_d_index = y*nx + x;
-        int three_d_index = surf_index*ny*nx + two_d_index;
-
-        float cur_rho = rho_global[three_d_index];
-        if (cur_rho < 0) cur_rho = 0;
-        S_global[two_d_index] = pow(1.f - exp(-cur_rho/c_o), alpha);
-    }
-}
-
-__kernel void
 move_periodic(__global __read_only float *f_global,
               __global __write_only float *f_streamed_global,
               __constant int *cx,
               __constant int *cy,
-              const int nx, const int ny, const int num_populations)
+              const int nx, const int ny,
+              const int cur_field,
+              const int num_populations)
 {
     /* Moves you assuming periodic BC's. */
     //Input should be a 2d workgroup!
@@ -304,16 +286,31 @@ move_periodic(__global __read_only float *f_global,
             if (stream_y == ny) stream_y = 0;
             if (stream_y < 0) stream_y = ny - 1;
 
-            // Set stream values
-            for(int field_num = 0; field_num < num_populations; field_num++){
-                int slice = jump_id*num_populations*nx*ny + field_num*nx*ny;
+            int slice = jump_id*num_populations*nx*ny + cur_field*nx*ny;
+            int old_4d_index = slice + y*nx + x;
+            int new_4d_index = slice + stream_y*nx + stream_x;
 
-                int old_4d_index = slice + y*nx + x;
-                int new_4d_index = slice + stream_y*nx + stream_x;
-
-                f_streamed_global[new_4d_index] = f_global[old_4d_index];
-            }
+            f_streamed_global[new_4d_index] = f_global[old_4d_index];
         }
+    }
+}
+
+__kernel void
+update_surf_tension(__global float *S_global,
+                __global __read_only float *rho_global,
+                const float c_o, const float alpha,
+                const int nx, const int ny, const int surf_index)
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_index = surf_index*ny*nx + two_d_index;
+
+        float cur_rho = rho_global[three_d_index];
+        if (cur_rho < 0) cur_rho = 0;
+        S_global[two_d_index] = pow(1.f - exp(-cur_rho/c_o), alpha);
     }
 }
 

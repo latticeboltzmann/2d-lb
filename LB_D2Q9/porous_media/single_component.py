@@ -20,21 +20,6 @@ parent_dir = os.path.dirname(file_dir)
 # Required for allocating local memory
 float_size = ct.sizeof(ct.c_float)
 
-##########################
-##### D2Q9 parameters ####
-##########################
-w=np.array([4./9.,1./9.,1./9.,1./9.,1./9.,1./36.,
-            1./36.,1./36.,1./36.], order='F', dtype=np.float32)            # weights for directions
-cx=np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=np.int32)     # direction vector for the x direction
-cy=np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=np.int32)     # direction vector for the y direction
-cs=np.float32(1./np.sqrt(3))                         # Speed of sound on the lattice
-
-w0 = 4./9.                              # Weight of stationary jumpers
-w1 = 1./9.                              # Weight of horizontal and vertical jumpers
-w2 = 1./36.                             # Weight of diagonal jumpers
-
-NUM_JUMPERS = 9                         # Number of jumpers for the D2Q9 lattice: 9
-
 
 def get_divisible_global(global_size, local_size):
     """
@@ -75,6 +60,9 @@ class Pourous_Media(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
+        # Need to create drag forces appropriate for pourous media!
+
+
     def initialize(self, u_arr, v_arr, rho_arr, Gx_arr, Gy_arr):
         """
         User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
@@ -97,7 +85,7 @@ class Pourous_Media(object):
         rho_host[:, :, self.field_index] = rho_arr
         self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
 
-        #### BODY FORCES ####
+        #### External BODY FORCES ####
         Gx_host = self.sim.Gx.get()
         Gy_host = self.sim.Gy.get()
 
@@ -118,23 +106,6 @@ class Pourous_Media(object):
         self.init_pop() # Based on feq, create the hopping non-equilibrium fields
 
 
-
-    def update_feq(self):
-        """
-        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
-        Implemented in OpenCL.
-        """
-
-        sim = self.sim
-
-        self.sim.kernels.update_feq_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
-                                sim.feq.data,
-                                sim.rho.data,
-                                sim.u.data,
-                                sim.v.data,
-                                sim.w, sim.cx, sim.cy, cs,
-                                sim.nx, sim.ny, sim.num_populations).wait()
-
     def init_pop(self, amplitude=0.001):
         """Based on feq, create the initial population of jumpers."""
 
@@ -147,12 +118,30 @@ class Pourous_Media(object):
 
         # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
         # from sall fluctuations. Sooo...be careful.
-        perturb = (1. + amplitude * np.random.randn(nx, ny, NUM_JUMPERS))
+        perturb = (1. + amplitude * np.random.randn(nx, ny, self.sim.num_jumpers))
         cur_f *= perturb
 
         # Now send f to the GPU
         f_host[:, :, self.field_index, :] = cur_f
         self.sim.f = cl.array.to_device(self.sim.queue, f_host)
+
+    def update_feq(self):
+        """
+        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
+        Implemented in OpenCL.
+        """
+
+        sim = self.sim
+
+        self.sim.kernels.update_feq_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                                sim.feq.data,
+                                sim.rho.data,
+                                sim.u.data, sim.v.data,
+                                self.epsilon,
+                                sim.w, sim.cx, sim.cy, sim.cs,
+                                sim.nx, sim.ny,
+                                self.field_index, sim.num_populations,
+                                sim.num_jumpers).wait()
 
     def move_bcs(self):
         """
@@ -173,7 +162,8 @@ class Pourous_Media(object):
         self.sim.kernels.move_periodic(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
                                 sim.f.data, sim.f_streamed.data,
                                 sim.cx, sim.cy,
-                                sim.nx, sim.ny, sim.num_populations).wait()
+                                sim.nx, sim.ny,
+                                self.field_index, sim.num_populations).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         cl.enqueue_copy(sim.queue, sim.f.data, sim.f_streamed.data)
@@ -181,6 +171,7 @@ class Pourous_Media(object):
     def update_hydro(self):
         """
         Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
+        Requires u_prime to have been updated first!
         """
 
         sim = self.sim
@@ -188,6 +179,9 @@ class Pourous_Media(object):
         sim.kernels.update_hydro_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
                                 sim.f.data,
                                 sim.rho.data,
+                                sim.u_prime.data, sim.v_prime.data,
+                                sim.u.data, sim.v.data,
+
                                 sim.nx, sim.ny, sim.num_populations).wait()
         self.update_forces()
 
@@ -307,6 +301,8 @@ class Simulation_Runner(object):
         self.w = None
         self.cx = None
         self.cy = None
+        self.cs = None
+        self.num_jumpers = None
 
         self.halo = None
         self.buf_nx = None
@@ -433,6 +429,18 @@ class Simulation_Runner(object):
         """
         Allocates constants and local memory to be used by OpenCL.
         """
+
+        ##########################
+        ##### D2Q9 parameters ####
+        ##########################
+        w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
+                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=np.float32)  # weights for directions
+        cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=np.int32)  # direction vector for the x direction
+        cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=np.int32)  # direction vector for the y direction
+        self.cs = np.float32(1. / np.sqrt(3))  # Speed of sound on the lattice
+
+        self.num_jumpers = np.int32(9)  # Number of jumpers for the D2Q9 lattice: 9
+
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
