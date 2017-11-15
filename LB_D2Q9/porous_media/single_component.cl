@@ -221,11 +221,9 @@ update_hydro_pourous(__global __read_only float *f_global,
         float u_prime = u_prime_global[two_d_index];
         float v_prime = v_prime_global[two_d_index];
 
-        float u_temp = u_prime + .5*delta_t*epsilon*Gx;
-        float v_temp = v_prime + .5*delta_t*epsilon*Gy;
-
-        float u_temp = rho_u_temp/new_rho;
-        float v_temp = rho_v_temp/new_rho;
+        //TODO: I CAN'T FIGURE OUT IF THIS SHOULD BE MULTIPLIED BY RHO OR NOT
+        float u_temp = u_prime + (.5*delta_t*epsilon*Gx)/(new_rho);
+        float v_temp = v_prime + (.5*delta_t*epsilon*Gy)/new_rho;
 
         float c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
         float c1 = epsilon*.5*delta_t*Fe/sqrt(K);
