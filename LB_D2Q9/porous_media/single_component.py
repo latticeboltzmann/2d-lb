@@ -320,10 +320,15 @@ class Simulation_Runner(object):
         rho_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
 
-        u_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        v_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        u_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        v_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
         self.u = cl.array.to_device(self.queue, u_host) # Velocity in the x direction; one per sim!
         self.v = cl.array.to_device(self.queue, v_host) # Velocity in the y direction; one per sim.
+
+        u_prime_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        v_prime_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        self.u_prime = cl.array.to_device(self.queue, u_prime_host)  # Velocity in the x direction; one per sim!
+        self.v_prime = cl.array.to_device(self.queue, v_prime_host)  # Velocity in the y direction; one per sim.
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
@@ -362,6 +367,15 @@ class Simulation_Runner(object):
         self.X = deltaX / self.N
         self.Y = deltaY / self.N
 
+    def update_velocity_prime(self):
+        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
+                                       self.f.data,
+                                       self.feq.data,
+                                       self.rho.data,
+                                       self.omega, self.omega_c,
+                                       self.lb_G, self.lb_Gc,
+                                       self.w,
+                                       self.nx, self.ny, self.num_populations).wait()
 
     def initialize_grid_dims(self):
         """

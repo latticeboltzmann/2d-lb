@@ -116,8 +116,61 @@ collide_particles(__global float *f_global,
 }
 
 __kernel void
+update_velocity_prime(__global float *u_prime_global,
+                      __global float *v_prime_global,
+                      __global __read_only float *rho_global,
+                      __global __read_only float *u_global,
+                      __global __read_only float *v_global,
+                      __global __read_only float *f_global,
+                      __constant float *tau_arr,
+                      __constant float *w_arr,
+                      __constant int *cx_arr,
+                      __constant int *cy_arr,
+                      const int nx, const int ny,
+                      const int num_populations,
+                      )
+{
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+
+        float numerator_u = 0;
+        float numerator_v = 0;
+
+        float denominator = 0; // The denominator has no vectorial nature
+
+        for(int cur_field=0; cur_field < num_populations; cur_field++){
+            int three_d_index = cur_field*ny*nx + two_d_index;
+
+            float cur_tau = tau_arr[cur_field];
+            float rho = rho_global[three_d_index];
+
+            for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
+                float f = f_global[four_d_index];
+                float cx = cx_arr[jump_id];
+                float cy = cy_arr[jump_id];
+
+                numerator_u += cx * f;
+                numerator_v += cy * f;
+            }
+            numerator_u /= cur_tau;
+            numerator_v /= cur_tau;
+
+            denominator += rho/cur_tau;
+        }
+    u_prime_global[two_d_index] = numerator_u/denominator;
+    v_prime_global[two_d_index] = numerator_v/denominator;
+    }
+}
+
+__kernel void
 update_hydro_pourous(__global __read_only float *f_global,
              __global float *rho_global,
+             __global float *u_prime_global,
+             __global float *v_prime_global,
              __global float *u_global,
              __global float *v_global,
              __global __read_only float *Fx_global,
@@ -165,20 +218,11 @@ update_hydro_pourous(__global __read_only float *f_global,
         }
         rho_global[three_d_index] = new_rho;
         //Now determine the new velocity
-        float rho_u_temp = 0;
-        float rho_v_temp = 0;
+        float u_prime = u_prime_global[two_d_index];
+        float v_prime = v_prime_global[two_d_index];
 
-        for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-            int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
-            float f = f_global[four_d_index];
-            float cx = cx_arr[jump_id];
-            float cy = cy_arr[jump_id];
-
-            rho_u_temp += cx * f;
-            rho_v_temp += cy * f;
-        }
-        rho_u_temp += .5*delta_t*epsilon*new_rho*Gx;
-        rho_v_temp += .5*delta_t*epsilon*new_rho*Gy;
+        float u_temp = u_prime + .5*delta_t*epsilon*Gx;
+        float v_temp = v_prime + .5*delta_t*epsilon*Gy;
 
         float u_temp = rho_u_temp/new_rho;
         float v_temp = rho_v_temp/new_rho;
