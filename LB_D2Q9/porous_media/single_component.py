@@ -76,7 +76,7 @@ class Pourous_Media(object):
         u_host[:, :, self.field_index] = u_arr
         v_host[:, :, self.field_index] = v_arr
 
-        #TODO: FOR MULTIPHASE FLOWS, WE NEED TO INITIALIZE UPRIME, VPRIME
+        #TODO: FOR MULTIPHASE FLOWS, WE NEED TO INITIALIZE UPRIME, VPRIME?
 
         self.sim.u = cl.array.to_device(self.sim.queue, u_host)
         self.sim.v = cl.array.to_device(self.sim.queue, v_host)
@@ -367,6 +367,25 @@ class Simulation_Runner(object):
         self.X = deltaX / self.N
         self.Y = deltaY / self.N
 
+        # Create list corresponding to all of the different fluids
+        self.fluid_list = []
+        self.tau_arr = []
+
+    def add_liquid(self, fluid):
+        self.fluid_list.append(fluid)
+
+    def complete_setup(self):
+        # Run once all fluids have been added...gathers necessary info about the fluids
+
+        # Generate the list of all relaxation times. Necessary to calculate
+        # u and v prime.
+        tau_host = []
+        for cur_fluid in self.fluid_list:
+            tau_host.append(cur_fluid.tau)
+        tau_host = np.array(tau_host, dtype=np.float32)
+        self.tau_arr = cl.Buffer(self.context, cl.mem_flags.READ_ONLY |
+        cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
+
     def update_velocity_prime(self):
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
                                        self.f.data,
@@ -456,8 +475,6 @@ class Simulation_Runner(object):
         self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
 
 
-
-
     def redo_initial_condition(self, rho_field):
         """After you have specified your own IC"""
         rho_host = rho_field.astype(dtype=np.float32, order='F')
@@ -478,9 +495,12 @@ class Simulation_Runner(object):
         :param num_iterations: The number of iterations to run
         """
         for cur_iteration in range(num_iterations):
-            self.move() # Move all jumpers
-            self.move_bcs() # Our BC's rely on streaming before applying the BC, actually
-
-            self.update_hydro() # Update the hydrodynamic variables
-            self.update_feq() # Update the equilibrium fields
-            self.collide_particles() # Relax the nonequilibrium fields.
+            for cur_fluid in self.fluid_list:
+                cur_fluid.move() # Move all jumpers
+                cur_fluid.move_bcs() # Our BC's rely on streaming before applying the BC, actually
+            self.update_velocity_prime()
+            # Update forces here as appropriate
+            for cur_fluid in self.fluid_list:
+                cur_fluid.update_hydro() # Update the hydrodynamic variables
+                cur_fluid.update_feq() # Update the equilibrium fields
+                cur_fluid.collide_particles() # Relax the nonequilibrium fields.
