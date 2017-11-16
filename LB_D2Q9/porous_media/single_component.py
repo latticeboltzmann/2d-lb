@@ -55,7 +55,7 @@ class Pourous_Media(object):
 
         # Determine the viscosity
         self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
-        self.tau = np.float32((.5 + self.lb_nu_e / cs ** 2))
+        self.tau = np.float32(.5 + self.lb_nu_e / (sim.cs**2))
         self.omega =  self.tau ** -1.  # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
@@ -63,7 +63,7 @@ class Pourous_Media(object):
         # Need to create drag forces appropriate for pourous media!
 
 
-    def initialize(self, u_arr, v_arr, rho_arr, Gx_arr, Gy_arr):
+    def initialize(self, u_arr, v_arr, rho_arr, Gx_arr=None, Gy_arr=None):
         """
         User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
         distribution functions.
@@ -73,8 +73,8 @@ class Pourous_Media(object):
         u_host = self.sim.u.get()
         v_host = self.sim.v.get()
 
-        u_host[...] = u_arr
-        v_host[...] = v_arr
+        u_host[:, :, self.field_index] = u_arr
+        v_host[:, :, self.field_index] = v_arr
 
         self.sim.u = cl.array.to_device(self.sim.queue, u_host)
         self.sim.v = cl.array.to_device(self.sim.queue, v_host)
@@ -86,14 +86,16 @@ class Pourous_Media(object):
         self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
 
         #### External BODY FORCES ####
-        Gx_host = self.sim.Gx.get()
-        Gy_host = self.sim.Gy.get()
 
-        Gx_host[:, :, self.field_index] = Gx_arr
-        Gy_host[:, :, self.field_index] = Gy_arr
+        if (Gx_arr is not None) and (Gy_arr is not None):
+            Gx_host = self.sim.Gx.get()
+            Gy_host = self.sim.Gy.get()
 
-        self.sim.Gx = cl.array.to_device(self.sim.queue, Gx_host)
-        self.sim.Gy = cl.array.to_device(self.sim.queue, Gy_host)
+            Gx_host[:, :, self.field_index] = Gx_arr
+            Gy_host[:, :, self.field_index] = Gy_arr
+
+            self.sim.Gx = cl.array.to_device(self.sim.queue, Gx_host)
+            self.sim.Gy = cl.array.to_device(self.sim.queue, Gy_host)
 
         #### UPDATE HOPPERS ####
         self.update_feq() # Based on the hydrodynamic fields, create feq
