@@ -42,7 +42,7 @@ update_feq_pourous(__global __write_only float *feq_global,
             w*rho*(
             1.f
             + c_dot_u/(cs*cs)
-            + c_dot_u*c_dot_u/(2*cs*cs*cs*cs*epsilon)
+            + (c_dot_u*c_dot_u)/(2*cs*cs*cs*cs*epsilon)
             - u_squared/(2*cs*cs*epsilon)
             );
 
