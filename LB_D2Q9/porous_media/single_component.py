@@ -76,6 +76,8 @@ class Pourous_Media(object):
         u_host[:, :, self.field_index] = u_arr
         v_host[:, :, self.field_index] = v_arr
 
+        #TODO: FOR MULTIPHASE FLOWS, WE NEED TO INITIALIZE UPRIME, VPRIME
+
         self.sim.u = cl.array.to_device(self.sim.queue, u_host)
         self.sim.v = cl.array.to_device(self.sim.queue, v_host)
 
