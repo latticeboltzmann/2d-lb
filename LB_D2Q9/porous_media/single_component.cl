@@ -120,8 +120,6 @@ __kernel void
 update_velocity_prime(__global float *u_prime_global,
                       __global float *v_prime_global,
                       __global __read_only float *rho_global,
-                      __global __read_only float *u_global,
-                      __global __read_only float *v_global,
                       __global __read_only float *f_global,
                       __constant float *tau_arr,
                       __constant float *w_arr,

@@ -371,7 +371,7 @@ class Simulation_Runner(object):
         self.fluid_list = []
         self.tau_arr = []
 
-    def add_liquid(self, fluid):
+    def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
 
     def complete_setup(self):
@@ -386,15 +386,21 @@ class Simulation_Runner(object):
         self.tau_arr = cl.Buffer(self.context, cl.mem_flags.READ_ONLY |
         cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
 
+        # Now calculate u and v prime
+        self.update_velocity_prime()
+
     def update_velocity_prime(self):
-        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                       self.f.data,
-                                       self.feq.data,
-                                       self.rho.data,
-                                       self.omega, self.omega_c,
-                                       self.lb_G, self.lb_Gc,
-                                       self.w,
-                                       self.nx, self.ny, self.num_populations).wait()
+        self.kernels.update_velocity_prime(
+            self.queue, self.two_d_global_size, self.two_d_local_size,
+            self.u_prime.data, self.v_prime.data,
+            self.rho.data,
+            self.f.data,
+            self.tau_arr,
+            self.w, self.cx, self.cy,
+            self.nx, self.ny,
+            self.num_populations, self.num_jumpers
+        ).wait()
+
 
     def initialize_grid_dims(self):
         """
