@@ -66,7 +66,7 @@ class Pourous_Media(object):
         self.Fy = None
 
 
-    def initialize(self, u_arr, v_arr, rho_arr, Gx_arr=None, Gy_arr=None):
+    def initialize(self, u_arr, v_arr, rho_arr, Gx_arr=None, Gy_arr=None, f_amp = 0.0):
         """
         User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
         distribution functions.
@@ -119,7 +119,7 @@ class Pourous_Media(object):
         # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
         # after the particles have streamed.
 
-        self.init_pop() # Based on feq, create the hopping non-equilibrium fields
+        self.init_pop(amplitude=f_amp) # Based on feq, create the hopping non-equilibrium fields
 
 
     def init_pop(self, amplitude=0.001):
