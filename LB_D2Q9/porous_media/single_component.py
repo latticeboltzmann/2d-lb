@@ -327,18 +327,18 @@ class Simulation_Runner(object):
         self.v_prime = cl.array.to_device(self.queue, v_prime_host)  # Velocity in the y direction; one per sim.
 
         # Intitialize the underlying feq equilibrium field
-        feq_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
+        feq_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=np.float32, order='F')
         self.feq = cl.array.to_device(self.queue, feq_host)
 
-        f_host = np.zeros((self.nx, self.ny, self.num_populations, NUM_JUMPERS), dtype=np.float32, order='F')
+        f_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=np.float32, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
 
         # Initialize G: the body force acting on each phase
         Gx_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
         Gy_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
-        self.Gx = cl.array.to_device(self.sim.queue, Gx_host)
-        self.Gy = cl.array.to_device(self.sim.queue, Gy_host)
+        self.Gx = cl.array.to_device(self.queue, Gx_host)
+        self.Gy = cl.array.to_device(self.queue, Gy_host)
 
         #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
 
@@ -423,7 +423,7 @@ class Simulation_Runner(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(file_dir + '/rocket_yeast_forces_only.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(file_dir + '/single_component.cl').read()).build(options='')
 
     def allocate_constants(self):
         """

@@ -4,7 +4,7 @@ update_feq_pourous(__global __write_only float *feq_global,
            __global __read_only float *u_global,
            __global __read_only float *v_global,
            const float epsilon,
-           __constant float *w,
+           __constant float *w_arr,
            __constant int *cx_arr,
            __constant int *cy_arr,
            const float cs,
@@ -31,9 +31,9 @@ update_feq_pourous(__global __write_only float *feq_global,
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
 
-            float w = w_array[jump_id];
-            int cx = cx_array[jump_id];
-            int cy = cy_array[jump_id];
+            float w = w_arr[jump_id];
+            int cx = cx_arr[jump_id];
+            int cy = cy_arr[jump_id];
 
             float c_dot_u = cx*u + cy*v;
             float u_squared = u*u + v*v;
@@ -42,7 +42,7 @@ update_feq_pourous(__global __write_only float *feq_global,
             w*rho*(
             1.f
             + c_dot_u/(cs*cs)
-            + c_dot_u*c_dot_u/(2*cs*cs*cs*cs*cur_epsilon)
+            + c_dot_u*c_dot_u/(2*cs*cs*cs*cs*epsilon)
             - u_squared/(2*cs*cs*epsilon)
             );
 
@@ -67,7 +67,8 @@ collide_particles(__global float *f_global,
                   const int nx, const int ny,
                   const int cur_field,
                   const int num_populations,
-                  const float delta_t)
+                  const float delta_t,
+                  const float cs)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -77,11 +78,11 @@ collide_particles(__global float *f_global,
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        rho = rho_global[three_d_index];
-        u = u_global[three_d_index];
-        v = v_global[three_d_index];
-        Fx = Fx_global[three_d_index];
-        Fy = Fy_global[three_d_index];
+        float rho = rho_global[three_d_index];
+        float u = u_global[three_d_index];
+        float v = v_global[three_d_index];
+        float Fx = Fx_global[three_d_index];
+        float Fy = Fy_global[three_d_index];
 
         const float epsilon = epsilon_arr[cur_field];
         const float omega = omega_arr[cur_field];
@@ -97,8 +98,8 @@ collide_particles(__global float *f_global,
 
             float relax = f*(1-omega) + omega*feq;
             //Calculate Fi
-            float c_dot_F = cx * F x + cy * Fy;
-            float c_dot_u = cx * u  + cur_cy * v;
+            float c_dot_F = cx * Fx + cy * Fy;
+            float c_dot_u = cx * u  + cy * v;
             float u_dot_F = Fx * u + Fy * v;
 
             float Fi = w*rho*(1 - .5*omega)*(
@@ -128,6 +129,7 @@ update_velocity_prime(__global float *u_prime_global,
                       __constant int *cy_arr,
                       const int nx, const int ny,
                       const int num_populations,
+                      const int num_jumpers
                       )
 {
     const int x = get_global_id(0);
@@ -177,10 +179,10 @@ update_hydro_pourous(__global __read_only float *f_global,
              __global __read_only float *Fy_global,
              __global __read_only float *Gx_global,
              __global __read_only float *Gy_global,
-             __constant float *epsilon_arr,
-             __constant float *nu_fluid_arr,
-             __constant float *Fe_arr,
-             __constant float *K_arr,
+             const float epsilon,
+             const float nu_fluid,
+             const float Fe,
+             const float K,
              __constant float *w_arr,
              __constant int *cx_arr,
              __constant int *cy_arr,
@@ -198,16 +200,8 @@ update_hydro_pourous(__global __read_only float *f_global,
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        Fx = Fx_global[three_d_index];
-        Fy = Fy_global[three_d_index];
-
-        Gx = Gx_global[three_d_index];
-        Gy = Gy_global[three_d_index];
-
-        epsilon = epsilon_arr[cur_field];
-        nu_fluid = nu_fluid_arr[cur_field];
-        Fe = Fe_arr[cur_field];
-        K = K_arr[cur_field];
+        float Gx = Gx_global[three_d_index];
+        float Gy = Gy_global[three_d_index];
 
         // Update rho!
         float new_rho = 0;
@@ -227,7 +221,7 @@ update_hydro_pourous(__global __read_only float *f_global,
         float c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
         float c1 = (epsilon*.5*delta_t*Fe)/sqrt(K);
 
-        temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
+        float temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
 
         float u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
         float v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
@@ -252,7 +246,7 @@ update_hydro_pourous(__global __read_only float *f_global,
         Fy += epsilon*Gy;
 
         Fx_global[three_d_index] = Fx;
-        Fy_global[three_d_index} = Fy;
+        Fy_global[three_d_index] = Fy;
     }
 }
 
