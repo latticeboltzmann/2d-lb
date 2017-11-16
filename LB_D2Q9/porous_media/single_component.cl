@@ -167,14 +167,13 @@ update_velocity_prime(__global float *u_prime_global,
 }
 
 __kernel void
-update_hydro_pourous(__global __read_only float *f_global,
+update_hydro_pourous(
+             __global __read_only float *f_global,
              __global float *rho_global,
              __global float *u_prime_global,
              __global float *v_prime_global,
              __global float *u_global,
              __global float *v_global,
-             __global __read_only float *Fx_global,
-             __global __read_only float *Fy_global,
              __global __read_only float *Gx_global,
              __global __read_only float *Gy_global,
              const float epsilon,
@@ -226,6 +225,36 @@ update_hydro_pourous(__global __read_only float *f_global,
 
         u_global[three_d_index] = u;
         v_global[three_d_index] = v;
+    }
+}
+
+__kernel void
+update_forces_pourous(
+    __global float *u_global,
+    __global float *v_global,
+    __global __read_only float *Fx_global,
+    __global __read_only float *Fy_global,
+    __global __read_only float *Gx_global,
+    __global __read_only float *Gy_global,
+    const float epsilon,
+    const float nu_fluid,
+    const float Fe,
+    const float K,
+    const int nx, const int ny,
+    const int cur_field,
+    const int num_populations
+)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_index = cur_field*ny*nx + two_d_index;
+
+        float Gx = Gx_global[three_d_index];
+        float Gy = Gy_global[three_d_index];
 
         // Based on the new velocity, determine the force.
         // Note that you have to calculate the new velocity first in this formalism!

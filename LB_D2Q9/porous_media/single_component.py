@@ -42,7 +42,7 @@ def get_divisible_global(global_size, local_size):
 
 class Pourous_Media(object):
 
-    def __init__(self, sim, field_index, nu_e = 1.0, epsilon = 1.0, K=1.0, Fe=1.0):
+    def __init__(self, sim, field_index, nu_e = 1.0, epsilon = 1.0, nu_fluid=1.0, K=1.0, Fe=1.0):
 
         self.sim = sim # TODO: MAKE THIS A WEAKREF
 
@@ -50,6 +50,7 @@ class Pourous_Media(object):
 
         self.nu_e = np.float32(nu_e)
         self.epsilon = np.float32(epsilon)
+        self.nu_fluid = np.float32(nu_fluid)
         self.K = np.float32(K)
         self.Fe = np.float32(Fe)
 
@@ -60,7 +61,9 @@ class Pourous_Media(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
-        # Need to create drag forces appropriate for pourous media!
+        # Total force INCLUDING drag forces & body force G
+        self.Fx = None
+        self.Fy = None
 
 
     def initialize(self, u_arr, v_arr, rho_arr, Gx_arr=None, Gy_arr=None):
@@ -99,6 +102,15 @@ class Pourous_Media(object):
             self.sim.Gx = cl.array.to_device(self.sim.queue, Gx_host)
             self.sim.Gy = cl.array.to_device(self.sim.queue, Gy_host)
 
+        #### TOTAL FORCE ####
+        Fx_host = np.zeros((self.sim.nx, self.sim.ny), dtype=np.float32, order='F')
+        Fy_host = np.zeros((self.sim.nx, self.sim.ny), dtype=np.float32, order='F')
+
+        self.Fx = cl.array.to_device(self.sim.queue, Fx_host)
+        self.Fy = cl.array.to_device(self.sim.queue, Fy_host)
+
+        self.update_forces()
+
         #### UPDATE HOPPERS ####
         self.update_feq() # Based on the hydrodynamic fields, create feq
 
@@ -129,6 +141,24 @@ class Pourous_Media(object):
         f_host[:, :, self.field_index, :] = cur_f
         self.sim.f = cl.array.to_device(self.sim.queue, f_host)
 
+    def update_forces(self):
+        """
+        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
+        Implemented in OpenCL.
+        """
+
+        sim = self.sim
+
+        self.sim.kernels.update_forces_pourous(
+            sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+            sim.u.data, sim.v.data,
+            self.Fx.data, self.Fy.data,
+            sim.Gx.data, sim.Gy.data,
+            self.epsilon, self.nu_fluid, self.Fe, self.K,
+            sim.nx, sim.ny,
+            self.field_index, sim.num_populations
+        ).wait()
+
     def update_feq(self):
         """
         Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
@@ -137,15 +167,16 @@ class Pourous_Media(object):
 
         sim = self.sim
 
-        self.sim.kernels.update_feq_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
-                                sim.feq.data,
-                                sim.rho.data,
-                                sim.u.data, sim.v.data,
-                                self.epsilon,
-                                sim.w, sim.cx, sim.cy, sim.cs,
-                                sim.nx, sim.ny,
-                                self.field_index, sim.num_populations,
-                                sim.num_jumpers).wait()
+        self.sim.kernels.update_feq_pourous(
+            sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+            sim.feq.data,
+            sim.rho.data,
+            sim.u.data, sim.v.data,
+            self.epsilon,
+            sim.w, sim.cx, sim.cy, sim.cs,
+            sim.nx, sim.ny,
+            self.field_index, sim.num_populations,
+            sim.num_jumpers).wait()
 
     def move_bcs(self):
         """
@@ -180,53 +211,25 @@ class Pourous_Media(object):
 
         sim = self.sim
 
-        sim.kernels.update_hydro_pourous(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
-                                sim.f.data,
-                                sim.rho.data,
-                                sim.u_prime.data, sim.v_prime.data,
-                                sim.u.data, sim.v.data,
-
-                                sim.nx, sim.ny, sim.num_populations).wait()
-        self.update_forces()
+        sim.kernels.update_hydro_pourous(
+            sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+            sim.f.data,
+            sim.rho.data,
+            sim.u_prime.data, sim.v_prime.data,
+            sim.u.data, sim.v.data,
+            sim.Gx.data, sim.Gy.data,
+            self.epsilon, self.nu_fluid, self.Fe, self.K,
+            sim.w, sim.cx, sim.cy,
+            sim.nx, sim.ny,
+            self.field_index, sim.num_populations,
+            sim.num_jumpers, self.sim.delta_t
+        ).wait()
 
         if sim.check_max_ulb:
             max_ulb = cl.array.max((sim.u**2 + sim.v**2)**.5, queue=self.queue)
 
-            if max_ulb > cs*self.mach_tolerance:
-                print 'max_ulb is greater than cs/10! Ma=', max_ulb/cs
-
-    def update_forces(self):
-
-        ### Forces due to fluid shear ###
-        self.kernels.update_surf_tension(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                     self.S.data,
-                                     self.rho.data,
-                                     self.c_o,
-                                     self.alpha,
-                                     self.nx, self.ny, self.surf_index).wait()
-        self.kernels.update_surface_forces(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                    self.S.data,
-                                    self.surface_force_x.data, self.surface_force_y.data,
-                                    self.surf_index, cs, self.epsilon,
-                                    self.cx, self.cy, self.w,
-                                    self.psi_local,
-                                    self.nx, self.ny,
-                                    self.buf_nx, self.buf_ny, self.halo).wait()
-
-        self.kernels.update_pressure_force(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                         self.rho.data,
-                                         self.pop_index,
-                                         self.pseudo_force_x.data,
-                                         self.pseudo_force_y.data,
-                                         self.G_chen,
-                                         self.rho_o,
-                                         cs,
-                                         self.cx,
-                                         self.cy,
-                                         self.w,
-                                         self.psi_local,
-                                         self.nx, self.ny, self.buf_nx, self.buf_ny,
-                                         self.halo).wait()
+            if max_ulb > sim.cs*sim.mach_tolerance:
+                print 'max_ulb is greater than cs/10! Ma=', max_ulb/sim.cs
 
     def collide_particles(self):
         self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
