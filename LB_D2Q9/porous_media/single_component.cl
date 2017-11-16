@@ -52,23 +52,25 @@ update_feq_pourous(__global __write_only float *feq_global,
 }
 
 __kernel void
-collide_particles(__global float *f_global,
-                  __global __read_only float *feq_global,
-                  __global __read_only float *rho_global,
-                  __global __read_only float *u_global,
-                  __global __read_only float *v_global,
-                  __global __read_only float *Fx_global,
-                  __global __read_only float *Fy_global,
-                  __constant float *epsilon_arr,
-                  __constant float *omega_arr,
-                  __constant float *w_arr,
-                  __constant int *cx_arr,
-                  __constant int *cy_arr,
-                  const int nx, const int ny,
-                  const int cur_field,
-                  const int num_populations,
-                  const float delta_t,
-                  const float cs)
+collide_particles_pourous(
+    __global float *f_global,
+    __global __read_only float *feq_global,
+    __global __read_only float *rho_global,
+    __global __read_only float *u_global,
+    __global __read_only float *v_global,
+    __global __read_only float *Fx_global,
+    __global __read_only float *Fy_global,
+    const float epsilon,
+    const float omega,
+    __constant float *w_arr,
+    __constant int *cx_arr,
+    __constant int *cy_arr,
+    const int nx, const int ny,
+    const int cur_field,
+    const int num_populations,
+    const int num_jumpers,
+    const float delta_t,
+    const float cs)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -81,13 +83,11 @@ collide_particles(__global float *f_global,
         float rho = rho_global[three_d_index];
         float u = u_global[three_d_index];
         float v = v_global[three_d_index];
-        float Fx = Fx_global[three_d_index];
-        float Fy = Fy_global[three_d_index];
+        float Fx = Fx_global[two_d_index];
+        float Fy = Fy_global[two_d_index];
 
-        const float epsilon = epsilon_arr[cur_field];
-        const float omega = omega_arr[cur_field];
 
-        for(int jump_id=0; jump_id < 9; jump_id++){
+        for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
             float f = f_global[four_d_index];
@@ -253,6 +253,9 @@ update_forces_pourous(
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
+        float u = u_global[three_d_index];
+        float v = v_global[three_d_index];
+
         float Gx = Gx_global[three_d_index];
         float Gy = Gy_global[three_d_index];
 
@@ -272,8 +275,8 @@ update_forces_pourous(
         Fx += epsilon*Gx;
         Fy += epsilon*Gy;
 
-        Fx_global[three_d_index] = Fx;
-        Fy_global[three_d_index] = Fy;
+        Fx_global[two_d_index] = Fx;
+        Fy_global[two_d_index] = Fy;
     }
 }
 

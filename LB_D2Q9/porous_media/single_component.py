@@ -57,7 +57,7 @@ class Pourous_Media(object):
         # Determine the viscosity
         self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
         self.tau = np.float32(.5 + self.lb_nu_e / (sim.cs**2))
-        self.omega =  self.tau ** -1.  # The relaxation time of the jumpers in the simulation
+        self.omega = np.float32(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -232,14 +232,21 @@ class Pourous_Media(object):
                 print 'max_ulb is greater than cs/10! Ma=', max_ulb/sim.cs
 
     def collide_particles(self):
-        self.kernels.collide_particles(self.queue, self.two_d_global_size, self.two_d_local_size,
-                                       self.f.data,
-                                       self.feq.data,
-                                       self.rho.data,
-                                       self.omega, self.omega_c,
-                                       self.lb_G, self.lb_Gc,
-                                       self.w,
-                                       self.nx, self.ny, self.num_populations).wait()
+        sim = self.sim
+
+        self.sim.kernels.collide_particles_pourous(
+            sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+            sim.f.data,
+            sim.feq.data,
+            sim.rho.data,
+            sim.u.data, sim.v.data,
+            self.Fx.data, self.Fy.data,
+            self.epsilon, self.omega,
+            sim.w, sim.cx, sim.cy,
+            sim.nx, sim.ny,
+            self.field_index, sim.num_populations,
+            sim.num_jumpers, sim.delta_t, sim.cs
+        ).wait()
 
 class Simulation_Runner(object):
     """
@@ -482,18 +489,6 @@ class Simulation_Runner(object):
         self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
         self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
         self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
-
-
-    def redo_initial_condition(self, rho_field):
-        """After you have specified your own IC"""
-        rho_host = rho_field.astype(dtype=np.float32, order='F')
-        self.rho = cl.array.to_device(self.queue, rho_host)
-
-        self.update_forces()
-
-        self.update_feq()  # Based on the hydrodynamic fields, create feq
-        self.init_pop()  # Based on feq, create the hopping non-equilibrium fields
-
 
     def run(self, num_iterations):
         """
