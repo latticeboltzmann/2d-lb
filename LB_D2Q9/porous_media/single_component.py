@@ -267,14 +267,12 @@ class Simulation_Runner(object):
         :param two_d_local_size: A tuple of the local size to be used in 2d, i.e. (32, 32)
         """
 
-        self.num_populations = num_populations
-
         # Dimensionless units
         self.Lx = Lx
         self.Ly = Ly
 
         # Book-keeping
-        self.num_populations = np.int32(1)
+        self.num_populations = np.int32(num_populations)
 
         self.check_max_ulb = check_max_ulb
         self.mach_tolerance = mach_tolerance
