@@ -497,36 +497,41 @@ class Simulation_Runner(object):
         :param num_iterations: The number of iterations to run
         """
         for cur_iteration in range(num_iterations):
-            for cur_fluid in self.fluid_list:
-                if debug:
-                    print 'At beginning of iteration:'
-                    self.check_fields()
+            if debug:
+                print 'At beginning of iteration:'
+                self.check_fields()
 
+            for cur_fluid in self.fluid_list:
                 cur_fluid.move() # Move all jumpers
                 if debug:
-                    print 'After move:'
+                    print 'After move', cur_fluid.field_index
                     self.check_fields()
 
                 cur_fluid.move_bcs() # Our BC's rely on streaming before applying the BC, actually
                 if debug:
-                    print 'After move bcs'
+                    print 'After move bcs', cur_fluid.field_index
                     self.check_fields()
+
             self.update_velocity_prime()
+            if debug:
+                print 'After updating velocity-prime'
+                self.check_fields()
+
             # Update forces here as appropriate
             for cur_fluid in self.fluid_list:
                 cur_fluid.update_hydro() # Update the hydrodynamic variables
                 if debug:
-                    print 'After updating hydro'
+                    print 'After updating hydro', cur_fluid.field_index
                     self.check_fields()
 
                 cur_fluid.update_feq() # Update the equilibrium fields
                 if debug:
-                    print 'After updating feq'
+                    print 'After updating feq', cur_fluid.field_index
                     self.check_fields()
 
                 cur_fluid.collide_particles() # Relax the nonequilibrium fields.
                 if debug:
-                    print 'After colliding particles'
+                    print 'After colliding particles', cur_fluid.field_index
                     self.check_fields()
 
     def check_fields(self):
