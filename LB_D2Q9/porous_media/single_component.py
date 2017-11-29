@@ -201,7 +201,12 @@ class Pourous_Media(object):
                                 self.field_index, sim.num_populations).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
-        cl.enqueue_copy(sim.queue, sim.f.data, sim.f_streamed.data)
+        self.sim.kernels.copy_streamed_onto_f(
+            sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+            sim.f_streamed.data, sim.f.data,
+            sim.cx, sim.cy,
+            sim.nx, sim.ny,
+            self.field_index, sim.num_populations).wait()
 
     def update_hydro(self):
         """

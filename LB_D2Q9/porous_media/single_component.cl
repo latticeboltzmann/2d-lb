@@ -322,6 +322,33 @@ move_periodic(__global __read_only float *f_global,
 }
 
 __kernel void
+copy_streamed_onto_f(
+    __global __write_only float *f_streamed_global,
+    __global __read_only float *f_global,
+    __constant int *cx,
+    __constant int *cy,
+    const int nx, const int ny,
+    const int cur_field,
+    const int num_populations)
+{
+    /* Moves you assuming periodic BC's. */
+    //Input should be a 2d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        for(int jump_id = 0; jump_id < 9; jump_id++){
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
+
+            int four_d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
+
+            f_global[four_d_index] = f_streamed_global[four_d_index];
+        }
+    }
+}
+
+__kernel void
 update_surf_tension(__global float *S_global,
                 __global __read_only float *rho_global,
                 const float c_o, const float alpha,
