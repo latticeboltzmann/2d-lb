@@ -488,7 +488,7 @@ class Simulation_Runner(object):
         self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
         self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
 
-    def run(self, num_iterations):
+    def run(self, num_iterations, debug=False):
         """
         Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
         to the same non-dimensional time passing, as delta_t, the time discretization, will change depending on
@@ -498,11 +498,43 @@ class Simulation_Runner(object):
         """
         for cur_iteration in range(num_iterations):
             for cur_fluid in self.fluid_list:
+                if debug:
+                    print 'At beginning of iteration:'
+                    self.check_fields()
+
                 cur_fluid.move() # Move all jumpers
+                if debug:
+                    print 'After move:'
+                    self.check_fields()
+
                 cur_fluid.move_bcs() # Our BC's rely on streaming before applying the BC, actually
+                if debug:
+                    print 'After move bcs'
+                    self.check_fields()
             self.update_velocity_prime()
             # Update forces here as appropriate
             for cur_fluid in self.fluid_list:
                 cur_fluid.update_hydro() # Update the hydrodynamic variables
+                if debug:
+                    print 'After updating hydro'
+                    self.check_fields()
+
                 cur_fluid.update_feq() # Update the equilibrium fields
+                if debug:
+                    print 'After updating feq'
+                    self.check_fields()
+
                 cur_fluid.collide_particles() # Relax the nonequilibrium fields.
+                if debug:
+                    print 'After colliding particles'
+                    self.check_fields()
+
+    def check_fields(self):
+        # Start with rho
+        for i in range(self.num_populations):
+            print 'Field:', i
+            print 'rho_sum', cl.array.sum(self.rho[:, :, i])
+            print 'f_sum', np.sum(self.f.get()[:, :, i, :])
+            print 'f_eq_sum', np.sum(self.feq.get()[:, :, i, :])
+
+        print
