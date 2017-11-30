@@ -535,14 +535,15 @@ class Simulation_Runner(object):
 
             for cur_fluid in self.fluid_list:
                 cur_fluid.move() # Move all jumpers
-                if debug:
-                    print 'After move', cur_fluid.field_index
-                    self.check_fields()
+            if debug:
+                print 'After move'
+                self.check_fields()
 
+            for cur_fluid in self.fluid_list:
                 cur_fluid.move_bcs() # Our BC's rely on streaming before applying the BC, actually
-                if debug:
-                    print 'After move bcs', cur_fluid.field_index
-                    self.check_fields()
+            if debug:
+                print 'After move bcs'
+                self.check_fields()
 
             self.update_velocity_prime()
             if debug:
@@ -552,20 +553,27 @@ class Simulation_Runner(object):
             # Update forces here as appropriate
             for cur_fluid in self.fluid_list:
                 cur_fluid.update_hydro() # Update the hydrodynamic variables
-                if debug:
-                    print 'After updating hydro', cur_fluid.field_index
-                    self.check_fields()
+            if debug:
+                print 'After updating hydro'
+                self.check_fields()
+
+            for cur_fluid in self.fluid_list:
                 cur_fluid.update_forces()  # Update the forces; some are based on the hydro
+            if debug:
+                print 'After updating forces'
+                self.check_fields()
 
+            for cur_fluid in self.fluid_list:
                 cur_fluid.update_feq() # Update the equilibrium fields
-                if debug:
-                    print 'After updating feq', cur_fluid.field_index
-                    self.check_fields()
+            if debug:
+                print 'After updating feq'
+                self.check_fields()
 
+            for cur_fluid in self.fluid_list:
                 cur_fluid.collide_particles() # Relax the nonequilibrium fields.
-                if debug:
-                    print 'After colliding particles', cur_fluid.field_index
-                    self.check_fields()
+            if debug:
+                print 'After colliding particles'
+                self.check_fields()
 
             # Loop over any additional collisions that are required (i.e. mass gain/loss)
             for d in self.additional_collisions:
@@ -580,5 +588,9 @@ class Simulation_Runner(object):
             print 'rho_sum', cl.array.sum(self.rho[:, :, i])
             print 'f_sum', np.sum(self.f.get()[:, :, i, :])
             print 'f_eq_sum', np.sum(self.feq.get()[:, :, i, :])
+
+        print 'Total rho_sum', cl.array.sum(self.rho)
+        print 'Total f_sum', np.sum(self.f.get())
+        print 'Total feq_sum', np.sum(self.feq.get())
 
         print
