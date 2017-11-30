@@ -70,7 +70,7 @@ class Pourous_Media(object):
         self.Fy = None
 
 
-    def initialize(self, u_arr, v_arr, rho_arr, Gx_arr=None, Gy_arr=None, f_amp = 0.0):
+    def initialize(self, u_arr, v_arr, rho_arr, f_amp = 0.0):
         """
         User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
         distribution functions.
@@ -92,19 +92,7 @@ class Pourous_Media(object):
         rho_host[:, :, self.field_index] = rho_arr
         self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
 
-        #### External BODY FORCES ####
-
-        if (Gx_arr is not None) and (Gy_arr is not None):
-            Gx_host = self.sim.Gx.get()
-            Gy_host = self.sim.Gy.get()
-
-            Gx_host[:, :, self.field_index] = Gx_arr
-            Gy_host[:, :, self.field_index] = Gy_arr
-
-            self.sim.Gx = cl.array.to_device(self.sim.queue, Gx_host)
-            self.sim.Gy = cl.array.to_device(self.sim.queue, Gy_host)
-
-        #### TOTAL FORCE ####
+        #### TOTAL FORCE, including internal drag ####
         Fx_host = np.zeros((self.sim.nx, self.sim.ny), dtype=num_type, order='F')
         Fy_host = np.zeros((self.sim.nx, self.sim.ny), dtype=num_type, order='F')
 
@@ -524,24 +512,14 @@ class Simulation_Runner(object):
 
         self.additional_collisions.append([kernel_to_run, arguments])
 
-    def add_body_force(self, fluid_1_index, fluid_2_index, G_int):
-        """
+    def add_constant_body_force(self, fluid_index, force_x, force_y):
 
-        :param fluid_1:
-        :param fluid_2:
-        :param G_int:
-        :return:
-        """
-
-        kernel_to_run = self.kernels.add_interaction_force
+        kernel_to_run = self.kernels.add_constant_body_force
         arguments = [
             self.queue, self.two_d_global_size, self.two_d_local_size,
-            int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
-            self.psi_local_1, self.psi_local_2,
-            self.rho.data, self.Gx.data, self.Gy.data,
-            self.cs, self.cx, self.cy, self.w,
+            int_type(fluid_index), num_type(force_x), num_type(force_y),
+            self.Gx.data, self.Gy.data,
             self.nx, self.ny,
-            self.buf_nx, self.buf_ny, self.halo
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
@@ -605,7 +583,7 @@ class Simulation_Runner(object):
                 print 'After updating hydro'
                 self.check_fields()
 
-            # Reset the total body force
+            # Reset the total body force and add to it as appropriate
             self.Gx[...] = 0
             self.Gy[...] = 0
             for d in self.additional_forces:

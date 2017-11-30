@@ -393,6 +393,29 @@ copy_streamed_onto_f(
     }
 }
 
+__kernel void
+add_constant_body_force(
+    const int field_num,
+    const double force_x,
+    const double force_y,
+    __global double *Gx_global,
+    __global double *Gy_global,
+    const int nx, const int ny
+)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        int three_d_index = field_num*nx*ny + y*nx + x;
+
+        Gx_global[three_d_index] += force_x;
+        Gy_global[three_d_index] += force_y;
+
+    }
+}
+
 
 __kernel void
 add_interaction_force(
