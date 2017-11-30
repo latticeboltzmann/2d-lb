@@ -20,6 +20,9 @@ parent_dir = os.path.dirname(file_dir)
 # Required for allocating local memory
 float_size = ct.sizeof(ct.c_float)
 
+num_type = np.float32
+int_type = np.int32
+
 
 def get_divisible_global(global_size, local_size):
     """
@@ -46,18 +49,18 @@ class Pourous_Media(object):
 
         self.sim = sim # TODO: MAKE THIS A WEAKREF
 
-        self.field_index = np.int32(field_index)
+        self.field_index = int_type(field_index)
 
-        self.nu_e = np.float32(nu_e)
-        self.epsilon = np.float32(epsilon)
-        self.nu_fluid = np.float32(nu_fluid)
-        self.K = np.float32(K)
-        self.Fe = np.float32(Fe)
+        self.nu_e = num_type(nu_e)
+        self.epsilon = num_type(epsilon)
+        self.nu_fluid = num_type(nu_fluid)
+        self.K = num_type(K)
+        self.Fe = num_type(Fe)
 
         # Determine the viscosity
         self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
-        self.tau = np.float32(.5 + self.lb_nu_e / (sim.cs**2))
-        self.omega = np.float32(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
+        self.tau = num_type(.5 + self.lb_nu_e / (sim.cs**2))
+        self.omega = num_type(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
 
@@ -103,8 +106,8 @@ class Pourous_Media(object):
             self.sim.Gy = cl.array.to_device(self.sim.queue, Gy_host)
 
         #### TOTAL FORCE ####
-        Fx_host = np.zeros((self.sim.nx, self.sim.ny), dtype=np.float32, order='F')
-        Fy_host = np.zeros((self.sim.nx, self.sim.ny), dtype=np.float32, order='F')
+        Fx_host = np.zeros((self.sim.nx, self.sim.ny), dtype=num_type, order='F')
+        Fy_host = np.zeros((self.sim.nx, self.sim.ny), dtype=num_type, order='F')
 
         self.Fx = cl.array.to_device(self.sim.queue, Fx_host)
         self.Fy = cl.array.to_device(self.sim.queue, Fy_host)
@@ -277,7 +280,7 @@ class Simulation_Runner(object):
         self.Ly = Ly
 
         # Book-keeping
-        self.num_populations = np.int32(num_populations)
+        self.num_populations = int_type(num_populations)
 
         self.check_max_ulb = check_max_ulb
         self.mach_tolerance = mach_tolerance
@@ -288,8 +291,8 @@ class Simulation_Runner(object):
 
         # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
         self.N = N # Characteristic length is broken into N pieces
-        self.delta_x = np.float32(1./N) # How many squares characteristic length is broken into
-        self.delta_t = np.float32(time_prefactor * self.delta_x**2) # How many time iterations until the characteristic time, should be ~ \delta x^2
+        self.delta_x = num_type(1./N) # How many squares characteristic length is broken into
+        self.delta_t = num_type(time_prefactor * self.delta_x**2) # How many time iterations until the characteristic time, should be ~ \delta x^2
 
         # Characteristic LB speed corresponding to dimensionless speed of 1. Must be MUCH smaller than cs = .57 or so.
         self.ulb = self.delta_t/self.delta_x
@@ -330,30 +333,30 @@ class Simulation_Runner(object):
 
         ## Initialize hydrodynamic variables & Shan-chen variables
 
-        rho_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        rho_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
 
-        u_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
-        v_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        u_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
+        v_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
         self.u = cl.array.to_device(self.queue, u_host) # Velocity in the x direction; one per sim!
         self.v = cl.array.to_device(self.queue, v_host) # Velocity in the y direction; one per sim.
 
-        u_prime_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
-        v_prime_host = np.zeros((self.nx, self.ny), dtype=np.float32, order='F')
+        u_prime_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
+        v_prime_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
         self.u_prime = cl.array.to_device(self.queue, u_prime_host)  # Velocity in the x direction; one per sim!
         self.v_prime = cl.array.to_device(self.queue, v_prime_host)  # Velocity in the y direction; one per sim.
 
         # Intitialize the underlying feq equilibrium field
-        feq_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=np.float32, order='F')
+        feq_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=num_type, order='F')
         self.feq = cl.array.to_device(self.queue, feq_host)
 
-        f_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=np.float32, order='F')
+        f_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=num_type, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
 
         # Initialize G: the body force acting on each phase
-        Gx_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
-        Gy_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=np.float32, order='F')
+        Gx_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
+        Gy_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
         self.Gx = cl.array.to_device(self.queue, Gx_host)
         self.Gy = cl.array.to_device(self.queue, Gy_host)
 
@@ -370,8 +373,8 @@ class Simulation_Runner(object):
         xvalues = np.arange(self.nx)
         yvalues = np.arange(self.ny)
         Y, X = np.meshgrid(yvalues, xvalues)
-        X = X.astype(np.float)
-        Y = Y.astype(np.float)
+        X = X.astype(num_type)
+        Y = Y.astype(num_type)
 
         deltaX = X - self.x_center
         deltaY = Y - self.y_center
@@ -395,7 +398,7 @@ class Simulation_Runner(object):
         tau_host = []
         for cur_fluid in self.fluid_list:
             tau_host.append(cur_fluid.tau)
-        tau_host = np.array(tau_host, dtype=np.float32)
+        tau_host = np.array(tau_host, dtype=num_type)
         self.tau_arr = cl.Buffer(self.context, cl.mem_flags.READ_ONLY |
         cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
 
@@ -420,8 +423,8 @@ class Simulation_Runner(object):
         Initializes the dimensions of the grid that the simulation will take place in. The size of the grid
         will depend on both the physical geometry of the input system and the desired resolution N.
         """
-        self.nx = np.int32(np.round(self.N*self.Lx))
-        self.ny = np.int32(np.round(self.N*self.Ly))
+        self.nx = int_type(np.round(self.N*self.Lx))
+        self.ny = int_type(np.round(self.N*self.Ly))
 
         print 'nx:' , self.nx
         print 'ny:', self.ny
@@ -476,21 +479,21 @@ class Simulation_Runner(object):
         ##### D2Q9 parameters ####
         ##########################
         w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
-                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=np.float32)  # weights for directions
-        cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=np.int32)  # direction vector for the x direction
-        cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=np.int32)  # direction vector for the y direction
+                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
+        cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
+        cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
         self.cs = np.float32(1. / np.sqrt(3))  # Speed of sound on the lattice
 
-        self.num_jumpers = np.int32(9)  # Number of jumpers for the D2Q9 lattice: 9
+        self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
 
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
         # Allocate local memory for the clumpiness
-        self.halo = np.int32(1) # As we are doing D2Q9, we have a halo of one
-        self.buf_nx = np.int32(self.two_d_local_size[0] + 2 * self.halo)
-        self.buf_ny = np.int32(self.two_d_local_size[1] + 2 * self.halo)
+        self.halo = int_type(1) # As we are doing D2Q9, we have a halo of one
+        self.buf_nx = int_type(self.two_d_local_size[0] + 2 * self.halo)
+        self.buf_ny = int_type(self.two_d_local_size[1] + 2 * self.halo)
         self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
 
     def run(self, num_iterations, debug=False):

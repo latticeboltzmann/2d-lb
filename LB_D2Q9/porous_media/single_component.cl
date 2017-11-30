@@ -212,10 +212,14 @@ update_hydro_pourous(
         float u_prime = u_prime_global[two_d_index];
         float v_prime = v_prime_global[two_d_index];
 
-        //TODO: NOT CLEAR IF THIS SHOULD BE DIVIDED BY RHO OR NOT...FIGURE THAT OUT! Currently crashes if dived by rho.
+        //Gx NEEDS to be force/density...i.e. an acceleration, or else this just doesn't work!
 
-        float u_temp = u_prime + (.5*delta_t*epsilon*Gx);
-        float v_temp = v_prime + (.5*delta_t*epsilon*Gy);
+        float u_temp = u_prime;
+        float v_temp = v_prime;
+
+        u_temp += (.5*delta_t*epsilon*Gx);
+        v_temp += (.5*delta_t*epsilon*Gy);
+
 
         float c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
         float c1 = (epsilon*.5*delta_t*Fe)/sqrt(K);
