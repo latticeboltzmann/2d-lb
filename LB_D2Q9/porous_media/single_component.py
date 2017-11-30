@@ -589,6 +589,10 @@ class Simulation_Runner(object):
                 arguments = d[1]
                 kernel(*arguments).wait()
 
+            if debug:
+                print 'After updating interaction forces'
+                self.check_fields()
+
             # Update other forces
             for cur_fluid in self.fluid_list:
                 cur_fluid.update_forces()  # Update the forces; some are based on the hydro

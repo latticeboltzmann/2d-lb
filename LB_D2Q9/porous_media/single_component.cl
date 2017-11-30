@@ -476,11 +476,11 @@ add_interaction_force(
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            force_x_fluid_1 += cur_w * cur_cx * local_fluid_2[fluid_index_2*ny*nx + new_2d_buf_index];
-            force_y_fluid_1 += cur_w * cur_cy * local_fluid_2[fluid_index_2*ny*nx + new_2d_buf_index];
+            force_x_fluid_1 += cur_w * cur_cx * local_fluid_2[new_2d_buf_index];
+            force_y_fluid_1 += cur_w * cur_cy * local_fluid_2[new_2d_buf_index];
 
-            force_x_fluid_2 += cur_w * cur_cx * local_fluid_1[fluid_index_1*ny*nx + new_2d_buf_index];
-            force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[fluid_index_1*ny*nx + new_2d_buf_index];
+            force_x_fluid_2 += cur_w * cur_cx * local_fluid_1[new_2d_buf_index];
+            force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[new_2d_buf_index];
         }
 
         force_x_fluid_1 *= -G_int;
