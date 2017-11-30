@@ -389,6 +389,7 @@ class Simulation_Runner(object):
         self.tau_arr = []
 
         self.additional_collisions = [] # Takes into account growth, other things that can influence collisions
+        self.additional_forces = []  # Takes into account other forces, i.e. surface tension
 
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
@@ -523,6 +524,27 @@ class Simulation_Runner(object):
 
         self.additional_collisions.append([kernel_to_run, arguments])
 
+    def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int):
+        """
+
+        :param fluid_1:
+        :param fluid_2:
+        :param G_int:
+        :return:
+        """
+
+        kernel_to_run = self.kernels.add_interaction_force
+        arguments = [
+            self.queue, self.two_d_global_size, self.two_d_local_size,
+            int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
+            self.psi_local_1, self.psi_local_2,
+            self.rho.data, self.Gx.data, self.Gy.data,
+            self.cs, self.cx, self.cy, self.w,
+            self.nx, self.ny,
+            self.buf_nx, self.buf_ny, self.halo
+        ]
+
+        self.additional_forces.append([kernel_to_run, arguments])
 
     def run(self, num_iterations, debug=False):
         """
@@ -561,6 +583,13 @@ class Simulation_Runner(object):
                 print 'After updating hydro'
                 self.check_fields()
 
+            # Update the body force as necessary
+            for d in self.additional_forces:
+                kernel = d[0]
+                arguments = d[1]
+                kernel(*arguments).wait()
+
+            # Update other forces
             for cur_fluid in self.fluid_list:
                 cur_fluid.update_forces()  # Update the forces; some are based on the hydro
             if debug:
