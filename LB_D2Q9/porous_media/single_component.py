@@ -60,6 +60,7 @@ class Pourous_Media(object):
         # Determine the viscosity
         self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
         self.tau = num_type(.5 + self.lb_nu_e / (sim.cs**2))
+        print 'tau', self.tau
         self.omega = num_type(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
         print 'omega', self.omega
         assert self.omega < 2.
@@ -81,8 +82,6 @@ class Pourous_Media(object):
 
         u_host[:, :, self.field_index] = u_arr
         v_host[:, :, self.field_index] = v_arr
-
-        #TODO: FOR MULTIPHASE FLOWS, WE NEED TO INITIALIZE UPRIME, VPRIME?
 
         self.sim.u = cl.array.to_device(self.sim.queue, u_host)
         self.sim.v = cl.array.to_device(self.sim.queue, v_host)
@@ -399,6 +398,7 @@ class Simulation_Runner(object):
         for cur_fluid in self.fluid_list:
             tau_host.append(cur_fluid.tau)
         tau_host = np.array(tau_host, dtype=num_type)
+        print 'tau array:', tau_host
         self.tau_arr = cl.Buffer(self.context, cl.mem_flags.READ_ONLY |
         cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
 
