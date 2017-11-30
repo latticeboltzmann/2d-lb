@@ -326,7 +326,9 @@ class Simulation_Runner(object):
         self.halo = None
         self.buf_nx = None
         self.buf_ny = None
-        self.psi_local = None
+        # For nonlocal computation
+        self.psi_local_1 = None
+        self.psi_local_2 = None
 
         self.allocate_constants()
 
@@ -496,7 +498,9 @@ class Simulation_Runner(object):
         self.halo = int_type(1) # As we are doing D2Q9, we have a halo of one
         self.buf_nx = int_type(self.two_d_local_size[0] + 2 * self.halo)
         self.buf_ny = int_type(self.two_d_local_size[1] + 2 * self.halo)
-        self.psi_local = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
+
+        self.psi_local_1 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
+        self.psi_local_2 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
 
     def add_eating_rate(self, eater_index, eatee_index, rate):
         """
