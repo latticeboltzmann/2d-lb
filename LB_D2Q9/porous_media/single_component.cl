@@ -7,15 +7,15 @@
 #endif
 
 __kernel void
-update_feq_pourous(__global __write_only float *feq_global,
-           __global __read_only float *rho_global,
-           __global __read_only float *u_global,
-           __global __read_only float *v_global,
-           const float epsilon,
-           __constant float *w_arr,
+update_feq_pourous(__global __write_only double *feq_global,
+           __global __read_only double *rho_global,
+           __global __read_only double *u_global,
+           __global __read_only double *v_global,
+           const double epsilon,
+           __constant double *w_arr,
            __constant int *cx_arr,
            __constant int *cy_arr,
-           const float cs,
+           const double cs,
            const int nx, const int ny,
            const int field_num,
            const int num_populations,
@@ -31,22 +31,22 @@ update_feq_pourous(__global __write_only float *feq_global,
 
         int three_d_index = field_num*nx*ny + two_d_index;
 
-        float rho = rho_global[three_d_index];
-        const float u = u_global[three_d_index];
-        const float v = v_global[three_d_index];
+        double rho = rho_global[three_d_index];
+        const double u = u_global[three_d_index];
+        const double v = v_global[three_d_index];
 
         // Now loop over every jumper
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_index = jump_id*num_populations*nx*ny + three_d_index;
 
-            float w = w_arr[jump_id];
+            double w = w_arr[jump_id];
             int cx = cx_arr[jump_id];
             int cy = cy_arr[jump_id];
 
-            float c_dot_u = cx*u + cy*v;
-            float u_squared = u*u + v*v;
+            double c_dot_u = cx*u + cy*v;
+            double u_squared = u*u + v*v;
 
-            float new_feq =
+            double new_feq =
             w*rho*(
             1.f
             + c_dot_u/(cs*cs)
@@ -61,24 +61,24 @@ update_feq_pourous(__global __write_only float *feq_global,
 
 __kernel void
 collide_particles_pourous(
-    __global float *f_global,
-    __global __read_only float *feq_global,
-    __global __read_only float *rho_global,
-    __global __read_only float *u_global,
-    __global __read_only float *v_global,
-    __global __read_only float *Fx_global,
-    __global __read_only float *Fy_global,
-    const float epsilon,
-    const float omega,
-    __constant float *w_arr,
+    __global double *f_global,
+    __global __read_only double *feq_global,
+    __global __read_only double *rho_global,
+    __global __read_only double *u_global,
+    __global __read_only double *v_global,
+    __global __read_only double *Fx_global,
+    __global __read_only double *Fy_global,
+    const double epsilon,
+    const double omega,
+    __constant double *w_arr,
     __constant int *cx_arr,
     __constant int *cy_arr,
     const int nx, const int ny,
     const int cur_field,
     const int num_populations,
     const int num_jumpers,
-    const float delta_t,
-    const float cs)
+    const double delta_t,
+    const double cs)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -88,49 +88,41 @@ collide_particles_pourous(
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        float rho = rho_global[three_d_index];
-        float u = u_global[three_d_index];
-        float v = v_global[three_d_index];
-        float Fx = Fx_global[two_d_index];
-        float Fy = Fy_global[two_d_index];
+        const double rho = rho_global[three_d_index];
+        const double u = u_global[three_d_index];
+        const double v = v_global[three_d_index];
+        const double Fx = Fx_global[two_d_index];
+        const double Fy = Fy_global[two_d_index];
 
 
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
 
-            float f = f_global[four_d_index];
-            float feq = feq_global[four_d_index];
-            float w = w_arr[jump_id];
-            int cx = cx_arr[jump_id];
-            int cy = cy_arr[jump_id];
-
-            float relax = f*(1-omega) + omega*feq;
+            double relax = f_global[four_d_index]*(1-omega) + omega*feq_global[four_d_index];
             //Calculate Fi
-            float c_dot_F = cx * Fx + cy * Fy;
-            float c_dot_u = cx * u  + cy * v;
-            float u_dot_F = Fx * u + Fy * v;
+            double c_dot_F = cx_arr[jump_id] * Fx + cy_arr[jump_id] * Fy;
+            double c_dot_u = cx_arr[jump_id] * u  + cy_arr[jump_id] * v;
+            double u_dot_F = Fx * u + Fy * v;
 
-            float Fi = w*rho*(1 - .5*omega)*(
+            double Fi = w_arr[jump_id]*rho*(1 - .5*omega)*(
                 1.
                 + c_dot_F/(cs*cs)
                 + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
                 - u_dot_F/(cs*cs*epsilon)
             );
 
-            float new_f = relax + delta_t * Fi;
-
-            f_global[four_d_index] = new_f;
+            f_global[four_d_index] = relax + delta_t * Fi;
         }
     }
 }
 
 __kernel void
-update_velocity_prime(__global float *u_prime_global,
-                      __global float *v_prime_global,
-                      __global __read_only float *rho_global,
-                      __global __read_only float *f_global,
-                      __constant float *tau_arr,
-                      __constant float *w_arr,
+update_velocity_prime(__global double *u_prime_global,
+                      __global double *v_prime_global,
+                      __global __read_only double *rho_global,
+                      __global __read_only double *f_global,
+                      __constant double *tau_arr,
+                      __constant double *w_arr,
                       __constant int *cx_arr,
                       __constant int *cy_arr,
                       const int nx, const int ny,
@@ -144,22 +136,22 @@ update_velocity_prime(__global float *u_prime_global,
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
 
-        float numerator_u = 0;
-        float numerator_v = 0;
+        double numerator_u = 0;
+        double numerator_v = 0;
 
-        float denominator = 0; // The denominator has no vectorial nature
+        double denominator = 0; // The denominator has no vectorial nature
 
         for(int cur_field=0; cur_field < num_populations; cur_field++){
             int three_d_index = cur_field*ny*nx + two_d_index;
 
-            float cur_tau = tau_arr[cur_field];
-            float rho = rho_global[three_d_index];
+            double cur_tau = tau_arr[cur_field];
+            double rho = rho_global[three_d_index];
 
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
-                float f = f_global[four_d_index];
-                float cx = cx_arr[jump_id];
-                float cy = cy_arr[jump_id];
+                double f = f_global[four_d_index];
+                double cx = cx_arr[jump_id];
+                double cy = cy_arr[jump_id];
 
                 numerator_u += cx * f;
                 numerator_v += cy * f;
@@ -176,26 +168,26 @@ update_velocity_prime(__global float *u_prime_global,
 
 __kernel void
 update_hydro_pourous(
-             __global __read_only float *f_global,
-             __global float *rho_global,
-             __global float *u_prime_global,
-             __global float *v_prime_global,
-             __global float *u_global,
-             __global float *v_global,
-             __global __read_only float *Gx_global,
-             __global __read_only float *Gy_global,
-             const float epsilon,
-             const float nu_fluid,
-             const float Fe,
-             const float K,
-             __constant float *w_arr,
+             __global __read_only double *f_global,
+             __global double *rho_global,
+             __global double *u_prime_global,
+             __global double *v_prime_global,
+             __global double *u_global,
+             __global double *v_global,
+             __global __read_only double *Gx_global,
+             __global __read_only double *Gy_global,
+             const double epsilon,
+             const double nu_fluid,
+             const double Fe,
+             const double K,
+             __constant double *w_arr,
              __constant int *cx_arr,
              __constant int *cy_arr,
              const int nx, const int ny,
              const int cur_field,
              const int num_populations,
              const int num_jumpers,
-             const float delta_t)
+             const double delta_t)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -205,37 +197,37 @@ update_hydro_pourous(
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        float Gx = Gx_global[three_d_index];
-        float Gy = Gy_global[three_d_index];
+        double Gx = Gx_global[three_d_index];
+        double Gy = Gy_global[three_d_index];
 
         // Update rho!
-        float new_rho = 0;
+        double new_rho = 0;
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
-            float f = f_global[four_d_index];
+            double f = f_global[four_d_index];
             new_rho += f;
         }
         rho_global[three_d_index] = new_rho;
         //Now determine the new velocity
-        float u_prime = u_prime_global[two_d_index];
-        float v_prime = v_prime_global[two_d_index];
+        double u_prime = u_prime_global[two_d_index];
+        double v_prime = v_prime_global[two_d_index];
 
         //Gx NEEDS to be force/density...i.e. an acceleration, or else this just doesn't work!
 
-        float u_temp = u_prime;
-        float v_temp = v_prime;
+        double u_temp = u_prime;
+        double v_temp = v_prime;
 
         u_temp += (.5*delta_t*epsilon*Gx);
         v_temp += (.5*delta_t*epsilon*Gy);
 
 
-        float c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
-        float c1 = (epsilon*.5*delta_t*Fe)/sqrt(K);
+        double c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
+        double c1 = (epsilon*.5*delta_t*Fe)/sqrt(K);
 
-        float temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
+        double temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
 
-        float u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
-        float v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+        double u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+        double v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
 
         u_global[three_d_index] = u;
         v_global[three_d_index] = v;
@@ -244,16 +236,16 @@ update_hydro_pourous(
 
 __kernel void
 update_forces_pourous(
-    __global float *u_global,
-    __global float *v_global,
-    __global __read_only float *Fx_global,
-    __global __read_only float *Fy_global,
-    __global __read_only float *Gx_global,
-    __global __read_only float *Gy_global,
-    const float epsilon,
-    const float nu_fluid,
-    const float Fe,
-    const float K,
+    __global double *u_global,
+    __global double *v_global,
+    __global __read_only double *Fx_global,
+    __global __read_only double *Fy_global,
+    __global __read_only double *Gx_global,
+    __global __read_only double *Gy_global,
+    const double epsilon,
+    const double nu_fluid,
+    const double Fe,
+    const double K,
     const int nx, const int ny,
     const int cur_field,
     const int num_populations
@@ -267,21 +259,21 @@ update_forces_pourous(
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        float u = u_global[three_d_index];
-        float v = v_global[three_d_index];
+        double u = u_global[three_d_index];
+        double v = v_global[three_d_index];
 
-        float Gx = Gx_global[three_d_index];
-        float Gy = Gy_global[three_d_index];
+        double Gx = Gx_global[three_d_index];
+        double Gy = Gy_global[three_d_index];
 
         // Based on the new velocity, determine the force.
         // Note that you have to calculate the new velocity first in this formalism!
-        float Fx = 0;
-        float Fy = 0;
+        double Fx = 0;
+        double Fy = 0;
 
         Fx += -(epsilon * nu_fluid*u)/K;
         Fy += -(epsilon * nu_fluid*v)/K;
 
-        float vel_mag = sqrt(u*u + v*v);
+        double vel_mag = sqrt(u*u + v*v);
 
         Fx += -(epsilon * Fe * vel_mag * u)/sqrt(K);
         Fy += -(epsilon * Fe * vel_mag * v)/sqrt(K);
@@ -295,8 +287,8 @@ update_forces_pourous(
 }
 
 __kernel void
-move_periodic(__global __read_only float *f_global,
-              __global __write_only float *f_streamed_global,
+move_periodic(__global __read_only double *f_global,
+              __global __write_only double *f_streamed_global,
               __constant int *cx,
               __constant int *cy,
               const int nx, const int ny,
@@ -335,8 +327,8 @@ move_periodic(__global __read_only float *f_global,
 
 __kernel void
 copy_streamed_onto_f(
-    __global __write_only float *f_streamed_global,
-    __global __read_only float *f_global,
+    __global __write_only double *f_streamed_global,
+    __global __read_only double *f_global,
     __constant int *cx,
     __constant int *cy,
     const int nx, const int ny,
@@ -361,9 +353,9 @@ copy_streamed_onto_f(
 }
 
 __kernel void
-update_surf_tension(__global float *S_global,
-                __global __read_only float *rho_global,
-                const float c_o, const float alpha,
+update_surf_tension(__global double *S_global,
+                __global __read_only double *rho_global,
+                const double c_o, const double alpha,
                 const int nx, const int ny, const int surf_index)
 {
     const int x = get_global_id(0);
@@ -373,24 +365,24 @@ update_surf_tension(__global float *S_global,
         const int two_d_index = y*nx + x;
         int three_d_index = surf_index*ny*nx + two_d_index;
 
-        float cur_rho = rho_global[three_d_index];
+        double cur_rho = rho_global[three_d_index];
         if (cur_rho < 0) cur_rho = 0;
         S_global[two_d_index] = pow(1.f - exp(-cur_rho/c_o), alpha);
     }
 }
 
 __kernel void
-update_pressure_force(__global __read_only float *rho_global,
+update_pressure_force(__global __read_only double *rho_global,
                     const int pop_index,
-                    __global float *pseudo_force_x,
-                    __global float *pseudo_force_y,
-                    const float G_chen,
-                    const float rho_o,
-                    const float cs,
+                    __global double *pseudo_force_x,
+                    __global double *pseudo_force_y,
+                    const double G_chen,
+                    const double rho_o,
+                    const double cs,
                     __constant int *cx,
                     __constant int *cy,
-                    __constant float *w,
-                    __local float *rho_local,
+                    __constant double *w,
+                    __local double *rho_local,
                     const int nx, const int ny,
                     const int buf_nx, const int buf_ny,
                     const int halo)
@@ -439,14 +431,14 @@ update_pressure_force(__global __read_only float *rho_global,
     //Now that all desired psi are read in, do the multiplication
     if ((x < nx) && (y < ny)){
         const int old_2d_buf_index = buf_y*buf_nx + buf_x;
-        const float middle_rho = rho_local[old_2d_buf_index];
+        const double middle_rho = rho_local[old_2d_buf_index];
 
-        float rho_grad_x = 0;
-        float rho_grad_y = 0;
+        double rho_grad_x = 0;
+        double rho_grad_y = 0;
         for(int jump_id = 0; jump_id < 9; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
-            float cur_w = w[jump_id];
+            double cur_w = w[jump_id];
 
             //Get the shifted positions
             int stream_buf_x = buf_x + cur_cx;
@@ -454,13 +446,13 @@ update_pressure_force(__global __read_only float *rho_global,
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            float new_rho = rho_local[new_2d_buf_index];
+            double new_rho = rho_local[new_2d_buf_index];
             rho_grad_x += cur_w * cur_cx * new_rho;
             rho_grad_y += cur_w * cur_cy * new_rho;
         }
         const int two_d_index = y*nx + x;
 
-        const float inv_cs_sq = 1./(cs*cs);
+        const double inv_cs_sq = 1./(cs*cs);
         rho_grad_x *= inv_cs_sq; // To make the gradient actually correct
         rho_grad_y *= inv_cs_sq;
 
@@ -472,16 +464,16 @@ update_pressure_force(__global __read_only float *rho_global,
 }
 
 __kernel void
-update_surface_forces(__global __read_only float *S_global,
-               __global __write_only float *surface_force_x,
-               __global __write_only float *surface_force_y,
+update_surface_forces(__global __read_only double *S_global,
+               __global __write_only double *surface_force_x,
+               __global __write_only double *surface_force_y,
                const int surf_index,
-               const float cs,
-               const float epsilon,
+               const double cs,
+               const double epsilon,
                __constant int *cx,
                __constant int *cy,
-               __constant float *w,
-               __local float *S_local,
+               __constant double *w,
+               __local double *S_local,
                const int nx, const int ny,
                const int buf_nx, const int buf_ny,
                const int halo)
@@ -531,12 +523,12 @@ update_surface_forces(__global __read_only float *S_global,
     if ((x < nx) && (y < ny)){
         const int old_2d_buf_index = buf_y*buf_nx + buf_x;
 
-        float grad_x = 0;
-        float grad_y = 0;
+        double grad_x = 0;
+        double grad_y = 0;
         for(int jump_id = 0; jump_id < 9; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
-            float cur_w = w[jump_id];
+            double cur_w = w[jump_id];
 
             //Get the shifted positions
             int stream_buf_x = buf_x + cur_cx;
@@ -544,12 +536,12 @@ update_surface_forces(__global __read_only float *S_global,
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            float cur_S = S_local[new_2d_buf_index];
+            double cur_S = S_local[new_2d_buf_index];
             grad_x += cur_w * cur_cx * cur_S;
             grad_y += cur_w * cur_cy * cur_S;
         }
         const int two_d_index = y*nx + x;
-        const float inv_cs_sq = 1./(cs*cs);
+        const double inv_cs_sq = 1./(cs*cs);
         surface_force_x[two_d_index] = -epsilon * inv_cs_sq * grad_x;
         surface_force_y[two_d_index] = -epsilon * inv_cs_sq * grad_y;
     }

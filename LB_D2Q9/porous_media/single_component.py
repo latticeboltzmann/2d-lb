@@ -18,9 +18,9 @@ file_dir = os.path.dirname(full_path)
 parent_dir = os.path.dirname(file_dir)
 
 # Required for allocating local memory
-float_size = ct.sizeof(ct.c_float)
+num_size = ct.sizeof(ct.c_double)
 
-num_type = np.float32
+num_type = np.double
 int_type = np.int32
 
 
@@ -482,7 +482,7 @@ class Simulation_Runner(object):
                       1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
         cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
         cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
-        self.cs = np.float32(1. / np.sqrt(3))  # Speed of sound on the lattice
+        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
 
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
 
@@ -494,7 +494,7 @@ class Simulation_Runner(object):
         self.halo = int_type(1) # As we are doing D2Q9, we have a halo of one
         self.buf_nx = int_type(self.two_d_local_size[0] + 2 * self.halo)
         self.buf_ny = int_type(self.two_d_local_size[1] + 2 * self.halo)
-        self.psi_local = cl.LocalMemory(float_size * self.buf_nx * self.buf_ny)
+        self.psi_local = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
 
     def run(self, num_iterations, debug=False):
         """
