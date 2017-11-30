@@ -528,6 +528,8 @@ class Simulation_Runner(object):
                 if debug:
                     print 'After updating hydro', cur_fluid.field_index
                     self.check_fields()
+                cur_fluid.update_forces()  # Update the forces; some are based on the hydro
+
 
                 cur_fluid.update_feq() # Update the equilibrium fields
                 if debug:
