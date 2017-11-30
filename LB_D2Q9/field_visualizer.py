@@ -75,7 +75,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
 
         # Setup necessary buffers, projections, etc.
         self.I = np.zeros((self.W, self.H), dtype=np.float32, order='F')
-        self.I = self.sim_field_to_draw.get()
+        self.I = self.sim_field_to_draw.get().astype(np.float32)
 
         self.scaling_factor = scaling_factor
         self.max_magnitude = max_magnitude
@@ -146,7 +146,7 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.sim.run(self.num_steps_per_draw)
         self.total_num_steps += self.num_steps_per_draw
 
-        self.I[...] = self.sim_field_to_draw.get()
+        self.I[...] = self.sim_field_to_draw.get().astype(np.float32)
 
         self.texture.set_data(self.I)
         self.program.draw('triangle_strip')
