@@ -105,8 +105,7 @@ collide_particles_pourous(
             double u_dot_F = Fx * u + Fy * v;
 
             double Fi = w_arr[jump_id]*rho*(1 - .5*omega)*(
-                1.
-                + c_dot_F/(cs*cs)
+                c_dot_F/(cs*cs)
                 + c_dot_F*c_dot_u/(cs*cs*cs*cs*epsilon)
                 - u_dot_F/(cs*cs*epsilon)
             );
