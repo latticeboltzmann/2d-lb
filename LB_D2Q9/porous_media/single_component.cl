@@ -117,6 +117,48 @@ collide_particles_pourous(
 }
 
 __kernel void
+add_eating_collision(
+    const int eater_index,
+    const int eatee_index,
+    const double eat_rate,
+    __global double *f_global,
+    __global __read_only double *rho_global,
+    __constant double *w_arr,
+    __constant int *cx_arr,
+    __constant int *cy_arr,
+    const int nx, const int ny,
+    const int num_populations,
+    const int num_jumpers,
+    const double delta_t,
+    const double cs)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_eater_index = eater_index*ny*nx + two_d_index;
+        int three_d_eatee_index = eatee_index*ny*nx + two_d_index;
+
+        const double rho_eater = rho_global[three_d_eater_index];
+        const double rho_eatee = rho_global[three_d_eatee_index];
+
+        const double all_growth = delta_t * eat_rate*rho_eater*rho_eatee;
+
+        for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+            int four_d_eater_index = jump_id*num_populations*ny*nx + three_d_eater_index;
+            int four_d_eatee_index = jump_id*num_populations*ny*nx + three_d_eatee_index;
+
+            float w = w_arr[jump_id];
+
+            f_global[four_d_eater_index] += w * all_growth;
+            f_global[four_d_eatee_index] -= w * all_growth;
+        }
+    }
+}
+
+__kernel void
 update_velocity_prime(__global double *u_prime_global,
                       __global double *v_prime_global,
                       __global __read_only double *rho_global,

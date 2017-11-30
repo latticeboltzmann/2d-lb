@@ -386,6 +386,8 @@ class Simulation_Runner(object):
         self.fluid_list = []
         self.tau_arr = []
 
+        self.additional_collisions = [] # Takes into account growth, other things that can influence collisions
+
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
 
@@ -496,6 +498,28 @@ class Simulation_Runner(object):
         self.buf_ny = int_type(self.two_d_local_size[1] + 2 * self.halo)
         self.psi_local = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
 
+    def add_eating_rate(self, eater_index, eatee_index, rate):
+        """
+        Eater eats eatee at a given rate.
+        :param eater:
+        :param eatee:
+        :param rate:
+        :return:
+        """
+
+        kernel_to_run = self.kernels.add_eating_collision
+        arguments = [
+            self.queue, self.two_d_global_size, self.two_d_local_size,
+            int_type(eater_index), int_type(eatee_index), num_type(rate),
+            self.f.data, self.rho.data,
+            self.w, self.cx, self.cy,
+            self.nx, self.ny, self.num_populations, self.num_jumpers,
+            self.delta_t, self.cs\
+        ]
+
+        self.additional_collisions.append([kernel_to_run, arguments])
+
+
     def run(self, num_iterations, debug=False):
         """
         Run the simulation for num_iterations. Be aware that the same number of iterations does not correspond
@@ -542,6 +566,12 @@ class Simulation_Runner(object):
                 if debug:
                     print 'After colliding particles', cur_fluid.field_index
                     self.check_fields()
+
+            # Loop over any additional collisions that are required (i.e. mass gain/loss)
+            for d in self.additional_collisions:
+                kernel = d[0]
+                arguments = d[1]
+                kernel(*arguments).wait()
 
     def check_fields(self):
         # Start with rho
