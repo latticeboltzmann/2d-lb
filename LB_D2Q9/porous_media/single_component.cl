@@ -334,7 +334,8 @@ move_periodic(__global __read_only double *f_global,
               __constant int *cy,
               const int nx, const int ny,
               const int cur_field,
-              const int num_populations)
+              const int num_populations,
+              const int num_jumpers)
 {
     /* Moves you assuming periodic BC's. */
     //Input should be a 2d workgroup!
@@ -342,7 +343,7 @@ move_periodic(__global __read_only double *f_global,
     const int y = get_global_id(1);
 
     if ((x < nx) && (y < ny)){
-        for(int jump_id = 0; jump_id < 9; jump_id++){
+        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
 
@@ -374,7 +375,8 @@ copy_streamed_onto_f(
     __constant int *cy,
     const int nx, const int ny,
     const int cur_field,
-    const int num_populations)
+    const int num_populations,
+    const int num_jumpers)
 {
     /* Moves you assuming periodic BC's. */
     //Input should be a 2d workgroup!
@@ -382,7 +384,7 @@ copy_streamed_onto_f(
     const int y = get_global_id(1);
 
     if ((x < nx) && (y < ny)){
-        for(int jump_id = 0; jump_id < 9; jump_id++){
+        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
 
@@ -433,7 +435,8 @@ add_interaction_force(
     __constant double *w,
     const int nx, const int ny,
     const int buf_nx, const int buf_ny,
-    const int halo)
+    const int halo,
+    const int num_jumpers)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -488,7 +491,7 @@ add_interaction_force(
         double force_x_fluid_2 = 0;
         double force_y_fluid_2 = 0;
 
-        for(int jump_id = 0; jump_id < 9; jump_id++){
+        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
             double cur_w = w[jump_id];

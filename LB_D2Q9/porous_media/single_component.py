@@ -188,7 +188,7 @@ class Pourous_Media(object):
                                 sim.f.data, sim.f_streamed.data,
                                 sim.cx, sim.cy,
                                 sim.nx, sim.ny,
-                                self.field_index, sim.num_populations).wait()
+                                self.field_index, sim.num_populations, sim.num_jumpers).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.sim.kernels.copy_streamed_onto_f(
@@ -196,7 +196,7 @@ class Pourous_Media(object):
             sim.f_streamed.data, sim.f.data,
             sim.cx, sim.cy,
             sim.nx, sim.ny,
-            self.field_index, sim.num_populations).wait()
+            self.field_index, sim.num_populations, sim.num_jumpers).wait()
 
     def update_hydro(self):
         """
@@ -541,7 +541,7 @@ class Simulation_Runner(object):
             self.rho.data, self.Gx.data, self.Gy.data,
             self.cs, self.cx, self.cy, self.w,
             self.nx, self.ny,
-            self.buf_nx, self.buf_ny, self.halo
+            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
