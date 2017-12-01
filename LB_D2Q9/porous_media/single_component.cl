@@ -436,7 +436,8 @@ add_interaction_force(
     const int nx, const int ny,
     const int buf_nx, const int buf_ny,
     const int halo,
-    const int num_jumpers)
+    const int num_jumpers,
+    const double delta_x)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -509,11 +510,11 @@ add_interaction_force(
             force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[new_2d_buf_index];
         }
 
-        force_x_fluid_1 *= -G_int;
-        force_y_fluid_1 *= -G_int;
+        force_x_fluid_1 *= -G_int/delta_x; // This is a gradient; need delta_x!
+        force_y_fluid_1 *= -G_int/delta_x;
 
-        force_x_fluid_2 *= -G_int;
-        force_y_fluid_2 *= -G_int;
+        force_x_fluid_2 *= -G_int/delta_x;
+        force_y_fluid_2 *= -G_int/delta_x;
 
         const int two_d_index = y*nx + x;
 

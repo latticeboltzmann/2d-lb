@@ -541,7 +541,8 @@ class Simulation_Runner(object):
             self.rho.data, self.Gx.data, self.Gy.data,
             self.cs, self.cx, self.cy, self.w,
             self.nx, self.ny,
-            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers
+            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
+            self.delta_x
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
