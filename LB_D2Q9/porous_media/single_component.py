@@ -187,6 +187,8 @@ class Pourous_Media(object):
                 sim.nx, sim.ny,
                 self.field_index, sim.num_populations,
                 sim.num_jumpers).wait()
+        else:
+            raise ValueError('unknown bc...')
 
 
     def move(self):
@@ -214,6 +216,8 @@ class Pourous_Media(object):
                 sim.nx, sim.ny,
                 self.field_index, sim.num_populations, sim.num_jumpers
             ).wait()
+        else:
+            raise ValueError('unknown bc...')
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.sim.kernels.copy_streamed_onto_f(

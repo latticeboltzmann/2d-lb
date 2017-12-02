@@ -407,7 +407,6 @@ move(
 
 
 
-
 __kernel void
 move_open_bcs(
     __global __read_only double *f_global,
@@ -433,7 +432,7 @@ move_open_bcs(
         }
 
         //RIGHT WALL: ZERO GRADIENT, no corners
-        if ((x==nx - 1) && (y >= 1)&&(y < ny-1)){
+        else if ((x==nx - 1) && (y >= 1)&&(y < ny-1)){
             for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
                 int new_x = nx - 2;
@@ -442,8 +441,10 @@ move_open_bcs(
             }
         }
 
-        //TOP WALL: ZERO GRADIENT, includes corners
-        if (y == ny - 1){
+        //We need a barrier here! The top piece must run before the bottom one...
+
+        //TOP WALL: ZERO GRADIENT, no corners
+        else if ((y == ny - 1)&&((x >= 1)&&(x < nx-1))){
             for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
                 int new_y = ny - 2;
@@ -452,8 +453,8 @@ move_open_bcs(
             }
         }
 
-        //BOTTOM WALL: ZERO GRADIENT, includes corners
-        if (y == 0){
+        //BOTTOM WALL: ZERO GRADIENT, no corners
+        else if ((y == 0)&&((x >= 1)&&(x < nx-1))){
             for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
                 int new_y = 1;
