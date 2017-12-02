@@ -406,6 +406,8 @@ move(
 }
 
 
+
+
 __kernel void
 move_open_bcs(
     __global __read_only double *f_global,
@@ -458,7 +460,7 @@ move_open_bcs(
                 int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
                 int new_y = 1;
                 int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + x;
-                f_global[four_d_index] = f_global[new_four_d_index];
+                f_streamed_global[four_d_index] = f_global[new_four_d_index];
             }
         }
     }

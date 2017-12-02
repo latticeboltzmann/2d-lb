@@ -45,7 +45,8 @@ def get_divisible_global(global_size, local_size):
 
 class Pourous_Media(object):
 
-    def __init__(self, sim, field_index, nu_e = 1.0, epsilon = 1.0, nu_fluid=1.0, K=1.0, Fe=1.0):
+    def __init__(self, sim, field_index, nu_e = 1.0, epsilon = 1.0, nu_fluid=1.0, K=1.0, Fe=1.0,
+                 bc='periodic'):
 
         self.sim = sim # TODO: MAKE THIS A WEAKREF
 
@@ -56,6 +57,7 @@ class Pourous_Media(object):
         self.nu_fluid = num_type(nu_fluid)
         self.K = num_type(K)
         self.Fe = num_type(Fe)
+        self.bc = bc
 
         # Determine the viscosity
         self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
@@ -173,7 +175,19 @@ class Pourous_Media(object):
         Enforce boundary conditions and move the jumpers on the boundaries. Generally extremely painful.
         Implemented in OpenCL.
         """
-        pass # Implemented in move_periodic in this case...it's just easier
+
+        sim = self.sim
+
+        if self.bc is 'periodic':
+            pass # Implemented in move_periodic in this case...it's just easier
+        elif self.bc is 'zero_gradient':
+            self.sim.kernels.move_open_bcs(
+                sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                sim.f.data,
+                sim.nx, sim.ny,
+                self.field_index, sim.num_populations,
+                sim.num_jumpers).wait()
+
 
     def move(self):
         """
@@ -184,11 +198,22 @@ class Pourous_Media(object):
 
         sim = self.sim
 
-        self.sim.kernels.move_periodic(sim.queue, sim.two_d_global_size, sim.two_d_local_size,
-                                sim.f.data, sim.f_streamed.data,
-                                sim.cx, sim.cy,
-                                sim.nx, sim.ny,
-                                self.field_index, sim.num_populations, sim.num_jumpers).wait()
+        if self.bc is 'periodic':
+            self.sim.kernels.move_periodic(
+                sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                sim.f.data, sim.f_streamed.data,
+                sim.cx, sim.cy,
+                sim.nx, sim.ny,
+                self.field_index, sim.num_populations, sim.num_jumpers
+            ).wait()
+        elif self.bc is 'zero_gradient':
+            self.sim.kernels.move(
+                sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+                sim.f.data, sim.f_streamed.data,
+                sim.cx, sim.cy,
+                sim.nx, sim.ny,
+                self.field_index, sim.num_populations, sim.num_jumpers
+            ).wait()
 
         # Copy the streamed buffer into f so that it is correctly updated.
         self.sim.kernels.copy_streamed_onto_f(
@@ -524,7 +549,7 @@ class Simulation_Runner(object):
 
         self.additional_forces.append([kernel_to_run, arguments])
 
-    def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int):
+    def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic'):
         """
 
         :param fluid_1:
@@ -533,17 +558,19 @@ class Simulation_Runner(object):
         :return:
         """
 
-        kernel_to_run = self.kernels.add_interaction_force
-        arguments = [
-            self.queue, self.two_d_global_size, self.two_d_local_size,
-            int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
-            self.psi_local_1, self.psi_local_2,
-            self.rho.data, self.Gx.data, self.Gy.data,
-            self.cs, self.cx, self.cy, self.w,
-            self.nx, self.ny,
-            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
-            self.delta_x
-        ]
+        if bc is 'periodic':
+
+            kernel_to_run = self.kernels.add_interaction_force
+            arguments = [
+                self.queue, self.two_d_global_size, self.two_d_local_size,
+                int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
+                self.psi_local_1, self.psi_local_2,
+                self.rho.data, self.Gx.data, self.Gy.data,
+                self.cs, self.cx, self.cy, self.w,
+                self.nx, self.ny,
+                self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
+                self.delta_x
+            ]
 
         self.additional_forces.append([kernel_to_run, arguments])
 
