@@ -367,6 +367,104 @@ move_periodic(__global __read_only double *f_global,
     }
 }
 
+
+
+__kernel void
+move(
+    __global __read_only double *f_global,
+    __global __write_only double *f_streamed_global,
+    __constant int *cx,
+    __constant int *cy,
+    const int nx, const int ny,
+    const int cur_field,
+    const int num_populations,
+    const int num_jumpers)
+{
+    //Input should be a 2d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+            int cur_cx = cx[jump_id];
+            int cur_cy = cy[jump_id];
+
+            int stream_x = x + cur_cx;
+            int stream_y = y + cur_cy;
+
+            // Check if you are in bounds
+
+            if ((stream_x >= 0)&&(stream_x < nx)&&(stream_y>=0)&&(stream_y<ny)){
+                int slice = jump_id*num_populations*nx*ny + cur_field*nx*ny;
+                int old_4d_index = slice + y*nx + x;
+                int new_4d_index = slice + stream_y*nx + stream_x;
+
+                f_streamed_global[new_4d_index] = f_global[old_4d_index];
+            }
+        }
+    }
+}
+
+
+__kernel void
+move_open_bcs(
+    __global __read_only double *f_global,
+    __constant int *cx,
+    __constant int *cy,
+    const int nx, const int ny,
+    const int cur_field,
+    const int num_populations,
+    const int num_jumpers)
+{
+    //Input should be a 2d workgroup!
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){ // Make sure you are in the domain
+
+        //LEFT WALL: ZERO GRADIENT, no corners
+        if ((x==0) && (y >= 1)&&(y < ny-1)){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_x = 1;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + new_x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+
+        //RIGHT WALL: ZERO GRADIENT, no corners
+        if ((x==nx - 1) && (y >= 1)&&(y < ny-1)){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_x = nx - 2;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + new_x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+
+        //TOP WALL: ZERO GRADIENT, includes corners
+        if (y == ny - 1){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_y = ny - 2;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+
+        //BOTTOM WALL: ZERO GRADIENT, includes corners
+        if (y == 0){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_y = 1;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+    }
+}
+
+
 __kernel void
 copy_streamed_onto_f(
     __global __write_only double *f_streamed_global,
