@@ -565,7 +565,7 @@ add_radial_body_force(
     const int field_num,
     const int center_x,
     const int center_y,
-    const double magnitude
+    const double prefactor,
     const double radial_scaling,
     __global double *Gx_global,
     __global double *Gy_global,
@@ -579,15 +579,22 @@ add_radial_body_force(
     if ((x < nx) && (y < ny)){
         int three_d_index = field_num*nx*ny + y*nx + x;
 
-        // Get the current radius
-        double radius = sqrt(pow(x - center_x, 2) + pow(y - center_y, 2));
-        //Get the current angle
+        // Get the current radius and angle
+
+        const double delta_x = x - center_x;
+        const double delta_y = y - center_y;
+
+        const double radius = sqrt(delta_x*delta_x + delta_y*delta_y);
+        const double theta = atan2(delta_y, delta_x);
 
         // Get the unit vector
+        const double rhat_x = cos(theta);
+        const double rhat_y = sin(theta);
 
-        Gx_global[three_d_index] += force_x;
-        Gy_global[three_d_index] += force_y;
-
+        // Get the force
+        double magnitude = prefactor*((double)pow(radius, radial_scaling));
+        Gx_global[three_d_index] += magnitude*rhat_x;
+        Gy_global[three_d_index] += magnitude*rhat_y;
     }
 }
 
