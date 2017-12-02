@@ -411,8 +411,6 @@ move(
 __kernel void
 move_open_bcs(
     __global __read_only double *f_global,
-    __constant int *cx,
-    __constant int *cy,
     const int nx, const int ny,
     const int cur_field,
     const int num_populations,
@@ -460,7 +458,7 @@ move_open_bcs(
                 int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
                 int new_y = 1;
                 int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + x;
-                f_streamed_global[four_d_index] = f_global[new_four_d_index];
+                f_global[four_d_index] = f_global[new_four_d_index];
             }
         }
     }
@@ -485,7 +483,6 @@ copy_streamed_onto_f(
 
     if ((x < nx) && (y < ny)){
         for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
-            int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
 
             int four_d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
@@ -537,7 +534,9 @@ add_interaction_force(
     const int buf_nx, const int buf_ny,
     const int halo,
     const int num_jumpers,
-    const double delta_x)
+    const double delta_x,
+    const int is_periodic,
+    const int is_zero_gradient)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -568,11 +567,20 @@ add_interaction_force(
             int temp_y = buf_corner_y + row;
 
             //Painfully deal with BC's...i.e. use periodic BC's.
-            if (temp_x >= nx) temp_x -= nx;
-            if (temp_x < 0) temp_x += nx;
+            if (is_periodic == 1){
+                if (temp_x >= nx) temp_x -= nx;
+                if (temp_x < 0) temp_x += nx;
 
-            if (temp_y >= ny) temp_y -= ny;
-            if (temp_y < 0) temp_y += ny;
+                if (temp_y >= ny) temp_y -= ny;
+                if (temp_y < 0) temp_y += ny;
+            }
+            if (is_zero_gradient == 1){
+                if (temp_x >= nx) temp_x = nx - 1;
+                if (temp_x < 0) temp_x = 0;
+
+                if (temp_y >= ny) temp_y = ny - 1;
+                if (temp_y < 0) temp_y = 0;
+            }
 
             local_fluid_1[row*buf_nx + idx_1D] = rho_global[fluid_index_1*ny*nx + temp_y*nx + temp_x];
             local_fluid_2[row*buf_nx + idx_1D] = rho_global[fluid_index_2*ny*nx + temp_y*nx + temp_x];

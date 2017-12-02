@@ -550,27 +550,23 @@ class Simulation_Runner(object):
         self.additional_forces.append([kernel_to_run, arguments])
 
     def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic'):
-        """
 
-        :param fluid_1:
-        :param fluid_2:
-        :param G_int:
-        :return:
-        """
+        kernel_to_run = self.kernels.add_interaction_force
+        arguments = [
+            self.queue, self.two_d_global_size, self.two_d_local_size,
+            int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
+            self.psi_local_1, self.psi_local_2,
+            self.rho.data, self.Gx.data, self.Gy.data,
+            self.cs, self.cx, self.cy, self.w,
+            self.nx, self.ny,
+            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
+            self.delta_x
+        ]
 
         if bc is 'periodic':
-
-            kernel_to_run = self.kernels.add_interaction_force
-            arguments = [
-                self.queue, self.two_d_global_size, self.two_d_local_size,
-                int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
-                self.psi_local_1, self.psi_local_2,
-                self.rho.data, self.Gx.data, self.Gy.data,
-                self.cs, self.cx, self.cy, self.w,
-                self.nx, self.ny,
-                self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
-                self.delta_x
-            ]
+            arguments += [int_type(1), int_type(0)]
+        elif bc is 'zero_gradient':
+            arguments += [int_type(0), int_type(1)]
 
         self.additional_forces.append([kernel_to_run, arguments])
 
@@ -594,7 +590,7 @@ class Simulation_Runner(object):
                 self.check_fields()
 
             for cur_fluid in self.fluid_list:
-                cur_fluid.move_bcs() # Our BC's rely on streaming before applying the BC, actually
+                cur_fluid.move_bcs() # Must move before applying BC
             if debug:
                 print 'After move bcs'
                 self.check_fields()
