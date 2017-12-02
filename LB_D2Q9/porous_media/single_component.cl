@@ -462,6 +462,50 @@ move_open_bcs(
                 f_global[four_d_index] = f_global[new_four_d_index];
             }
         }
+
+        //BOTTOM LEFT CORNER
+        else if ((x == 0)&&((y == 0))){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_x = 1;
+                int new_y = 1;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + new_x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+
+        //TOP LEFT CORNER
+        else if ((x == 0)&&((y == ny-1))){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_x = 1;
+                int new_y = ny - 2;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + new_x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+
+        //BOTTOM RIGHT CORNER
+        else if ((x == nx - 1)&&((y == 0))){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_x = nx - 2;
+                int new_y = 1;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + new_x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
+
+        //TOP RIGHT CORNER
+        else if ((x == nx - 1)&&((y == ny - 1))){
+            for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+                int four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + y*nx + x;
+                int new_x = nx - 2;
+                int new_y = ny - 2;
+                int new_four_d_index = jump_id*num_populations*nx*ny +  cur_field*nx*ny + new_y*nx + new_x;
+                f_global[four_d_index] = f_global[new_four_d_index];
+            }
+        }
     }
 }
 
