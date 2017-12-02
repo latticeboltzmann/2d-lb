@@ -553,6 +553,19 @@ class Simulation_Runner(object):
 
         self.additional_forces.append([kernel_to_run, arguments])
 
+    def add_radial_body_force(self, fluid_index, center_x, center_y, prefactor, radial_scaling):
+
+        kernel_to_run = self.kernels.add_radial_body_force
+        arguments = [
+            self.queue, self.two_d_global_size, self.two_d_local_size,
+            int_type(fluid_index), int_type(center_x), int_type(center_y),
+            num_type(prefactor), num_type(radial_scaling),
+            self.Gx.data, self.Gy.data,
+            self.nx, self.ny
+        ]
+
+        self.additional_forces.append([kernel_to_run, arguments])
+
     def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic'):
 
         kernel_to_run = self.kernels.add_interaction_force
