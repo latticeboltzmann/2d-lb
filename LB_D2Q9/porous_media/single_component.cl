@@ -560,6 +560,37 @@ add_constant_body_force(
     }
 }
 
+__kernel void
+add_radial_body_force(
+    const int field_num,
+    const int center_x,
+    const int center_y,
+    const double magnitude
+    const double radial_scaling,
+    __global double *Gx_global,
+    __global double *Gy_global,
+    const int nx, const int ny
+)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        int three_d_index = field_num*nx*ny + y*nx + x;
+
+        // Get the current radius
+        double radius = sqrt(pow(x - center_x, 2) + pow(y - center_y, 2));
+        //Get the current angle
+
+        // Get the unit vector
+
+        Gx_global[three_d_index] += force_x;
+        Gy_global[three_d_index] += force_y;
+
+    }
+}
+
 
 __kernel void
 add_interaction_force(
