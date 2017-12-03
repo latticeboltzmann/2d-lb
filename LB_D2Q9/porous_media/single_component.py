@@ -561,7 +561,8 @@ class Simulation_Runner(object):
             int_type(fluid_index), int_type(center_x), int_type(center_y),
             num_type(prefactor), num_type(radial_scaling),
             self.Gx.data, self.Gy.data,
-            self.nx, self.ny
+            self.nx, self.ny,
+            self.delta_x
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
