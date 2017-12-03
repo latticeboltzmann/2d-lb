@@ -570,7 +570,7 @@ add_radial_body_force(
     __global double *Gx_global,
     __global double *Gy_global,
     const int nx, const int ny,
-    const double delta_x
+    const double delta_x_sim
 )
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -585,7 +585,7 @@ add_radial_body_force(
         const double delta_x = x - center_x;
         const double delta_y = y - center_y;
 
-        const double radius_dim = sqrt(delta_x*delta_x + delta_y*delta_y);
+        const double radius_dim = delta_x_sim*sqrt(delta_x*delta_x + delta_y*delta_y);
         const double theta = atan2(delta_y, delta_x);
 
         // Get the unit vector
