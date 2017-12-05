@@ -601,10 +601,13 @@ class Simulation_Runner(object):
             [-1, 0],
             [0, -1]
         ]
+
+        count = 0
         for i in range(1, 4 + 1):
             pi1.append(4./63.)
-            cx1.append(c_temp[i][0])
-            cy1.append(c_temp[i][1])
+            cx1.append(c_temp[count][0])
+            cy1.append(c_temp[count][1])
+            count += 1
 
         c_temp = [
             [1, 1],
@@ -612,12 +615,14 @@ class Simulation_Runner(object):
             [-1, -1],
             [1, -1]
         ]
+        count = 0
         for i in range(5, 8 + 1):
             pi1.append(4./135.)
-            cx1.append(c_temp[i][0])
-            cy1.append(c_temp[i][1])
+            cx1.append(c_temp[count][0])
+            cy1.append(c_temp[count][1])
+            count += 1
 
-        num_jumpers_1 = int_type(pi1)
+        num_jumpers_1 = int_type(len(pi1))
 
         #### pi2 ####
         pi2 = []
@@ -630,10 +635,12 @@ class Simulation_Runner(object):
             [-2, 0],
             [0, -2]
         ]
+        count = 0
         for i in range(9, 12 + 1):
             pi2.append(1./180.)
-            cx2.append(c_temp[i][0])
-            cy2.append(c_temp[i][1])
+            cx2.append(c_temp[count][0])
+            cy2.append(c_temp[count][1])
+            count += 1
 
         c_temp = [
             [2, -1],
@@ -645,10 +652,12 @@ class Simulation_Runner(object):
             [-1, -2],
             [1, -2]
         ]
+        count = 0
         for i in range(13, 20 + 1):
             pi2.append(2./945.)
-            cx2.append(c_temp[i][0])
-            cy2.append(c_temp[i][1])
+            cx2.append(c_temp[count][0])
+            cy2.append(c_temp[count][1])
+            count += 1
 
         c_temp = [
             [2, 2],
@@ -656,30 +665,32 @@ class Simulation_Runner(object):
             [-2, -2],
             [2, -2]
         ]
+        count = 0
         for i in range(21, 24 + 1):
             pi2.append(1./15120.)
-            cx2.append(c_temp[i][0])
-            cy2.append(c_temp[i][1])
+            cx2.append(c_temp[count][0])
+            cy2.append(c_temp[count][1])
+            count += 1
 
-        num_jumpers_2 = int_type(pi1)
+        num_jumpers_2 = int_type(len(pi2))
 
         ### Finish setup ###
 
         pi1 = np.array(pi1, dtype=num_type)
-        cx1 = np.array(cx1, dtype=num_type)
-        cy1 = np.array(cy1, dtype=num_type)
+        cx1 = np.array(cx1, dtype=int_type)
+        cy1 = np.array(cy1, dtype=int_type)
 
         pi2 = np.array(pi2, dtype=num_type)
-        cx2 = np.array(cx2, dtype=num_type)
-        cy2 = np.array(cy2, dtype=num_type)
+        cx2 = np.array(cx2, dtype=int_type)
+        cy2 = np.array(cy2, dtype=int_type)
 
-        pi1 = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=pi1)
-        cx1 = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx1)
-        cy1 = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy1)
+        pi1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=pi1)
+        cx1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx1)
+        cy1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy1)
 
-        pi2 = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=pi2)
-        cx2 = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx2)
-        cy2 = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy2)
+        pi2_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=pi2)
+        cx2_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx2)
+        cy2_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy2)
 
         # Allocate local memory for the clumpiness
         halo = int_type(2) # As we are doing D2Q9, we have a halo of one
@@ -689,7 +700,6 @@ class Simulation_Runner(object):
         local_1 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
         local_2 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
 
-
         kernel_to_run = self.kernels.add_interaction_force_second_belt
         arguments = [
             self.queue, self.two_d_global_size, self.two_d_local_size,
@@ -697,8 +707,8 @@ class Simulation_Runner(object):
             local_1, local_2,
             self.rho.data, self.Gx.data, self.Gy.data,
             self.cs,
-            pi1, cx1, cy1, num_jumpers_1,
-            pi2, cx2, cy2, num_jumpers_2,
+            pi1_const, cx1_const, cy1_const, num_jumpers_1,
+            pi2_const, cx2_const, cy2_const, num_jumpers_2,
             self.nx, self.ny,
             buf_nx, buf_ny, halo,
             self.delta_x
