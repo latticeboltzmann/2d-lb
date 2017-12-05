@@ -602,12 +602,10 @@ class Simulation_Runner(object):
             [0, -1]
         ]
 
-        count = 0
-        for i in range(1, 4 + 1):
+        for c_vec in c_temp:
             pi1.append(4./63.)
-            cx1.append(c_temp[count][0])
-            cy1.append(c_temp[count][1])
-            count += 1
+            cx1.append(c_vec[0])
+            cy1.append(c_vec[1])
 
         c_temp = [
             [1, 1],
@@ -615,12 +613,11 @@ class Simulation_Runner(object):
             [-1, -1],
             [1, -1]
         ]
-        count = 0
-        for i in range(5, 8 + 1):
+
+        for c_vec in c_temp:
             pi1.append(4./135.)
-            cx1.append(c_temp[count][0])
-            cy1.append(c_temp[count][1])
-            count += 1
+            cx1.append(c_vec[0])
+            cy1.append(c_vec[1])
 
         num_jumpers_1 = int_type(len(pi1))
 
@@ -635,12 +632,11 @@ class Simulation_Runner(object):
             [-2, 0],
             [0, -2]
         ]
-        count = 0
-        for i in range(9, 12 + 1):
+
+        for c_vec in c_temp:
             pi2.append(1./180.)
-            cx2.append(c_temp[count][0])
-            cy2.append(c_temp[count][1])
-            count += 1
+            cx2.append(c_vec[0])
+            cy2.append(c_vec[1])
 
         c_temp = [
             [2, -1],
@@ -652,12 +648,11 @@ class Simulation_Runner(object):
             [-1, -2],
             [1, -2]
         ]
-        count = 0
-        for i in range(13, 20 + 1):
+
+        for c_vec in c_temp:
             pi2.append(2./945.)
-            cx2.append(c_temp[count][0])
-            cy2.append(c_temp[count][1])
-            count += 1
+            cx2.append(c_vec[0])
+            cy2.append(c_vec[1])
 
         c_temp = [
             [2, 2],
@@ -665,12 +660,10 @@ class Simulation_Runner(object):
             [-2, -2],
             [2, -2]
         ]
-        count = 0
-        for i in range(21, 24 + 1):
+        for c_vec in c_temp:
             pi2.append(1./15120.)
-            cx2.append(c_temp[count][0])
-            cy2.append(c_temp[count][1])
-            count += 1
+            cx2.append(c_vec[0])
+            cy2.append(c_vec[1])
 
         num_jumpers_2 = int_type(len(pi2))
 
@@ -680,9 +673,23 @@ class Simulation_Runner(object):
         cx1 = np.array(cx1, dtype=int_type)
         cy1 = np.array(cy1, dtype=int_type)
 
+        print pi1
+        print cx1
+        print cy1
+
+        print num_jumpers_1
+
         pi2 = np.array(pi2, dtype=num_type)
         cx2 = np.array(cx2, dtype=int_type)
         cy2 = np.array(cy2, dtype=int_type)
+
+        print
+
+        print pi2
+        print cx2
+        print cy2
+
+        print num_jumpers_2
 
         pi1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=pi1)
         cx1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx1)
