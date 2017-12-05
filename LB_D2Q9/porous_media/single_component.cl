@@ -732,13 +732,17 @@ add_interaction_force_second_belt(
     __global double *Gx_global,
     __global double *Gy_global,
     const double cs,
-    __constant int *cx,
-    __constant int *cy,
-    __constant double *w,
+    __constant double *pi1,
+    __constant int *cx1,
+    __constant int *cy1,
+    const int num_jumpers_1,
+    __constant double *pi2,
+    __constant int *cx2,
+    __constant int *cy2,
+    const int num_jumpers_2,
     const int nx, const int ny,
     const int buf_nx, const int buf_ny,
     const int halo,
-    const int num_jumpers,
     const double delta_x,
     const int is_periodic,
     const int is_zero_gradient)
@@ -805,10 +809,29 @@ add_interaction_force_second_belt(
         double force_x_fluid_2 = 0;
         double force_y_fluid_2 = 0;
 
-        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
-            int cur_cx = cx[jump_id];
-            int cur_cy = cy[jump_id];
-            double cur_w = w[jump_id];
+        for(int jump_id = 0; jump_id < num_jumpers_1; jump_id++){
+            int cur_cx = cx1[jump_id];
+            int cur_cy = cy1[jump_id];
+            double cur_w = pi1[jump_id];
+
+            //Get the shifted positions
+            int stream_buf_x = buf_x + cur_cx;
+            int stream_buf_y = buf_y + cur_cy;
+
+            int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
+
+            force_x_fluid_1 += cur_w * cur_cx * local_fluid_2[new_2d_buf_index];
+            force_y_fluid_1 += cur_w * cur_cy * local_fluid_2[new_2d_buf_index];
+
+            force_x_fluid_2 += cur_w * cur_cx * local_fluid_1[new_2d_buf_index];
+            force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[new_2d_buf_index];
+        }
+
+
+        for(int jump_id = 0; jump_id < num_jumpers_2; jump_id++){
+            int cur_cx = cx2[jump_id];
+            int cur_cy = cy2[jump_id];
+            double cur_w = pi2[jump_id];
 
             //Get the shifted positions
             int stream_buf_x = buf_x + cur_cx;
