@@ -700,12 +700,12 @@ class Simulation_Runner(object):
         cy2_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy2)
 
         # Allocate local memory for the clumpiness
-        halo = int_type(2) # As we are doing D2Q9, we have a halo of one
-        buf_nx = int_type(self.two_d_local_size[0] + 2 * self.halo)
-        buf_ny = int_type(self.two_d_local_size[1] + 2 * self.halo)
+        cur_halo = int_type(2) # As we are doing D2Q9, we have a halo of one
+        cur_buf_nx = int_type(self.two_d_local_size[0] + 2 * cur_halo)
+        cur_buf_ny = int_type(self.two_d_local_size[1] + 2 * cur_halo)
 
-        local_1 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
-        local_2 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
+        local_1 = cl.LocalMemory(num_size * cur_buf_nx * cur_buf_ny)
+        local_2 = cl.LocalMemory(num_size * cur_buf_nx * cur_buf_ny)
 
         kernel_to_run = self.kernels.add_interaction_force_second_belt
         arguments = [
@@ -717,7 +717,7 @@ class Simulation_Runner(object):
             pi1_const, cx1_const, cy1_const, num_jumpers_1,
             pi2_const, cx2_const, cy2_const, num_jumpers_2,
             self.nx, self.ny,
-            buf_nx, buf_ny, halo,
+            cur_buf_nx, cur_buf_ny, cur_halo,
             self.delta_x
         ]
 
