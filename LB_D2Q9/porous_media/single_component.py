@@ -673,23 +673,9 @@ class Simulation_Runner(object):
         cx1 = np.array(cx1, dtype=int_type)
         cy1 = np.array(cy1, dtype=int_type)
 
-        print pi1
-        print cx1
-        print cy1
-
-        print num_jumpers_1
-
         pi2 = np.array(pi2, dtype=num_type)
         cx2 = np.array(cx2, dtype=int_type)
         cy2 = np.array(cy2, dtype=int_type)
-
-        print
-
-        print pi2
-        print cx2
-        print cy2
-
-        print num_jumpers_2
 
         pi1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=pi1)
         cx1_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx1)
