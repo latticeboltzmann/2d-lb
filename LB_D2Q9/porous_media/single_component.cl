@@ -621,7 +621,7 @@ add_interaction_force(
     const double delta_x,
     const int BC_SPECIFIER,
     const int PSI_SPECIFIER,
-    const double rho_0)
+    __constant double *parameters)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -699,15 +699,18 @@ add_interaction_force(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
+            double psi_1 = 0;
+            double psi_2 = 0;
+
             if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
                 double psi_1 = cur_rho_1;
                 double psi_2 = cur_rho_2;
             }
             if(PSI_SPECIFIER == 1){ // shan-chen
-                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
-                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
+                double rho_0 = parameters[0];
+                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
+                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
             }
-
             force_x_fluid_1 += cur_w * cur_cx * psi_2;
             force_y_fluid_1 += cur_w * cur_cy * psi_2;
 
@@ -759,7 +762,7 @@ add_interaction_force_second_belt(
     const double delta_x,
     const int BC_SPECIFIER,
     const int PSI_SPECIFIER,
-    const double rho_0)
+    __constant double *parameters)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -837,15 +840,18 @@ add_interaction_force_second_belt(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
+            double psi_1 = 0;
+            double psi_2 = 0;
+
             if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-                double psi_1 = cur_rho_1;
-                double psi_2 = cur_rho_2;
+                psi_1 = cur_rho_1;
+                psi_2 = cur_rho_2;
             }
             if(PSI_SPECIFIER == 1){ // shan-chen
-                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
-                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
+                double rho_0 = parameters[0];
+                psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
+                psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
             }
-
 
             force_x_fluid_1 += cur_w * cur_cx * psi_2;
             force_y_fluid_1 += cur_w * cur_cy * psi_2;
@@ -869,13 +875,17 @@ add_interaction_force_second_belt(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
+            double psi_1 = 0;
+            double psi_2 = 0;
+
             if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-                double psi_1 = cur_rho_1;
-                double psi_2 = cur_rho_2;
+                psi_1 = cur_rho_1;
+                psi_2 = cur_rho_2;
             }
             if(PSI_SPECIFIER == 1){ // shan-chen
-                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
-                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
+                double rho_0 = parameters[0];
+                psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
+                psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
             }
 
             force_x_fluid_1 += cur_w * cur_cx * psi_2;

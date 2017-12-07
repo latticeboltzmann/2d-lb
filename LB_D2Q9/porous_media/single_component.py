@@ -567,7 +567,8 @@ class Simulation_Runner(object):
 
         self.additional_forces.append([kernel_to_run, arguments])
 
-    def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic'):
+    def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic', potential='linear',
+                              potential_parameters=None):
 
         kernel_to_run = self.kernels.add_interaction_force
         arguments = [
@@ -582,13 +583,33 @@ class Simulation_Runner(object):
         ]
 
         if bc is 'periodic':
-            arguments += [int_type(1), int_type(0)]
+            arguments += [int_type(0)]
         elif bc is 'zero_gradient':
-            arguments += [int_type(0), int_type(1)]
+            arguments += [int_type(1)]
+        else:
+            raise ValueError('Specified boundary condition does not exist')
+
+        if potential is 'linear':
+            arguments += [int_type(0)]
+        elif potential is 'shan_chen':
+            arguments += [int_type(1)]
+        else:
+            raise ValueError('Specified pseudopotential does not exist.')
+
+        if potential_parameters is None:
+            potential_parameters = np.array([0.], dtype=num_type)
+        else:
+            potential_parameters = np.array(potential_parameters, dtype=num_type)
+
+        parameters_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                     hostbuf=potential_parameters)
+
+        arguments += [parameters_const]
 
         self.additional_forces.append([kernel_to_run, arguments])
 
-    def add_interaction_force_second_belt(self, fluid_1_index, fluid_2_index, G_int, bc='periodic'):
+    def add_interaction_force_second_belt(self, fluid_1_index, fluid_2_index, G_int, bc='periodic', potential='linear',
+                                          potential_parameters=None):
 
         #### pi1 ####
         pi1 = []
@@ -708,9 +729,28 @@ class Simulation_Runner(object):
         ]
 
         if bc is 'periodic':
-            arguments += [int_type(1), int_type(0)]
+            arguments += [int_type(0)]
         elif bc is 'zero_gradient':
-            arguments += [int_type(0), int_type(1)]
+            arguments += [int_type(1)]
+        else:
+            raise ValueError('Specified boundary condition does not exist')
+
+        if potential is 'linear':
+            arguments += [int_type(0)]
+        elif potential is 'shan_chen':
+            arguments += [int_type(1)]
+        else:
+            raise ValueError('Specified pseudopotential does not exist.')
+
+        if potential_parameters is None:
+            potential_parameters = np.array([0.], dtype=num_type)
+        else:
+            potential_parameters = np.array(potential_parameters, dtype=num_type)
+
+        parameters_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                     hostbuf=potential_parameters)
+
+        arguments += [parameters_const]
 
         self.additional_forces.append([kernel_to_run, arguments])
 
