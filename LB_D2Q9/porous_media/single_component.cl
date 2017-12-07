@@ -620,7 +620,10 @@ add_interaction_force(
     const int num_jumpers,
     const double delta_x,
     const int is_periodic,
-    const int is_zero_gradient)
+    const int is_zero_gradient,
+    const int psi_propto_rho,
+    const int psi_is_shan_chen,
+    const double rho_0)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -695,11 +698,23 @@ add_interaction_force(
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            force_x_fluid_1 += cur_w * cur_cx * local_fluid_2[new_2d_buf_index];
-            force_y_fluid_1 += cur_w * cur_cy * local_fluid_2[new_2d_buf_index];
+            double cur_rho_1 = local_fluid_1[new_2d_buf_index];
+            double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            force_x_fluid_2 += cur_w * cur_cx * local_fluid_1[new_2d_buf_index];
-            force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[new_2d_buf_index];
+            if(psi_propto_rho_{
+                double psi_1 = cur_rho_1;
+                double psi_2 = cur_rho_2;
+            }
+            if(psi_is_shan_chen){
+                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
+                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
+            }
+
+            force_x_fluid_1 += cur_w * cur_cx * psi_2;
+            force_y_fluid_1 += cur_w * cur_cy * psi_2;
+
+            force_x_fluid_2 += cur_w * cur_cx * psi_1;
+            force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
         force_x_fluid_1 *= -G_int/delta_x; // This is a gradient; need delta_x!
