@@ -676,8 +676,6 @@ add_interaction_force(
     //Now that all desired rhos are read in, do the multiplication
     if ((x < nx) && (y < ny)){
 
-        const int old_2d_buf_index = buf_y*buf_nx + buf_x;
-
         //Remember, this is force PER DENSITY to avoid problems
         double force_x_fluid_1 = 0;
         double force_y_fluid_1 = 0;
@@ -685,7 +683,26 @@ add_interaction_force(
         double force_x_fluid_2 = 0;
         double force_y_fluid_2 = 0;
 
-        double psi_1 = 0;
+        // Get the psi at the current pixel
+        const int old_2d_buf_index = buf_y*buf_nx + buf_x;
+
+        double rho_1_pixel = local_fluid_1[old_2d_buf_index];
+        double rho_2_pixel = local_fluid_2[old_2d_buf_index];
+
+        double psi_1_pixel = 0;
+        double psi_2_pixel = 0;
+
+        if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
+            psi_1_pixel = rho_1_pixel;
+            psi_2_pixel = rho_2_pixel;
+        }
+        if(PSI_SPECIFIER == 1){ // shan-chen
+            double rho_0 = parameters[0];
+            psi_1_pixel = rho_0*(1 - exp(-rho_1_pixel/rho_0));
+            psi_2_pixel = rho_0*(1 - exp(-rho_2_pixel/rho_0));
+        }
+
+        double psi_1 = 0; // The psi that correspond to jumping around the lattice
         double psi_2 = 0;
 
         for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
@@ -718,16 +735,18 @@ add_interaction_force(
             force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
-        force_x_fluid_1 *= -G_int/delta_x; // This is a gradient; need delta_x!
-        force_y_fluid_1 *= -G_int/delta_x;
+        force_x_fluid_1 *= -G_int*psi_1_pixel/delta_x;
+        force_y_fluid_1 *= -G_int*psi_1_pixel/delta_x;
 
-        force_x_fluid_2 *= -G_int/delta_x;
-        force_y_fluid_2 *= -G_int/delta_x;
+        force_x_fluid_2 *= -G_int*psi_2_pixel/delta_x;
+        force_y_fluid_2 *= -G_int*psi_2_pixel/delta_x;
 
         const int two_d_index = y*nx + x;
-
         int three_d_index_fluid_1 = fluid_index_1*ny*nx + two_d_index;
         int three_d_index_fluid_2 = fluid_index_2*ny*nx + two_d_index;
+
+        // We need to move from *force* to force/density!
+        // If rho is zero, force should be zero...right? No...
 
         Gx_global[three_d_index_fluid_1] += force_x_fluid_1;
         Gy_global[three_d_index_fluid_1] += force_y_fluid_1;
