@@ -619,10 +619,8 @@ add_interaction_force(
     const int halo,
     const int num_jumpers,
     const double delta_x,
-    const int is_periodic,
-    const int is_zero_gradient,
-    const int psi_propto_rho,
-    const int psi_is_shan_chen,
+    const int BC_SPECIFIER,
+    const int PSI_SPECIFIER,
     const double rho_0)
 {
     const int x = get_global_id(0);
@@ -654,14 +652,14 @@ add_interaction_force(
             int temp_y = buf_corner_y + row;
 
             //Painfully deal with BC's...i.e. use periodic BC's.
-            if (is_periodic == 1){
+            if (BC_SPECIFIER == 0){ //PERIODIC
                 if (temp_x >= nx) temp_x -= nx;
                 if (temp_x < 0) temp_x += nx;
 
                 if (temp_y >= ny) temp_y -= ny;
                 if (temp_y < 0) temp_y += ny;
             }
-            if (is_zero_gradient == 1){
+            if (BC_SPECIFIER == 1){ // ZERO GRADIENT
                 if (temp_x >= nx) temp_x = nx - 1;
                 if (temp_x < 0) temp_x = 0;
 
@@ -701,11 +699,11 @@ add_interaction_force(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            if(psi_propto_rho_{
+            if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
                 double psi_1 = cur_rho_1;
                 double psi_2 = cur_rho_2;
             }
-            if(psi_is_shan_chen){
+            if(PSI_SPECIFIER == 1){ // shan-chen
                 double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
                 double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
             }
@@ -759,8 +757,9 @@ add_interaction_force_second_belt(
     const int buf_nx, const int buf_ny,
     const int halo,
     const double delta_x,
-    const int is_periodic,
-    const int is_zero_gradient)
+    const int BC_SPECIFIER,
+    const int PSI_SPECIFIER,
+    const double rho_0)
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -791,14 +790,14 @@ add_interaction_force_second_belt(
             int temp_y = buf_corner_y + row;
 
             //Painfully deal with BC's...i.e. use periodic BC's.
-            if (is_periodic == 1){
+            if (BC_SPECIFIER == 0){ //PERIODIC
                 if (temp_x >= nx) temp_x -= nx;
                 if (temp_x < 0) temp_x += nx;
 
                 if (temp_y >= ny) temp_y -= ny;
                 if (temp_y < 0) temp_y += ny;
             }
-            if (is_zero_gradient == 1){
+            if (BC_SPECIFIER == 1){ // ZERO GRADIENT
                 if (temp_x >= nx) temp_x = nx - 1;
                 if (temp_x < 0) temp_x = 0;
 
@@ -835,11 +834,24 @@ add_interaction_force_second_belt(
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            force_x_fluid_1 += cur_w * cur_cx * local_fluid_2[new_2d_buf_index];
-            force_y_fluid_1 += cur_w * cur_cy * local_fluid_2[new_2d_buf_index];
+            double cur_rho_1 = local_fluid_1[new_2d_buf_index];
+            double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            force_x_fluid_2 += cur_w * cur_cx * local_fluid_1[new_2d_buf_index];
-            force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[new_2d_buf_index];
+            if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
+                double psi_1 = cur_rho_1;
+                double psi_2 = cur_rho_2;
+            }
+            if(PSI_SPECIFIER == 1){ // shan-chen
+                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
+                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
+            }
+
+
+            force_x_fluid_1 += cur_w * cur_cx * psi_2;
+            force_y_fluid_1 += cur_w * cur_cy * psi_2;
+
+            force_x_fluid_2 += cur_w * cur_cx * psi_1;
+            force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
 
@@ -854,11 +866,23 @@ add_interaction_force_second_belt(
 
             int new_2d_buf_index = stream_buf_y*buf_nx + stream_buf_x;
 
-            force_x_fluid_1 += cur_w * cur_cx * local_fluid_2[new_2d_buf_index];
-            force_y_fluid_1 += cur_w * cur_cy * local_fluid_2[new_2d_buf_index];
+            double cur_rho_1 = local_fluid_1[new_2d_buf_index];
+            double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            force_x_fluid_2 += cur_w * cur_cx * local_fluid_1[new_2d_buf_index];
-            force_y_fluid_2 += cur_w * cur_cy * local_fluid_1[new_2d_buf_index];
+            if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
+                double psi_1 = cur_rho_1;
+                double psi_2 = cur_rho_2;
+            }
+            if(PSI_SPECIFIER == 1){ // shan-chen
+                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0))
+                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0))
+            }
+
+            force_x_fluid_1 += cur_w * cur_cx * psi_2;
+            force_y_fluid_1 += cur_w * cur_cy * psi_2;
+
+            force_x_fluid_2 += cur_w * cur_cx * psi_1;
+            force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
         force_x_fluid_1 *= -G_int/delta_x; // This is a gradient; need delta_x!
