@@ -685,6 +685,9 @@ add_interaction_force(
         double force_x_fluid_2 = 0;
         double force_y_fluid_2 = 0;
 
+        double psi_1 = 0;
+        double psi_2 = 0;
+
         for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
             int cur_cx = cx[jump_id];
             int cur_cy = cy[jump_id];
@@ -699,17 +702,14 @@ add_interaction_force(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            double psi_1 = 0;
-            double psi_2 = 0;
-
             if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-                double psi_1 = cur_rho_1;
-                double psi_2 = cur_rho_2;
+                psi_1 = cur_rho_1;
+                psi_2 = cur_rho_2;
             }
             if(PSI_SPECIFIER == 1){ // shan-chen
                 double rho_0 = parameters[0];
-                double psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
-                double psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
+                psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
+                psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
             }
             force_x_fluid_1 += cur_w * cur_cx * psi_2;
             force_y_fluid_1 += cur_w * cur_cy * psi_2;
@@ -800,7 +800,7 @@ add_interaction_force_second_belt(
                 if (temp_y >= ny) temp_y -= ny;
                 if (temp_y < 0) temp_y += ny;
             }
-            if (BC_SPECIFIER == 1){ // ZERO GRADIENT
+            if (BC_SPECIFIER == 1){ //ZERO GRADIENT
                 if (temp_x >= nx) temp_x = nx - 1;
                 if (temp_x < 0) temp_x = 0;
 
@@ -826,6 +826,9 @@ add_interaction_force_second_belt(
         double force_x_fluid_2 = 0;
         double force_y_fluid_2 = 0;
 
+        double psi_1 = 0;
+        double psi_2 = 0;
+
         for(int jump_id = 0; jump_id < num_jumpers_1; jump_id++){
             int cur_cx = cx1[jump_id];
             int cur_cy = cy1[jump_id];
@@ -840,14 +843,11 @@ add_interaction_force_second_belt(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            double psi_1 = 0;
-            double psi_2 = 0;
-
             if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
                 psi_1 = cur_rho_1;
                 psi_2 = cur_rho_2;
             }
-            if(PSI_SPECIFIER == 1){ // shan-chen
+            else if(PSI_SPECIFIER == 1){ // shan-chen
                 double rho_0 = parameters[0];
                 psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
                 psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
@@ -859,7 +859,6 @@ add_interaction_force_second_belt(
             force_x_fluid_2 += cur_w * cur_cx * psi_1;
             force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
-
 
         for(int jump_id = 0; jump_id < num_jumpers_2; jump_id++){
             int cur_cx = cx2[jump_id];
@@ -875,8 +874,6 @@ add_interaction_force_second_belt(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            double psi_1 = 0;
-            double psi_2 = 0;
 
             if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
                 psi_1 = cur_rho_1;
