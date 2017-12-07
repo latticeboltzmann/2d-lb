@@ -250,7 +250,7 @@ class Pourous_Media(object):
         ).wait()
 
         if sim.check_max_ulb:
-            max_ulb = cl.array.max((sim.u**2 + sim.v**2)**.5, queue=self.queue)
+            max_ulb = cl.array.max((sim.u[:, :, self.field_index]**2 + sim.v[:, :, self.field_index]**2)**.5, queue=sim.queue)
 
             if max_ulb > sim.cs*sim.mach_tolerance:
                 print 'max_ulb is greater than cs/10! Ma=', max_ulb/sim.cs
