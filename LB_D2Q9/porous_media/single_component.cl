@@ -127,7 +127,6 @@ add_eating_collision(
     const int nx, const int ny,
     const int num_populations,
     const int num_jumpers,
-    const double delta_t,
     const double cs)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -142,7 +141,7 @@ add_eating_collision(
         const double rho_eater = rho_global[three_d_eater_index];
         const double rho_eatee = rho_global[three_d_eatee_index];
 
-        const double all_growth = delta_t * eat_rate*rho_eater*rho_eatee;
+        const double all_growth = eat_rate*rho_eater*rho_eatee;
 
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_eater_index = jump_id*num_populations*ny*nx + three_d_eater_index;
@@ -226,9 +225,7 @@ update_hydro_pourous(
     const int nx, const int ny,
     const int cur_field,
     const int num_populations,
-    const int num_jumpers,
-    const double delta_x,
-    const double delta_t
+    const int num_jumpers
 )
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -545,9 +542,7 @@ add_constant_body_force(
     const double force_y,
     __global double *Gx_global,
     __global double *Gy_global,
-    const int nx, const int ny,
-    const double delta_x,
-    const double delta_t
+    const int nx, const int ny
 )
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -573,9 +568,7 @@ add_radial_body_force(
     const double radial_scaling,
     __global double *Gx_global,
     __global double *Gy_global,
-    const int nx, const int ny,
-    const double delta_x,
-    const double delta_t
+    const int nx, const int ny
 )
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -590,7 +583,7 @@ add_radial_body_force(
         const double dx = x - center_x;
         const double dy = y - center_y;
 
-        const double radius_dim = delta_x*sqrt(dx*dx + dy*dy);
+        const double radius_dim = sqrt(dx*dx + dy*dy);
         const double theta = atan2(dy, dx);
 
         // Get the unit vector
@@ -599,8 +592,8 @@ add_radial_body_force(
 
         // Get the force
         double magnitude = prefactor*((double)pow(radius_dim, radial_scaling));
-        Gx_global[three_d_index] += magnitude*rhat_x * (delta_t * delta_t/delta_x);
-        Gy_global[three_d_index] += magnitude*rhat_y * (delta_t * delta_t/delta_x);
+        Gx_global[three_d_index] += magnitude*rhat_x;
+        Gy_global[three_d_index] += magnitude*rhat_y;
     }
 }
 
@@ -623,8 +616,6 @@ add_interaction_force(
     const int buf_nx, const int buf_ny,
     const int halo,
     const int num_jumpers,
-    const double delta_x,
-    const double delta_t,
     const int BC_SPECIFIER,
     const int PSI_SPECIFIER,
     __constant double *parameters)
@@ -787,8 +778,6 @@ add_interaction_force_second_belt(
     const int nx, const int ny,
     const int buf_nx, const int buf_ny,
     const int halo,
-    const double delta_x,
-    const double delta_t,
     const int BC_SPECIFIER,
     const int PSI_SPECIFIER,
     __constant double *parameters)

@@ -245,8 +245,7 @@ class Pourous_Media(object):
             sim.w, sim.cx, sim.cy,
             sim.nx, sim.ny,
             self.field_index, sim.num_populations,
-            sim.num_jumpers,
-            sim.delta_x, sim.delta_t
+            sim.num_jumpers
         ).wait()
 
         if sim.check_max_ulb:
@@ -281,15 +280,6 @@ class Simulation_Runner(object):
     def __init__(self, nx=100, ny=100, num_populations=1,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
-        """
-        :param N: Resolution of the simulation. As N increases, the simulation should become more accurate. N determines
-                  how many grid points the characteristic length scale is discretized into
-        :param time_prefactor: In order for a simulation to be accurate, in general, the dimensionless
-                               space discretization delta_t ~ delta_x^2 (see http://wiki.palabos.org/_media/howtos:lbunits.pdf).
-                               In our simulation, delta_t = time_prefactor * delta_x^2. delta_x is determined automatically
-                               by N.
-        :param two_d_local_size: A tuple of the local size to be used in 2d, i.e. (32, 32)
-        """
 
         self.nx = int_type(nx)
         self.ny = int_type(ny)
@@ -358,29 +348,6 @@ class Simulation_Runner(object):
         Gy_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
         self.Gx = cl.array.to_device(self.queue, Gx_host)
         self.Gy = cl.array.to_device(self.queue, Gy_host)
-
-        #### COORDINATE SYSTEM: FOR CHECKING SIMULATIONS ####
-
-        self.x_center = None
-        self.y_center = None
-        self.X_dim = None
-        self.Y_dim = None
-
-        self.x_center = self.nx / 2
-        self.y_center = self.ny / 2
-
-        xvalues = np.arange(self.nx)
-        yvalues = np.arange(self.ny)
-        Y, X = np.meshgrid(yvalues, xvalues)
-        X = X.astype(num_type)
-        Y = Y.astype(num_type)
-
-        deltaX = X - self.x_center
-        deltaY = Y - self.y_center
-
-        # Convert to dimensionless coordinates
-        self.X = deltaX / self.N
-        self.Y = deltaY / self.N
 
         # Create list corresponding to all of the different fluids
         self.fluid_list = []
@@ -506,7 +473,7 @@ class Simulation_Runner(object):
             self.f.data, self.rho.data,
             self.w, self.cx, self.cy,
             self.nx, self.ny, self.num_populations, self.num_jumpers,
-            self.delta_t, self.cs\
+            self.cs
         ]
 
         self.additional_collisions.append([kernel_to_run, arguments])
@@ -518,8 +485,7 @@ class Simulation_Runner(object):
             self.queue, self.two_d_global_size, self.two_d_local_size,
             int_type(fluid_index), num_type(force_x), num_type(force_y),
             self.Gx.data, self.Gy.data,
-            self.nx, self.ny,
-            self.delta_x, self.delta_t
+            self.nx, self.ny
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
@@ -532,8 +498,7 @@ class Simulation_Runner(object):
             int_type(fluid_index), int_type(center_x), int_type(center_y),
             num_type(prefactor), num_type(radial_scaling),
             self.Gx.data, self.Gy.data,
-            self.nx, self.ny,
-            self.delta_x, self.delta_t
+            self.nx, self.ny
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
@@ -549,8 +514,7 @@ class Simulation_Runner(object):
             self.rho.data, self.Gx.data, self.Gy.data,
             self.cs, self.cx, self.cy, self.w,
             self.nx, self.ny,
-            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
-            self.delta_x, self.delta_t
+            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers
         ]
 
         if bc is 'periodic':
@@ -695,8 +659,7 @@ class Simulation_Runner(object):
             pi1_const, cx1_const, cy1_const, num_jumpers_1,
             pi2_const, cx2_const, cy2_const, num_jumpers_2,
             self.nx, self.ny,
-            cur_buf_nx, cur_buf_ny, cur_halo,
-            self.delta_x, self.delta_t
+            cur_buf_nx, cur_buf_ny, cur_halo
         ]
 
         if bc is 'periodic':
