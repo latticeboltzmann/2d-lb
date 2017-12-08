@@ -728,7 +728,7 @@ class Simulation_Runner(object):
             pi2_const, cx2_const, cy2_const, num_jumpers_2,
             self.nx, self.ny,
             cur_buf_nx, cur_buf_ny, cur_halo,
-            self.delta_x
+            self.delta_x, self.delta_t
         ]
 
         if bc is 'periodic':
