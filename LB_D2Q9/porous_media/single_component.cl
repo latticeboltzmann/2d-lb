@@ -77,7 +77,6 @@ collide_particles_pourous(
     const int cur_field,
     const int num_populations,
     const int num_jumpers,
-    const double delta_t,
     const double cs)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -110,7 +109,7 @@ collide_particles_pourous(
                 - u_dot_F/(cs*cs*epsilon)
             );
 
-            f_global[four_d_index] = relax + delta_t * Fi;
+            f_global[four_d_index] = relax + Fi;
         }
     }
 }
@@ -209,26 +208,28 @@ update_velocity_prime(__global double *u_prime_global,
 
 __kernel void
 update_hydro_pourous(
-             __global __read_only double *f_global,
-             __global double *rho_global,
-             __global double *u_prime_global,
-             __global double *v_prime_global,
-             __global double *u_global,
-             __global double *v_global,
-             __global __read_only double *Gx_global,
-             __global __read_only double *Gy_global,
-             const double epsilon,
-             const double nu_fluid,
-             const double Fe,
-             const double K,
-             __constant double *w_arr,
-             __constant int *cx_arr,
-             __constant int *cy_arr,
-             const int nx, const int ny,
-             const int cur_field,
-             const int num_populations,
-             const int num_jumpers,
-             const double delta_t)
+    __global __read_only double *f_global,
+    __global double *rho_global,
+    __global double *u_prime_global,
+    __global double *v_prime_global,
+    __global double *u_global,
+    __global double *v_global,
+    __global __read_only double *Gx_global,
+    __global __read_only double *Gy_global,
+    const double epsilon,
+    const double nu_fluid,
+    const double Fe,
+    const double K,
+    __constant double *w_arr,
+    __constant int *cx_arr,
+    __constant int *cy_arr,
+    const int nx, const int ny,
+    const int cur_field,
+    const int num_populations,
+    const int num_jumpers,
+    const double delta_x,
+    const double delta_t
+)
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
@@ -258,13 +259,13 @@ update_hydro_pourous(
 
         // If rho = 0, the force *must* be zero!
         if(new_rho > 1.e-10){
-            u_temp += (.5*delta_t*epsilon*Gx);
-            v_temp += (.5*delta_t*epsilon*Gy);
+            u_temp += (.5*epsilon*Gx);
+            v_temp += (.5*epsilon*Gy);
 
         }
 
         double c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
-        double c1 = (epsilon*.5*delta_t*Fe)/sqrt(K);
+        double c1 = (epsilon*.5*delta_x*Fe)/sqrt(K); //Had to work this one out through dimensional analysis
 
         double temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
 
@@ -545,7 +546,9 @@ add_constant_body_force(
     const double force_y,
     __global double *Gx_global,
     __global double *Gy_global,
-    const int nx, const int ny
+    const int nx, const int ny,
+    const double delta_x,
+    const double delta_t
 )
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -555,8 +558,9 @@ add_constant_body_force(
     if ((x < nx) && (y < ny)){
         int three_d_index = field_num*nx*ny + y*nx + x;
 
-        Gx_global[three_d_index] += force_x;
-        Gy_global[three_d_index] += force_y;
+        // Rembmer, force PER density! In *dimensionless* units.
+        Gx_global[three_d_index] += ((delta_t*delta_t)/delta_x)*force_x;
+        Gy_global[three_d_index] += ((delta_t*delta_t)/delta_x)*force_y;
 
     }
 }
@@ -571,7 +575,8 @@ add_radial_body_force(
     __global double *Gx_global,
     __global double *Gy_global,
     const int nx, const int ny,
-    const double delta_x_sim
+    const double delta_x,
+    const double delta_t
 )
 {
     //Input should be a 2d workgroup! Loop over the third dimension.
@@ -583,11 +588,11 @@ add_radial_body_force(
 
         // Get the current radius and angle
 
-        const double delta_x = x - center_x;
-        const double delta_y = y - center_y;
+        const double dx = x - center_x;
+        const double dy = y - center_y;
 
-        const double radius_dim = delta_x_sim*sqrt(delta_x*delta_x + delta_y*delta_y);
-        const double theta = atan2(delta_y, delta_x);
+        const double radius_dim = delta_x*sqrt(dx*dx + dy*dy);
+        const double theta = atan2(dy, dx);
 
         // Get the unit vector
         const double rhat_x = cos(theta);
@@ -595,8 +600,8 @@ add_radial_body_force(
 
         // Get the force
         double magnitude = prefactor*((double)pow(radius_dim, radial_scaling));
-        Gx_global[three_d_index] += magnitude*rhat_x;
-        Gy_global[three_d_index] += magnitude*rhat_y;
+        Gx_global[three_d_index] += magnitude*rhat_x * (delta_t * delta_t/delta_x);
+        Gy_global[three_d_index] += magnitude*rhat_y * (delta_t * delta_t/delta_x);
     }
 }
 
@@ -620,6 +625,7 @@ add_interaction_force(
     const int halo,
     const int num_jumpers,
     const double delta_x,
+    const double delta_t,
     const int BC_SPECIFIER,
     const int PSI_SPECIFIER,
     __constant double *parameters)
@@ -736,11 +742,11 @@ add_interaction_force(
             force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
-        force_x_fluid_1 *= -G_int*psi_1_pixel/delta_x;
-        force_y_fluid_1 *= -G_int*psi_1_pixel/delta_x;
+        force_x_fluid_1 *= -(G_int*psi_1_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
+        force_y_fluid_1 *= -(G_int*psi_1_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
 
-        force_x_fluid_2 *= -G_int*psi_2_pixel/delta_x;
-        force_y_fluid_2 *= -G_int*psi_2_pixel/delta_x;
+        force_x_fluid_2 *= -(G_int*psi_2_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
+        force_y_fluid_2 *= -(G_int*psi_2_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
 
         const int two_d_index = y*nx + x;
         int three_d_index_fluid_1 = fluid_index_1*ny*nx + two_d_index;
@@ -783,6 +789,7 @@ add_interaction_force_second_belt(
     const int buf_nx, const int buf_ny,
     const int halo,
     const double delta_x,
+    const double delta_t,
     const int BC_SPECIFIER,
     const int PSI_SPECIFIER,
     __constant double *parameters)
@@ -934,11 +941,11 @@ add_interaction_force_second_belt(
             force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
-        force_x_fluid_1 *= -G_int*psi_1_pixel/delta_x;
-        force_y_fluid_1 *= -G_int*psi_1_pixel/delta_x;
+        force_x_fluid_1 *= -(G_int*psi_1_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
+        force_y_fluid_1 *= -(G_int*psi_1_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
 
-        force_x_fluid_2 *= -G_int*psi_2_pixel/delta_x;
-        force_y_fluid_2 *= -G_int*psi_2_pixel/delta_x;
+        force_x_fluid_2 *= -(G_int*psi_2_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
+        force_y_fluid_2 *= -(G_int*psi_2_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
 
         const int two_d_index = y*nx + x;
         int three_d_index_fluid_1 = fluid_index_1*ny*nx + two_d_index;

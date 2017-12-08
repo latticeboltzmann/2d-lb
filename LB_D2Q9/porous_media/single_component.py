@@ -246,7 +246,8 @@ class Pourous_Media(object):
             sim.w, sim.cx, sim.cy,
             sim.nx, sim.ny,
             self.field_index, sim.num_populations,
-            sim.num_jumpers, self.sim.delta_t
+            sim.num_jumpers,
+            sim.delta_x, sim.delta_t
         ).wait()
 
         if sim.check_max_ulb:
@@ -269,7 +270,8 @@ class Pourous_Media(object):
             sim.w, sim.cx, sim.cy,
             sim.nx, sim.ny,
             self.field_index, sim.num_populations,
-            sim.num_jumpers, sim.delta_t, sim.cs
+            sim.num_jumpers,
+            sim.cs
         ).wait()
 
 class Simulation_Runner(object):
@@ -549,6 +551,7 @@ class Simulation_Runner(object):
             int_type(fluid_index), num_type(force_x), num_type(force_y),
             self.Gx.data, self.Gy.data,
             self.nx, self.ny,
+            self.delta_x, self.delta_t
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
@@ -562,7 +565,7 @@ class Simulation_Runner(object):
             num_type(prefactor), num_type(radial_scaling),
             self.Gx.data, self.Gy.data,
             self.nx, self.ny,
-            self.delta_x
+            self.delta_x, self.delta_t
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
@@ -579,7 +582,7 @@ class Simulation_Runner(object):
             self.cs, self.cx, self.cy, self.w,
             self.nx, self.ny,
             self.buf_nx, self.buf_ny, self.halo, self.num_jumpers,
-            self.delta_x
+            self.delta_x, self.delta_t
         ]
 
         if bc is 'periodic':
