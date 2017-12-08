@@ -52,7 +52,7 @@ class Pourous_Media(object):
 
         self.field_index = int_type(field_index)
 
-        self.nu_e = num_type(nu_e)
+        self.lb_nu_e = num_type(nu_e)
         self.epsilon = num_type(epsilon)
         self.nu_fluid = num_type(nu_fluid)
         self.K = num_type(K)
@@ -60,7 +60,6 @@ class Pourous_Media(object):
         self.bc = bc
 
         # Determine the viscosity
-        self.lb_nu_e = self.nu_e * (sim.delta_t / sim.delta_x ** 2)
         self.tau = num_type(.5 + self.lb_nu_e / (sim.cs**2))
         print 'tau', self.tau
         self.omega = num_type(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
@@ -279,8 +278,7 @@ class Simulation_Runner(object):
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, Lx=1.0, Ly=1.0,
-                 time_prefactor=1., N=10, num_populations=1,
+    def __init__(self, nx=100, ny=100, num_populations=1,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
         """
@@ -293,33 +291,14 @@ class Simulation_Runner(object):
         :param two_d_local_size: A tuple of the local size to be used in 2d, i.e. (32, 32)
         """
 
-        # Dimensionless units
-        self.Lx = Lx
-        self.Ly = Ly
+        self.nx = int_type(nx)
+        self.ny = int_type(ny)
 
         # Book-keeping
         self.num_populations = int_type(num_populations)
 
         self.check_max_ulb = check_max_ulb
         self.mach_tolerance = mach_tolerance
-
-        # Get the characteristic length and time scales for the flow.
-        self.L = 1.0 # mm
-        self.T = 1.0 # Time in generations
-
-        # Initialize the lattice to simulate on; see http://wiki.palabos.org/_media/howtos:lbunits.pdf
-        self.N = N # Characteristic length is broken into N pieces
-        self.delta_x = num_type(1./N) # How many squares characteristic length is broken into
-        self.delta_t = num_type(time_prefactor * self.delta_x**2) # How many time iterations until the characteristic time, should be ~ \delta x^2
-
-        # Characteristic LB speed corresponding to dimensionless speed of 1. Must be MUCH smaller than cs = .57 or so.
-        self.ulb = self.delta_t/self.delta_x
-        print 'u_lb:', self.ulb
-
-        # Initialize grid dimensions
-        self.nx = None # Number of grid points in the x direction with the boundray
-        self.ny = None # Number of grid points in the y direction with the boundary
-        self.initialize_grid_dims()
 
         # Create global & local sizes appropriately
         self.two_d_local_size = two_d_local_size        # The local size to be used for 2-d workgroups
@@ -441,17 +420,6 @@ class Simulation_Runner(object):
             self.num_populations, self.num_jumpers
         ).wait()
 
-
-    def initialize_grid_dims(self):
-        """
-        Initializes the dimensions of the grid that the simulation will take place in. The size of the grid
-        will depend on both the physical geometry of the input system and the desired resolution N.
-        """
-        self.nx = int_type(np.round(self.N*self.Lx))
-        self.ny = int_type(np.round(self.N*self.Ly))
-
-        print 'nx:' , self.nx
-        print 'ny:', self.ny
 
     def init_opencl(self):
         """

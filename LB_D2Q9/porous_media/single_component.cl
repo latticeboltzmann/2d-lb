@@ -261,11 +261,10 @@ update_hydro_pourous(
         if(new_rho > 1.e-10){
             u_temp += (.5*epsilon*Gx);
             v_temp += (.5*epsilon*Gy);
-
         }
 
-        double c0 = .5*(1 + .5*epsilon*delta_t*nu_fluid/K);
-        double c1 = (epsilon*.5*delta_x*Fe)/sqrt(K); //Had to work this one out through dimensional analysis
+        double c0 = .5*(1 + .5*epsilon*nu_fluid/K);
+        double c1 = (epsilon*.5*Fe)/sqrt(K); //Had to work this one out through dimensional analysis
 
         double temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
 
@@ -559,8 +558,8 @@ add_constant_body_force(
         int three_d_index = field_num*nx*ny + y*nx + x;
 
         // Rembmer, force PER density! In *dimensionless* units.
-        Gx_global[three_d_index] += ((delta_t*delta_t)/delta_x)*force_x;
-        Gy_global[three_d_index] += ((delta_t*delta_t)/delta_x)*force_y;
+        Gx_global[three_d_index] += force_x;
+        Gy_global[three_d_index] += force_y;
 
     }
 }
