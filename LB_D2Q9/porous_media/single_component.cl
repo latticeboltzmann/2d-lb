@@ -941,11 +941,11 @@ add_interaction_force_second_belt(
             force_y_fluid_2 += cur_w * cur_cy * psi_1;
         }
 
-        force_x_fluid_1 *= -(G_int*psi_1_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
-        force_y_fluid_1 *= -(G_int*psi_1_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
+        force_x_fluid_1 *= -(G_int*psi_1_pixel);
+        force_y_fluid_1 *= -(G_int*psi_1_pixel);
 
-        force_x_fluid_2 *= -(G_int*psi_2_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
-        force_y_fluid_2 *= -(G_int*psi_2_pixel)*(delta_t*delta_t)/(delta_x*delta_x);
+        force_x_fluid_2 *= -(G_int*psi_2_pixel);
+        force_y_fluid_2 *= -(G_int*psi_2_pixel);
 
         const int two_d_index = y*nx + x;
         int three_d_index_fluid_1 = fluid_index_1*ny*nx + two_d_index;
