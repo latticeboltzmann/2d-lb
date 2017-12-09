@@ -277,12 +277,20 @@ class Simulation_Runner(object):
     Everything is in dimensionless units. It's just easier.
     """
 
-    def __init__(self, nx=100, ny=100, num_populations=1,
+    def __init__(self, nx=100, ny=100,
+                 L_lb=100, T_lb=1.,
+                 num_populations=1,
                  two_d_local_size=(32,32), use_interop=False,
                  check_max_ulb=False, mach_tolerance=0.1):
 
         self.nx = int_type(nx)
         self.ny = int_type(ny)
+
+        self.L_lb = int_type(L_lb) # The resolution of the simulation
+        self.T_lb = num_type(T_lb) # How many steps it takes to reach T=1
+
+        self.delta_x = 1./self.L_lb
+        self.delta_t = 1./self.T_lb
 
         # Book-keeping
         self.num_populations = int_type(num_populations)
