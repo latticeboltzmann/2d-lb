@@ -6,7 +6,7 @@
     #error "Double precision floating point not supported by OpenCL implementation."
 #endif
 
-#define ZERO_DENSITY 1e-10
+#define ZERO_DENSITY 1e-3
 
 __kernel void
 update_feq_pourous(__global __write_only double *feq_global,
