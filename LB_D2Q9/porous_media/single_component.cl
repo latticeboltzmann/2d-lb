@@ -6,7 +6,7 @@
     #error "Double precision floating point not supported by OpenCL implementation."
 #endif
 
-#define ZERO_DENSITY 1e-3
+#define ZERO_DENSITY 1e-6
 
 __kernel void
 update_feq_pourous(__global __write_only double *feq_global,
@@ -253,25 +253,29 @@ update_hydro_pourous(
 
         //Gx NEEDS to be force/density...i.e. an acceleration, or else this just doesn't work!
 
-        double u_temp = u_prime_global[two_d_index];
-        double v_temp = v_prime_global[two_d_index];
-
-        // If rho = 0, the force *must* be zero!
         if(new_rho > ZERO_DENSITY){
+            double u_temp = u_prime_global[two_d_index];
+            double v_temp = v_prime_global[two_d_index];
+
+            // If rho = 0, the force *must* be zero!
             u_temp += (.5*epsilon*Gx);
             v_temp += (.5*epsilon*Gy);
+
+            double c0 = .5*(1 + .5*epsilon*nu_fluid/K);
+            double c1 = (epsilon*.5*Fe)/sqrt(K); //Had to work this one out through dimensional analysis
+
+            double temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
+
+            double u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+            double v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
+
+            u_global[three_d_index] = u;
+            v_global[three_d_index] = v;
         }
-
-        double c0 = .5*(1 + .5*epsilon*nu_fluid/K);
-        double c1 = (epsilon*.5*Fe)/sqrt(K); //Had to work this one out through dimensional analysis
-
-        double temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
-
-        double u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
-        double v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
-
-        u_global[three_d_index] = u;
-        v_global[three_d_index] = v;
+        else{
+            u_global[three_d_index] = 0;
+            v_global[three_d_index] = 0;
+        }
     }
 }
 
@@ -614,15 +618,15 @@ void get_psi(
         *psi_1 = rho_0*(1 - exp(-rho_1/rho_0));
         *psi_2 = rho_0*(1 - exp(-rho_2/rho_0));
     }
-    if(PSI_SPECIFIER == 2){ // sqrt(rho_1) * sqrt(rho_2)
+    if(PSI_SPECIFIER == 2){ // pow(rho_1, alpha) * pow(rho_2, alpha)
         if (rho_1 > ZERO_DENSITY){
-            *psi_1 = sqrt(rho_1);
+            *psi_1 = (double)pow(rho_1, parameters[0]);
         }
         else{
             *psi_1 = 0;
         }
         if (rho_2 > ZERO_DENSITY){
-            *psi_2 = sqrt(rho_2);
+            *psi_2 = (double)pow(rho_2, parameters[0]);
         }
         else{
             *psi_2 = 0;
