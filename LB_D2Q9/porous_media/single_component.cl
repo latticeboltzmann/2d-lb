@@ -257,7 +257,7 @@ update_hydro_pourous(
         double v_temp = v_prime_global[two_d_index];
 
         // If rho = 0, the force *must* be zero!
-        if(new_rho > 1.e-10){
+        if(new_rho > ZERO_DENSITY){
             u_temp += (.5*epsilon*Gx);
             v_temp += (.5*epsilon*Gy);
         }
