@@ -597,6 +597,22 @@ add_radial_body_force(
     }
 }
 
+void get_psi(
+    const int PSI_SPECIFIER,
+    double rho_1, double rho_2,
+    double *psi_1, double *psi_2,
+    __constant double *parameters)
+{
+    if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
+        *psi_1 = rho_1;
+        *psi_2 = rho_2;
+    }
+    if(PSI_SPECIFIER == 1){ // shan-chen
+        double rho_0 = parameters[0];
+        *psi_1 = rho_0*(1 - exp(-rho_1/rho_0));
+        *psi_2 = rho_0*(1 - exp(-rho_2/rho_0));
+    }
+}
 
 __kernel void
 add_interaction_force(
@@ -689,15 +705,7 @@ add_interaction_force(
         double psi_1_pixel = 0;
         double psi_2_pixel = 0;
 
-        if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-            psi_1_pixel = rho_1_pixel;
-            psi_2_pixel = rho_2_pixel;
-        }
-        if(PSI_SPECIFIER == 1){ // shan-chen
-            double rho_0 = parameters[0];
-            psi_1_pixel = rho_0*(1 - exp(-rho_1_pixel/rho_0));
-            psi_2_pixel = rho_0*(1 - exp(-rho_2_pixel/rho_0));
-        }
+        get_psi(PSI_SPECIFIER, rho_1_pixel, rho_2_pixel, &psi_1_pixel, &psi_2_pixel, parameters);
 
         double psi_1 = 0; // The psi that correspond to jumping around the lattice
         double psi_2 = 0;
@@ -716,15 +724,8 @@ add_interaction_force(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-                psi_1 = cur_rho_1;
-                psi_2 = cur_rho_2;
-            }
-            if(PSI_SPECIFIER == 1){ // shan-chen
-                double rho_0 = parameters[0];
-                psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
-                psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
-            }
+            get_psi(PSI_SPECIFIER, cur_rho_1, cur_rho_2, &psi_1, &psi_2, parameters);
+
             force_x_fluid_1 += cur_w * cur_cx * psi_2;
             force_y_fluid_1 += cur_w * cur_cy * psi_2;
 
@@ -851,15 +852,7 @@ add_interaction_force_second_belt(
         double psi_1_pixel = 0;
         double psi_2_pixel = 0;
 
-        if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-            psi_1_pixel = rho_1_pixel;
-            psi_2_pixel = rho_2_pixel;
-        }
-        if(PSI_SPECIFIER == 1){ // shan-chen
-            double rho_0 = parameters[0];
-            psi_1_pixel = rho_0*(1 - exp(-rho_1_pixel/rho_0));
-            psi_2_pixel = rho_0*(1 - exp(-rho_2_pixel/rho_0));
-        }
+        get_psi(PSI_SPECIFIER, rho_1_pixel, rho_2_pixel, &psi_1_pixel, &psi_2_pixel, parameters);
 
         //Psi at other pixels
 
@@ -880,15 +873,7 @@ add_interaction_force_second_belt(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-            if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-                psi_1 = cur_rho_1;
-                psi_2 = cur_rho_2;
-            }
-            else if(PSI_SPECIFIER == 1){ // shan-chen
-                double rho_0 = parameters[0];
-                psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
-                psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
-            }
+            get_psi(PSI_SPECIFIER, cur_rho_1, cur_rho_2, &psi_1, &psi_2, parameters);
 
             force_x_fluid_1 += cur_w * cur_cx * psi_2;
             force_y_fluid_1 += cur_w * cur_cy * psi_2;
@@ -911,16 +896,7 @@ add_interaction_force_second_belt(
             double cur_rho_1 = local_fluid_1[new_2d_buf_index];
             double cur_rho_2 = local_fluid_2[new_2d_buf_index];
 
-
-            if(PSI_SPECIFIER == 0){ // rho_1 * rho_2
-                psi_1 = cur_rho_1;
-                psi_2 = cur_rho_2;
-            }
-            if(PSI_SPECIFIER == 1){ // shan-chen
-                double rho_0 = parameters[0];
-                psi_1 = rho_0*(1 - exp(-cur_rho_1/rho_0));
-                psi_2 = rho_0*(1 - exp(-cur_rho_2/rho_0));
-            }
+            get_psi(PSI_SPECIFIER, cur_rho_1, cur_rho_2, &psi_1, &psi_2, parameters);
 
             force_x_fluid_1 += cur_w * cur_cx * psi_2;
             force_y_fluid_1 += cur_w * cur_cy * psi_2;
