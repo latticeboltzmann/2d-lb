@@ -536,6 +536,8 @@ class Simulation_Runner(object):
             arguments += [int_type(0)]
         elif potential is 'shan_chen':
             arguments += [int_type(1)]
+        elif potential is 'sqrt':
+            arguments += [int_type(2)]
         else:
             raise ValueError('Specified pseudopotential does not exist.')
 
@@ -681,6 +683,8 @@ class Simulation_Runner(object):
             arguments += [int_type(0)]
         elif potential is 'shan_chen':
             arguments += [int_type(1)]
+        elif potential is 'sqrt':
+            arguments += [int_type(2)]
         else:
             raise ValueError('Specified pseudopotential does not exist.')
 

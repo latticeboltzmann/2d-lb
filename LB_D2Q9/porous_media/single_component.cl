@@ -612,6 +612,20 @@ void get_psi(
         *psi_1 = rho_0*(1 - exp(-rho_1/rho_0));
         *psi_2 = rho_0*(1 - exp(-rho_2/rho_0));
     }
+    if(PSI_SPECIFIER == 2){ // sqrt(rho_1) * sqrt(rho_2)
+        if (rho_1 > 1e-10){
+            *psi_1 = sqrt(rho_1);
+        }
+        else{
+            *psi_1 = 0;
+        }
+        if (rho_2 > 1e-10){
+            *psi_2 = sqrt(rho_2);
+        }
+        else{
+            *psi_2 = 0;
+        }
+    }
 }
 
 __kernel void
