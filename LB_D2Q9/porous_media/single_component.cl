@@ -632,6 +632,18 @@ void get_psi(
             *psi_2 = 0;
         }
     }
+    if(PSI_SPECIFIER==3){ //van-der-waals; G MUST BE SET TO ONE TO USE THIS
+        double a = parameters[0];
+        double b = parameters[1];
+        double T = parameters[2];
+        double cs = parameters[3];
+
+        double P1 = (rho_1*T)/(1 - rho_1*b) - a*rho_1*rho_1;
+        double P2 = (rho_2*T)/(1 - rho_2*b) - a*rho_2*rho_2;
+
+        *psi_1 = sqrt(2*(P1 - cs*cs*rho_1)/(cs*cs));
+        *psi_2 = sqrt(2*(P2 - cs*cs*rho_2)/(cs*cs));
+    }
 }
 
 __kernel void
