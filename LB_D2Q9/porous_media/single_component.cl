@@ -6,6 +6,8 @@
     #error "Double precision floating point not supported by OpenCL implementation."
 #endif
 
+#define ZERO_DENSITY 1e-10
+
 __kernel void
 update_feq_pourous(__global __write_only double *feq_global,
            __global __read_only double *rho_global,
@@ -613,13 +615,13 @@ void get_psi(
         *psi_2 = rho_0*(1 - exp(-rho_2/rho_0));
     }
     if(PSI_SPECIFIER == 2){ // sqrt(rho_1) * sqrt(rho_2)
-        if (rho_1 > 1e-10){
+        if (rho_1 > ZERO_DENSITY){
             *psi_1 = sqrt(rho_1);
         }
         else{
             *psi_1 = 0;
         }
-        if (rho_2 > 1e-10){
+        if (rho_2 > ZERO_DENSITY){
             *psi_2 = sqrt(rho_2);
         }
         else{
@@ -760,11 +762,11 @@ add_interaction_force(
         // We need to move from *force* to force/density!
         // If rho is zero, force should be zero! That's what the books say.
         // So, just don't increment the force is rho is too small; equivalent to setting force = 0.
-        if(rho_1_pixel > 1e-10){
+        if(rho_1_pixel > ZERO_DENSITY){
             Gx_global[three_d_index_fluid_1] += force_x_fluid_1/rho_1_pixel;
             Gy_global[three_d_index_fluid_1] += force_y_fluid_1/rho_1_pixel;
         }
-        if(rho_2_pixel > 1e-10){
+        if(rho_2_pixel > ZERO_DENSITY){
             Gx_global[three_d_index_fluid_2] += force_x_fluid_2/rho_2_pixel;
             Gy_global[three_d_index_fluid_2] += force_y_fluid_2/rho_2_pixel;
         }
@@ -932,11 +934,11 @@ add_interaction_force_second_belt(
         // We need to move from *force* to force/density!
         // If rho is zero, force should be zero! That's what the books say.
         // So, just don't increment the force is rho is too small; equivalent to setting force = 0.
-        if(rho_1_pixel > 1e-10){
+        if(rho_1_pixel > ZERO_DENSITY){
             Gx_global[three_d_index_fluid_1] += force_x_fluid_1/rho_1_pixel;
             Gy_global[three_d_index_fluid_1] += force_y_fluid_1/rho_1_pixel;
         }
-        if(rho_2_pixel > 1e-10){
+        if(rho_2_pixel > ZERO_DENSITY){
             Gx_global[three_d_index_fluid_2] += force_x_fluid_2/rho_2_pixel;
             Gy_global[three_d_index_fluid_2] += force_y_fluid_2/rho_2_pixel;
         }
