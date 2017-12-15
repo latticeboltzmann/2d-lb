@@ -35,8 +35,8 @@ update_feq_pourous(
         int three_d_index = field_num*nx*ny + two_d_index;
 
         double rho = rho_global[three_d_index];
-        const double u = u_bary_global[three_d_index];
-        const double v = v_bary_global[three_d_index];
+        const double u = u_bary_global[two_d_index];
+        const double v = v_bary_global[two_d_index];
 
         // Now loop over every jumper
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
@@ -91,8 +91,8 @@ collide_particles_pourous(
         int three_d_index = cur_field*ny*nx + two_d_index;
 
         const double rho = rho_global[three_d_index];
-        const double u = u_bary_global[three_d_index];
-        const double v = v_bary_global[three_d_index];
+        const double u = u_bary_global[two_d_index];
+        const double v = v_bary_global[two_d_index];
         const double Fx = Fx_global[two_d_index];
         const double Fy = Fy_global[two_d_index];
 
