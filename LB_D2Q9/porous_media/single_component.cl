@@ -93,8 +93,8 @@ collide_particles_pourous(
         const double rho = rho_global[three_d_index];
         const double u = u_bary_global[two_d_index];
         const double v = v_bary_global[two_d_index];
-        const double Gx = Gx_global[two_d_index];
-        const double Gy = Gy_global[two_d_index];
+        const double Gx = Gx_global[three_d_index];
+        const double Gy = Gy_global[three_d_index];
 
 
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
@@ -190,8 +190,8 @@ update_bary_velocity(
 
             rho_sum += rho_global[three_d_index];
 
-            Gx = Gx_global[three_d_index];
-            Gy = Gy_global[three_d_index];
+            double Gx = Gx_global[three_d_index];
+            double Gy = Gy_global[three_d_index];
 
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
@@ -274,6 +274,7 @@ update_hydro_pourous(
 
 __kernel void
 update_forces_pourous(
+    __global double *rho_global,
     __global double *u_global,
     __global double *v_global,
     __global __read_only double *Gx_global,
@@ -294,32 +295,41 @@ update_forces_pourous(
         const int two_d_index = y*nx + x;
         int three_d_index = cur_field*ny*nx + two_d_index;
 
-        double u = u_global[three_d_index];
-        double v = v_global[three_d_index];
+        double rho = rho_global[three_d_index];
 
-        double Gx = Gx_global[three_d_index];
-        double Gy = Gy_global[three_d_index];
+        if (rho > ZERO_DENSITY){
 
-        //TODO: should these be divided by density?
+            double u = u_global[three_d_index];
+            double v = v_global[three_d_index];
 
-        //At this point, Gx and Gy are already nonzero. We must account
-        //for porosity before doing anything else...
+            double Gx = Gx_global[three_d_index];
+            double Gy = Gy_global[three_d_index];
 
-        Gx *= epsilon;
-        Gy *= epsilon;
+            //TODO: should these be divided by density?
 
-        // Now add everything else...
+            //At this point, Gx and Gy are already nonzero. We must account
+            //for porosity before doing anything else...
 
-        Gx += -(epsilon * nu_fluid*u)/K;
-        Gy += -(epsilon * nu_fluid*v)/K;
+            Gx *= epsilon;
+            Gy *= epsilon;
 
-        double vel_mag = sqrt(u*u + v*v);
+            // Now add everything else...
 
-        Gx += -(epsilon * Fe * vel_mag * u)/sqrt(K);
-        Gy += -(epsilon * Fe * vel_mag * v)/sqrt(K);
+            Gx += -(epsilon * nu_fluid*u)/K;
+            Gy += -(epsilon * nu_fluid*v)/K;
 
-        Gx_global[two_d_index] = Gx;
-        Gy_global[two_d_index] = Gy;
+            double vel_mag = sqrt(u*u + v*v);
+
+            Gx += -(epsilon * Fe * vel_mag * u)/sqrt(K);
+            Gy += -(epsilon * Fe * vel_mag * v)/sqrt(K);
+
+            Gx_global[three_d_index] = Gx;
+            Gy_global[three_d_index] = Gy;
+        }
+        else{
+            Gx_global[three_d_index] = 0;
+            Gy_global[three_d_index] = 0;
+        }
     }
 }
 

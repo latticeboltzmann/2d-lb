@@ -232,7 +232,7 @@ class Pourous_Media(object):
             sim.feq.data,
             sim.rho.data,
             sim.u_bary.data, sim.v_bary.data,
-            self.Fx.data, self.Fy.data,
+            self.Gx.data, self.Gy.data,
             self.epsilon, self.omega,
             sim.w, sim.cx, sim.cy,
             sim.nx, sim.ny,
