@@ -227,10 +227,6 @@ class Pourous_Media(object):
             self.field_index, sim.num_populations, sim.num_jumpers).wait()
 
     def update_hydro(self):
-        """
-        Based on the new positions of the jumpers, update the hydrodynamic variables. Implemented in OpenCL.
-        Requires u_prime to have been updated first!
-        """
 
         sim = self.sim
 
@@ -238,7 +234,7 @@ class Pourous_Media(object):
             sim.queue, sim.two_d_global_size, sim.two_d_local_size,
             sim.f.data,
             sim.rho.data,
-            sim.u_prime.data, sim.v_prime.data,
+            sim.u_bary.data, sim.v_bary.data,
             sim.u.data, sim.v.data,
             sim.Gx.data, sim.Gy.data,
             self.epsilon, self.nu_fluid, self.Fe, self.K,
@@ -338,10 +334,10 @@ class Simulation_Runner(object):
         self.u = cl.array.to_device(self.queue, u_host) # Velocity in the x direction; one per sim!
         self.v = cl.array.to_device(self.queue, v_host) # Velocity in the y direction; one per sim.
 
-        u_prime_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
-        v_prime_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
-        self.u_prime = cl.array.to_device(self.queue, u_prime_host)  # Velocity in the x direction; one per sim!
-        self.v_prime = cl.array.to_device(self.queue, v_prime_host)  # Velocity in the y direction; one per sim.
+        u_bary_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
+        v_bary_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
+        self.u_bary = cl.array.to_device(self.queue, u_bary_host)  # Velocity in the x direction; one per sim!
+        self.v_bary = cl.array.to_device(self.queue, v_bary_host)  # Velocity in the y direction; one per sim.
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=num_type, order='F')
@@ -381,12 +377,12 @@ class Simulation_Runner(object):
         cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
 
         # Now calculate u and v prime
-        self.update_velocity_prime()
+        self.update_bary_velocity()
 
-    def update_velocity_prime(self):
-        self.kernels.update_velocity_prime(
+    def update_bary_velocity(self):
+        self.kernels.update_bary_velocity(
             self.queue, self.two_d_global_size, self.two_d_local_size,
-            self.u_prime.data, self.v_prime.data,
+            self.u_bary.data, self.v_bary.data,
             self.rho.data,
             self.f.data,
             self.tau_arr,
@@ -729,11 +725,6 @@ class Simulation_Runner(object):
                 print 'After move bcs'
                 self.check_fields()
 
-            self.update_velocity_prime()
-            if debug:
-                print 'After updating velocity-prime'
-                self.check_fields()
-
             # Update forces here as appropriate
             for cur_fluid in self.fluid_list:
                 cur_fluid.update_hydro() # Update the hydrodynamic variables
@@ -748,9 +739,14 @@ class Simulation_Runner(object):
                 kernel = d[0]
                 arguments = d[1]
                 kernel(*arguments).wait()
-
             if debug:
                 print 'After updating supplementary forces'
+                self.check_fields()
+
+            # After updating forces, update the bary_velocity
+            self.update_bary_velocity()
+            if debug:
+                print 'After updating velocity-prime'
                 self.check_fields()
 
             # Update other forces

@@ -9,19 +9,20 @@
 #define ZERO_DENSITY 1e-6
 
 __kernel void
-update_feq_pourous(__global __write_only double *feq_global,
-           __global __read_only double *rho_global,
-           __global __read_only double *u_global,
-           __global __read_only double *v_global,
-           const double epsilon,
-           __constant double *w_arr,
-           __constant int *cx_arr,
-           __constant int *cy_arr,
-           const double cs,
-           const int nx, const int ny,
-           const int field_num,
-           const int num_populations,
-           const int num_jumpers)
+update_feq_pourous(
+    __global __write_only double *feq_global,
+    __global __read_only double *rho_global,
+    __global __read_only double *u_bary_global,
+    __global __read_only double *v_bary_global,
+    const double epsilon,
+    __constant double *w_arr,
+    __constant int *cx_arr,
+    __constant int *cy_arr,
+    const double cs,
+    const int nx, const int ny,
+    const int field_num,
+    const int num_populations,
+    const int num_jumpers)
 {
     //Input should be a 2d workgroup. But, we loop over a 4d array...
     const int x = get_global_id(0);
@@ -34,8 +35,8 @@ update_feq_pourous(__global __write_only double *feq_global,
         int three_d_index = field_num*nx*ny + two_d_index;
 
         double rho = rho_global[three_d_index];
-        const double u = u_global[three_d_index];
-        const double v = v_global[three_d_index];
+        const double u = u_bary_global[three_d_index];
+        const double v = v_bary_global[three_d_index];
 
         // Now loop over every jumper
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
@@ -66,8 +67,8 @@ collide_particles_pourous(
     __global double *f_global,
     __global __read_only double *feq_global,
     __global __read_only double *rho_global,
-    __global __read_only double *u_global,
-    __global __read_only double *v_global,
+    __global __read_only double *u_bary_global,
+    __global __read_only double *v_bary_global,
     __global __read_only double *Fx_global,
     __global __read_only double *Fy_global,
     const double epsilon,
@@ -90,8 +91,8 @@ collide_particles_pourous(
         int three_d_index = cur_field*ny*nx + two_d_index;
 
         const double rho = rho_global[three_d_index];
-        const double u = u_global[three_d_index];
-        const double v = v_global[three_d_index];
+        const double u = u_bary_global[three_d_index];
+        const double v = v_bary_global[three_d_index];
         const double Fx = Fx_global[two_d_index];
         const double Fy = Fy_global[two_d_index];
 
@@ -158,18 +159,21 @@ add_eating_collision(
 }
 
 __kernel void
-update_velocity_prime(__global double *u_prime_global,
-                      __global double *v_prime_global,
-                      __global __read_only double *rho_global,
-                      __global __read_only double *f_global,
-                      __constant double *tau_arr,
-                      __constant double *w_arr,
-                      __constant int *cx_arr,
-                      __constant int *cy_arr,
-                      const int nx, const int ny,
-                      const int num_populations,
-                      const int num_jumpers
-                      )
+update_bary_velocity(
+    __global double *u_bary_global,
+    __global double *v_bary_global,
+    __global __read_only double *rho_global,
+    __global __read_only double *f_global,
+    __global __read_only double *Fx,
+    __global __read_only double *Fy,
+    __constant double *tau_arr,
+    __constant double *w_arr,
+    __constant int *cx_arr,
+    __constant int *cy_arr,
+    const int nx, const int ny,
+    const int num_populations,
+    const int num_jumpers
+    )
 {
     const int x = get_global_id(0);
     const int y = get_global_id(1);
@@ -177,16 +181,17 @@ update_velocity_prime(__global double *u_prime_global,
     if ((x < nx) && (y < ny)){
         const int two_d_index = y*nx + x;
 
-        double numerator_u = 0;
-        double numerator_v = 0;
-
-        double denominator = 0; // The denominator has no vectorial nature
+        double sum_x = 0;
+        double sum_y = 0;
+        double rho_sum = 0;
 
         for(int cur_field=0; cur_field < num_populations; cur_field++){
             int three_d_index = cur_field*ny*nx + two_d_index;
 
-            double cur_tau = tau_arr[cur_field];
-            double rho = rho_global[three_d_index];
+            rho_sum += rho_global[three_d_index];
+
+            Fx = Fx_global[three_d_index];
+            Fy = Fy_global[three_d_index];
 
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
@@ -194,16 +199,14 @@ update_velocity_prime(__global double *u_prime_global,
                 double cx = cx_arr[jump_id];
                 double cy = cy_arr[jump_id];
 
-                numerator_u += cx * f;
-                numerator_v += cy * f;
+                sum_x += cx * f;
+                sum_y += cy * f;
             }
-            numerator_u /= cur_tau;
-            numerator_v /= cur_tau;
-
-            denominator += rho/cur_tau;
+            sum_x += Fx/2.;
+            sum_y += Fy/2.;
         }
-    u_prime_global[two_d_index] = numerator_u/denominator;
-    v_prime_global[two_d_index] = numerator_v/denominator;
+        u_bary_global[two_d_index] = sum_x/rho_sum;
+        v_bary_global[two_d_index] = sum_y/rho_sum;
     }
 }
 
@@ -211,8 +214,6 @@ __kernel void
 update_hydro_pourous(
     __global __read_only double *f_global,
     __global double *rho_global,
-    __global double *u_prime_global,
-    __global double *v_prime_global,
     __global double *u_global,
     __global double *v_global,
     __global __read_only double *Gx_global,
@@ -243,34 +244,26 @@ update_hydro_pourous(
 
         // Update rho!
         double new_rho = 0;
+        double new_u = 0;
+        double new_v = 0;
+
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
             int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
             double f = f_global[four_d_index];
+
             new_rho += f;
+
+            int cx = cx_arr[jump_id];
+            int cy = cy_arr[jump_id];
+
+            new_u += f*cx;
+            new_v += f*cy;
         }
         rho_global[three_d_index] = new_rho;
-        //Now determine the new velocity
-
-        //Gx NEEDS to be force/density...i.e. an acceleration, or else this just doesn't work!
 
         if(new_rho > ZERO_DENSITY){
-            double u_temp = u_prime_global[two_d_index];
-            double v_temp = v_prime_global[two_d_index];
-
-            // If rho = 0, the force *must* be zero!
-            u_temp += (.5*epsilon*Gx);
-            v_temp += (.5*epsilon*Gy);
-
-            double c0 = .5*(1 + .5*epsilon*nu_fluid/K);
-            double c1 = (epsilon*.5*Fe)/sqrt(K); //Had to work this one out through dimensional analysis
-
-            double temp_mag = sqrt(u_temp*u_temp + v_temp*v_temp);
-
-            double u = u_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
-            double v = v_temp/(c0 + sqrt(c0*c0 + c1 * temp_mag));
-
-            u_global[three_d_index] = u;
-            v_global[three_d_index] = v;
+            u_global[three_d_index] = new_u/new_rho;
+            v_global[three_d_index] = new_v/new_rho;
         }
         else{
             u_global[three_d_index] = 0;
