@@ -71,21 +71,10 @@ class Pourous_Media(object):
         self.Fy = None
 
 
-    def initialize(self, u_arr, v_arr, rho_arr, f_amp = 0.0):
+    def initialize(self, rho_arr, f_amp = 0.0):
         """
-        User passes in the u field. As density is fixed at a constant (incompressibility), we solve for the appropriate
-        distribution functions.
+        ASSUMES THAT THE BARYCENTRIC VELOCITY IS ALREADY SET
         """
-
-        #### VELOCITY ####
-        u_host = self.sim.u.get()
-        v_host = self.sim.v.get()
-
-        u_host[:, :, self.field_index] = u_arr
-        v_host[:, :, self.field_index] = v_arr
-
-        self.sim.u = cl.array.to_device(self.sim.queue, u_host)
-        self.sim.v = cl.array.to_device(self.sim.queue, v_host)
 
         #### DENSITY #####
         rho_host = self.sim.rho.get()
@@ -93,25 +82,15 @@ class Pourous_Media(object):
         rho_host[:, :, self.field_index] = rho_arr
         self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
 
-        #### TOTAL FORCE, including internal drag ####
-        Fx_host = np.zeros((self.sim.nx, self.sim.ny), dtype=num_type, order='F')
-        Fy_host = np.zeros((self.sim.nx, self.sim.ny), dtype=num_type, order='F')
-
-        self.Fx = cl.array.to_device(self.sim.queue, Fx_host)
-        self.Fy = cl.array.to_device(self.sim.queue, Fy_host)
-
-        self.update_forces()
-
         #### UPDATE HOPPERS ####
         self.update_feq() # Based on the hydrodynamic fields, create feq
 
         # Now initialize the nonequilibrium f
-        # In order to stream in parallel without communication between workgroups, we need two buffers (as far as the
-        # authors can see at least). f will be the usual field of hopping particles and f_temporary will be the field
-        # after the particles have streamed.
-
         self.init_pop(amplitude=f_amp) # Based on feq, create the hopping non-equilibrium fields
 
+        #### Update the component velocities & resulting forces ####
+        self.update_hydro() # The point here is to initialize u and v, the component velocities
+        self.update_forces() # Calculates the drag force, if necessary, based on the component velocity
 
     def init_pop(self, amplitude=0.001):
         """Based on feq, create the initial population of jumpers."""
@@ -375,8 +354,9 @@ class Simulation_Runner(object):
         self.tau_arr = cl.Buffer(self.context, cl.mem_flags.READ_ONLY |
         cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
 
-        # Now calculate u and v prime
-        self.update_bary_velocity()
+    def set_bary_velocity(self, u_bary_host, v_bary_host):
+        self.u_bary = cl.array.to_device(self.queue, u_bary_host)
+        self.v_bary = cl.array.to_device(self.queue, v_bary_host)
 
     def update_bary_velocity(self):
         self.kernels.update_bary_velocity(
