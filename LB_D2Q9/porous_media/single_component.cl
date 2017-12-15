@@ -188,7 +188,8 @@ update_bary_velocity(
         for(int cur_field=0; cur_field < num_populations; cur_field++){
             int three_d_index = cur_field*ny*nx + two_d_index;
 
-            rho_sum += rho_global[three_d_index];
+            double cur_rho = rho_global[three_d_index];
+            rho_sum += cur_rho;
 
             double Gx = Gx_global[three_d_index];
             double Gy = Gy_global[three_d_index];
@@ -196,14 +197,14 @@ update_bary_velocity(
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
                 double f = f_global[four_d_index];
-                double cx = cx_arr[jump_id];
-                double cy = cy_arr[jump_id];
+                int cx = cx_arr[jump_id];
+                int cy = cy_arr[jump_id];
 
                 sum_x += cx * f;
                 sum_y += cy * f;
             }
-            sum_x += Gx/2.;
-            sum_y += Gy/2.;
+            sum_x += cur_rho*Gx/2.;
+            sum_y += cur_rho*Gy/2.;
         }
         u_bary_global[two_d_index] = sum_x/rho_sum;
         v_bary_global[two_d_index] = sum_y/rho_sum;

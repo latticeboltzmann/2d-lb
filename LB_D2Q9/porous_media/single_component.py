@@ -233,7 +233,7 @@ class Pourous_Media(object):
             sim.feq.data,
             sim.rho.data,
             sim.u_bary.data, sim.v_bary.data,
-            self.Gx.data, self.Gy.data,
+            sim.Gx.data, sim.Gy.data,
             self.epsilon, self.omega,
             sim.w, sim.cx, sim.cy,
             sim.nx, sim.ny,
@@ -359,8 +359,8 @@ class Simulation_Runner(object):
             self.queue, self.two_d_global_size, self.two_d_local_size,
             self.u_bary.data, self.v_bary.data,
             self.rho.data,
-            self.Gx.data, self.Gy.data,
             self.f.data,
+            self.Gx.data, self.Gy.data,
             self.tau_arr,
             self.w, self.cx, self.cy,
             self.nx, self.ny,
@@ -729,7 +729,7 @@ class Simulation_Runner(object):
             # After updating forces, update the bary_velocity
             self.update_bary_velocity()
             if debug:
-                print 'After updating velocity-prime'
+                print 'After updating bary-velocity'
                 self.check_fields()
 
             for cur_fluid in self.fluid_list:
@@ -755,6 +755,7 @@ class Simulation_Runner(object):
         for i in range(self.num_populations):
             print 'Field:', i
             print 'rho_sum', cl.array.sum(self.rho[:, :, i])
+            print 'u, v bary sum', cl.array.sum(self.u_bary), cl.array.sum(self.u_bary)
             print 'f_sum', np.sum(self.f.get()[:, :, i, :])
             print 'f_eq_sum', np.sum(self.feq.get()[:, :, i, :])
 
