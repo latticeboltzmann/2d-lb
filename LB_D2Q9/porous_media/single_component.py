@@ -117,6 +117,7 @@ class Pourous_Media(object):
 
         self.sim.kernels.update_forces_pourous(
             sim.queue, sim.two_d_global_size, sim.two_d_local_size,
+            sim.rho.data,
             sim.u.data, sim.v.data,
             sim.Gx.data, sim.Gy.data,
             self.epsilon, self.nu_fluid, self.Fe, self.K,
