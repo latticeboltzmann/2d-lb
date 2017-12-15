@@ -69,8 +69,8 @@ collide_particles_pourous(
     __global __read_only double *rho_global,
     __global __read_only double *u_bary_global,
     __global __read_only double *v_bary_global,
-    __global __read_only double *Fx_global,
-    __global __read_only double *Fy_global,
+    __global __read_only double *Gx_global,
+    __global __read_only double *Gy_global,
     const double epsilon,
     const double omega,
     __constant double *w_arr,
@@ -93,8 +93,8 @@ collide_particles_pourous(
         const double rho = rho_global[three_d_index];
         const double u = u_bary_global[two_d_index];
         const double v = v_bary_global[two_d_index];
-        const double Fx = Fx_global[two_d_index];
-        const double Fy = Fy_global[two_d_index];
+        const double Gx = Gx_global[two_d_index];
+        const double Gy = Gy_global[two_d_index];
 
 
         for(int jump_id=0; jump_id < num_jumpers; jump_id++){
@@ -102,9 +102,9 @@ collide_particles_pourous(
 
             double relax = f_global[four_d_index]*(1-omega) + omega*feq_global[four_d_index];
             //Calculate Fi
-            double c_dot_F = cx_arr[jump_id] * Fx + cy_arr[jump_id] * Fy;
+            double c_dot_F = cx_arr[jump_id] * Gx + cy_arr[jump_id] * Gy;
             double c_dot_u = cx_arr[jump_id] * u  + cy_arr[jump_id] * v;
-            double u_dot_F = Fx * u + Fy * v;
+            double u_dot_F = Gx * u + Gy * v;
 
             double Fi = w_arr[jump_id]*rho*(1 - .5*omega)*(
                 c_dot_F/(cs*cs)
@@ -164,8 +164,8 @@ update_bary_velocity(
     __global double *v_bary_global,
     __global __read_only double *rho_global,
     __global __read_only double *f_global,
-    __global __read_only double *Fx,
-    __global __read_only double *Fy,
+    __global __read_only double *Gx_global,
+    __global __read_only double *Gy_global,
     __constant double *tau_arr,
     __constant double *w_arr,
     __constant int *cx_arr,
@@ -190,8 +190,8 @@ update_bary_velocity(
 
             rho_sum += rho_global[three_d_index];
 
-            Fx = Fx_global[three_d_index];
-            Fy = Fy_global[three_d_index];
+            Gx = Gx_global[three_d_index];
+            Gy = Gy_global[three_d_index];
 
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 int four_d_index = jump_id*num_populations*ny*nx + three_d_index;
@@ -202,8 +202,8 @@ update_bary_velocity(
                 sum_x += cx * f;
                 sum_y += cy * f;
             }
-            sum_x += Fx/2.;
-            sum_y += Fy/2.;
+            sum_x += Gx/2.;
+            sum_y += Gy/2.;
         }
         u_bary_global[two_d_index] = sum_x/rho_sum;
         v_bary_global[two_d_index] = sum_y/rho_sum;
@@ -276,8 +276,6 @@ __kernel void
 update_forces_pourous(
     __global double *u_global,
     __global double *v_global,
-    __global __read_only double *Fx_global,
-    __global __read_only double *Fy_global,
     __global __read_only double *Gx_global,
     __global __read_only double *Gy_global,
     const double epsilon,
@@ -289,7 +287,6 @@ update_forces_pourous(
     const int num_populations
 )
 {
-    //Input should be a 2d workgroup! Loop over the third dimension.
     const int x = get_global_id(0);
     const int y = get_global_id(1);
 
@@ -303,24 +300,26 @@ update_forces_pourous(
         double Gx = Gx_global[three_d_index];
         double Gy = Gy_global[three_d_index];
 
-        // Based on the new velocity, determine the force.
-        // Note that you have to calculate the new velocity first in this formalism!
-        double Fx = 0;
-        double Fy = 0;
+        //TODO: should these be divided by density?
 
-        Fx += -(epsilon * nu_fluid*u)/K;
-        Fy += -(epsilon * nu_fluid*v)/K;
+        //At this point, Gx and Gy are already nonzero. We must account
+        //for porosity before doing anything else...
+
+        Gx *= epsilon;
+        Gy *= epsilon;
+
+        // Now add everything else...
+
+        Gx += -(epsilon * nu_fluid*u)/K;
+        Gy += -(epsilon * nu_fluid*v)/K;
 
         double vel_mag = sqrt(u*u + v*v);
 
-        Fx += -(epsilon * Fe * vel_mag * u)/sqrt(K);
-        Fy += -(epsilon * Fe * vel_mag * v)/sqrt(K);
+        Gx += -(epsilon * Fe * vel_mag * u)/sqrt(K);
+        Gy += -(epsilon * Fe * vel_mag * v)/sqrt(K);
 
-        Fx += epsilon*Gx;
-        Fy += epsilon*Gy;
-
-        Fx_global[two_d_index] = Fx;
-        Fy_global[two_d_index] = Fy;
+        Gx_global[two_d_index] = Gx;
+        Gy_global[two_d_index] = Gy;
     }
 }
 

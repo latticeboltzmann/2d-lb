@@ -66,10 +66,6 @@ class Pourous_Media(object):
         print 'omega', self.omega
         assert self.omega < 2.
 
-        # Total force INCLUDING drag forces & body force G
-        self.Fx = None
-        self.Fy = None
-
 
     def initialize(self, rho_arr, f_amp = 0.0):
         """
@@ -122,7 +118,6 @@ class Pourous_Media(object):
         self.sim.kernels.update_forces_pourous(
             sim.queue, sim.two_d_global_size, sim.two_d_local_size,
             sim.u.data, sim.v.data,
-            self.Fx.data, self.Fy.data,
             sim.Gx.data, sim.Gy.data,
             self.epsilon, self.nu_fluid, self.Fe, self.K,
             sim.nx, sim.ny,
@@ -363,6 +358,7 @@ class Simulation_Runner(object):
             self.queue, self.two_d_global_size, self.two_d_local_size,
             self.u_bary.data, self.v_bary.data,
             self.rho.data,
+            self.Gx.data, self.Gy.data,
             self.f.data,
             self.tau_arr,
             self.w, self.cx, self.cy,
@@ -722,17 +718,17 @@ class Simulation_Runner(object):
                 print 'After updating supplementary forces'
                 self.check_fields()
 
+            # Update other forces...includes pourous effects & must be run last
+            for cur_fluid in self.fluid_list:
+                cur_fluid.update_forces()
+            if debug:
+                print 'After updating internal forces'
+                self.check_fields()
+
             # After updating forces, update the bary_velocity
             self.update_bary_velocity()
             if debug:
                 print 'After updating velocity-prime'
-                self.check_fields()
-
-            # Update other forces
-            for cur_fluid in self.fluid_list:
-                cur_fluid.update_forces()  # Update the forces; some are based on the hydro
-            if debug:
-                print 'After updating internal forces'
                 self.check_fields()
 
             for cur_fluid in self.fluid_list:
