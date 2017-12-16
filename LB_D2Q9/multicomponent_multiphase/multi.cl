@@ -6,7 +6,7 @@
     #error "Double precision floating point not supported by OpenCL implementation."
 #endif
 
-#define ZERO_DENSITY 1e-10
+#define ZERO_DENSITY 1e-8
 
 __kernel void
 update_feq_fluid(
@@ -778,7 +778,7 @@ add_interaction_force_second_belt(
                 if (temp_x >= nx) temp_x = nx-1;
                 if (temp_x < 0) temp_x = 0;
 
-                if (temp_y >= ny) temp_y = ny;
+                if (temp_y >= ny) temp_y = ny - 1;
                 if (temp_y < 0) temp_y = 0;
             }
             if (BC_SPECIFIER == 1){ //ZERO GRADIENT
