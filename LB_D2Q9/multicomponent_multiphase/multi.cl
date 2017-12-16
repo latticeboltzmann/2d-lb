@@ -632,11 +632,11 @@ add_interaction_force(
 
             //Painfully deal with BC's...i.e. use periodic BC's.
             if (BC_SPECIFIER == 0){ //PERIODIC
-                if (temp_x >= nx) temp_x -= nx;
-                if (temp_x < 0) temp_x += nx;
+                if (temp_x >= nx) temp_x = nx - 1;
+                if (temp_x < 0) temp_x = 0;
 
-                if (temp_y >= ny) temp_y -= ny;
-                if (temp_y < 0) temp_y += ny;
+                if (temp_y >= ny) temp_y = ny - 1;
+                if (temp_y < 0) temp_y = 0;
             }
             if (BC_SPECIFIER == 1){ // ZERO GRADIENT
                 if (temp_x >= nx) temp_x = nx - 1;
@@ -775,11 +775,11 @@ add_interaction_force_second_belt(
 
             //Painfully deal with BC's...i.e. use periodic BC's.
             if (BC_SPECIFIER == 0){ //PERIODIC
-                if (temp_x >= nx) temp_x -= nx;
-                if (temp_x < 0) temp_x += nx;
+                if (temp_x >= nx) temp_x = nx-1;
+                if (temp_x < 0) temp_x = 0;
 
-                if (temp_y >= ny) temp_y -= ny;
-                if (temp_y < 0) temp_y += ny;
+                if (temp_y >= ny) temp_y = ny;
+                if (temp_y < 0) temp_y = 0;
             }
             if (BC_SPECIFIER == 1){ //ZERO GRADIENT
                 if (temp_x >= nx) temp_x = nx - 1;
