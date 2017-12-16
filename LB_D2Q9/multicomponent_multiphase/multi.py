@@ -80,8 +80,8 @@ class Fluid(object):
         self.init_pop(amplitude=f_amp) # Based on feq, create the hopping non-equilibrium fields
 
         #### Update the component velocities & resulting forces ####
-        self.update_hydro() # The point here is to initialize u and v, the component velocities
-        self.update_forces() # Calculates the drag force, if necessary, based on the component velocity
+        # self.update_hydro() # The point here is to initialize u and v, the component velocities
+        # self.update_forces() # Calculates the drag force, if necessary, based on the component velocity
 
     def init_pop(self, amplitude=0.001):
         """Based on feq, create the initial population of jumpers."""
@@ -103,21 +103,9 @@ class Fluid(object):
         self.sim.f = cl.array.to_device(self.sim.queue, f_host)
 
     def update_forces(self):
-        """
-        Based on the hydrodynamic fields, create the local equilibrium feq that the jumpers f will relax to.
-        Implemented in OpenCL.
-        """
+        """For internal forces...none in this case."""
 
-        sim = self.sim
-
-        self.sim.kernels.update_forces_pourous(
-            sim.queue, sim.two_d_global_size, sim.two_d_local_size,
-            sim.rho.data,
-            sim.u.data, sim.v.data,
-            sim.Gx.data, sim.Gy.data,
-            sim.nx, sim.ny,
-            self.field_index, sim.num_populations
-        ).wait()
+        pass
 
     def update_feq(self):
         """
@@ -127,7 +115,7 @@ class Fluid(object):
 
         sim = self.sim
 
-        self.sim.kernels.update_feq_pourous(
+        self.sim.kernels.update_feq_fluid(
             sim.queue, sim.two_d_global_size, sim.two_d_local_size,
             sim.feq.data,
             sim.rho.data,
@@ -198,7 +186,7 @@ class Fluid(object):
 
         sim = self.sim
 
-        sim.kernels.update_hydro_pourous(
+        sim.kernels.update_hydro_fluid(
             sim.queue, sim.two_d_global_size, sim.two_d_local_size,
             sim.f.data,
             sim.rho.data,
@@ -219,7 +207,7 @@ class Fluid(object):
     def collide_particles(self):
         sim = self.sim
 
-        self.sim.kernels.collide_particles_pourous(
+        self.sim.kernels.collide_particles_fluid(
             sim.queue, sim.two_d_global_size, sim.two_d_local_size,
             sim.f.data,
             sim.feq.data,
@@ -399,7 +387,7 @@ class Simulation_Runner(object):
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
         # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(file_dir + '/single_component.cl').read()).build(options='')
+        self.kernels = cl.Program(self.context, open(file_dir + '/multi.cl').read()).build(options='')
 
     def allocate_constants(self):
         """

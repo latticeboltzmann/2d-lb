@@ -106,7 +106,7 @@ collide_particles_fluid(
 
             double w = w_arr[jump_id];
 
-            double Fi = (1 - .5*omega)*w(
+            double Fi = (1 - .5*omega)*w*(
                 c_dot_F/(cs*cs)
                 + c_dot_F*c_dot_u/pow(cs,4)
                 - u_dot_F/(cs*cs)
@@ -523,7 +523,7 @@ add_radial_g_force(
     if ((x < nx) && (y < ny)){
         int three_d_index = field_num*nx*ny + y*nx + x;
 
-        rho = rho_global[three_d_index];
+        double rho = rho_global[three_d_index];
         // Get the current radius and angle
 
         const double dx = x - center_x;
