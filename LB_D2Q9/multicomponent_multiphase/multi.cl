@@ -481,9 +481,9 @@ add_constant_g_force(
     const int field_num,
     const double g_x,
     const double g_y,
-    __global double *rho_global,
     __global double *Gx_global,
     __global double *Gy_global,
+    __global double *rho_global,
     const int nx, const int ny
 )
 {

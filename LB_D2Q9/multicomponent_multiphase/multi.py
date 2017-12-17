@@ -438,26 +438,28 @@ class Simulation_Runner(object):
 
         self.additional_collisions.append([kernel_to_run, arguments])
 
-    def add_constant_body_force(self, fluid_index, force_x, force_y):
+    def add_constant_g_force(self, fluid_index, force_x, force_y):
 
-        kernel_to_run = self.kernels.add_constant_body_force
+        kernel_to_run = self.kernels.add_constant_g_force
         arguments = [
             self.queue, self.two_d_global_size, self.two_d_local_size,
             int_type(fluid_index), num_type(force_x), num_type(force_y),
             self.Gx.data, self.Gy.data,
+            self.rho.data,
             self.nx, self.ny
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
 
-    def add_radial_body_force(self, fluid_index, center_x, center_y, prefactor, radial_scaling):
+    def add_radial_g_force(self, fluid_index, center_x, center_y, prefactor, radial_scaling):
 
-        kernel_to_run = self.kernels.add_radial_body_force
+        kernel_to_run = self.kernels.add_radial_g_force
         arguments = [
             self.queue, self.two_d_global_size, self.two_d_local_size,
             int_type(fluid_index), int_type(center_x), int_type(center_y),
             num_type(prefactor), num_type(radial_scaling),
             self.Gx.data, self.Gy.data,
+            self.rho.data,
             self.nx, self.ny
         ]
 
