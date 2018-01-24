@@ -159,6 +159,50 @@ add_eating_collision(
 }
 
 __kernel void
+add_growth(
+    const int eater_index,
+    const double min_rho_cutoff,
+    const double max_rho_cutoff,
+    const double eat_rate,
+    __global double *f_global,
+    __global __read_only double *rho_global,
+    __constant double *w_arr,
+    __constant int *cx_arr,
+    __constant int *cy_arr,
+    const int nx, const int ny,
+    const int num_populations,
+    const int num_jumpers,
+    const double cs)
+{
+    //Input should be a 2d workgroup! Loop over the third dimension.
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);
+
+    if ((x < nx) && (y < ny)){
+        const int two_d_index = y*nx + x;
+        int three_d_eater_index = eater_index*ny*nx + two_d_index;
+
+        const double rho_eater = rho_global[three_d_eater_index];
+
+        double all_growth = 0;
+        // Only grow if you are in the correct phase...
+        if ((rho_eater > min_rho_cutoff) && (rho_eater < max_rho_cutoff)){
+            all_growth = eat_rate;
+        }
+
+        for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+            int four_d_eater_index = jump_id*num_populations*ny*nx + three_d_eater_index;
+            int four_d_eatee_index = jump_id*num_populations*ny*nx + three_d_eatee_index;
+
+            float w = w_arr[jump_id];
+
+            f_global[four_d_eater_index] += w * all_growth;
+            f_global[four_d_eatee_index] -= w * all_growth;
+        }
+    }
+}
+
+__kernel void
 update_bary_velocity(
     __global double *u_bary_global,
     __global double *v_bary_global,
