@@ -122,8 +122,7 @@ add_eating_collision(
     const int eater_index,
     const int eatee_index,
     const double eat_rate,
-    const double min_rho_cutoff,
-    const double max_rho_cutoff,
+    const double orderparameter_cutoff,
     __global double *f_global,
     __global __read_only double *rho_global,
     __constant double *w_arr,
@@ -147,8 +146,11 @@ add_eating_collision(
         const double rho_eatee = rho_global[three_d_eatee_index];
 
         // Only eat if you are at an interface...
+        double phi = (rho_eater - rho_eatee)/(rho_eater + rho_eatee);
+        double abs_phi = (double)fabs(phi);
+
         double all_growth = 0;
-        if ((rho_eater > min_rho_cutoff) && (rho_eatee > min_rho_cutoff)){
+        if (abs_phi < orderparameter_cutoff){ // Only grow at the interface
             all_growth = eat_rate*rho_eater*rho_eatee;
         }
 

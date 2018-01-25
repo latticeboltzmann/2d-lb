@@ -417,8 +417,7 @@ class Simulation_Runner(object):
         self.psi_local_1 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
         self.psi_local_2 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
 
-    def add_eating_rate(self, eater_index, eatee_index, rate,
-                        min_rho_cutoff, max_rho_cutoff):
+    def add_eating_rate(self, eater_index, eatee_index, rate, orderparameter_cutoff):
         """
         Eater eats eatee at a given rate.
         :param eater:
@@ -431,7 +430,7 @@ class Simulation_Runner(object):
         arguments = [
             self.queue, self.two_d_global_size, self.two_d_local_size,
             int_type(eater_index), int_type(eatee_index), num_type(rate),
-            num_type(min_rho_cutoff), num_type(max_rho_cutoff),
+            num_type(orderparameter_cutoff),
             self.f.data, self.rho.data,
             self.w, self.cx, self.cy,
             self.nx, self.ny, self.num_populations, self.num_jumpers,
