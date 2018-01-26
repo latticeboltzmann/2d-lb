@@ -7,6 +7,7 @@ import pyopencl.clrandom
 import pyopencl.array
 import ctypes as ct
 import matplotlib.pyplot as plt
+from LB_D2Q9.spectral_poisson import screened_poisson as sp
 
 # Required to draw obstacles
 import skimage as ski
@@ -314,6 +315,8 @@ class Simulation_Runner(object):
         self.additional_collisions = [] # Takes into account growth, other things that can influence collisions
         self.additional_forces = []  # Takes into account other forces, i.e. surface tension
 
+        self.poisson_solver = None # To solve the poisson & screened poisson equation, if necessary.
+
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
 
@@ -482,6 +485,45 @@ class Simulation_Runner(object):
             self.Gx.data, self.Gy.data,
             self.rho.data,
             self.nx, self.ny
+        ]
+
+        self.additional_forces.append([kernel_to_run, arguments])
+
+    def add_screened_poisson_force(self, fluid_index, interaction_length):
+
+        if self.poisson_solver is None:
+            input_density = self.rho.get()[:, :, fluid_index]
+            self.poisson_solver = sp.Screened_Poisson(input_density, cl_context=self.context, cl_queue = self.queue,
+                                                      lam=interaction_length, dx=1.0)
+            self.poisson_solver.create_grad_fields()
+
+        # Update the charge field for the poisson solver
+        density_view = self.rho[:, :, fluid_index]
+
+        cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
+
+        self.poisson_solver.solve_and_update_grad_fields()
+        xgrad = self.poisson_solver.xgrad
+        ygrad = self.poisson_solver.ygrad
+
+        # TODO: THIS SEEMS TO BE THE ONLY WAY TO PREVENT WEIRD TRANSPOSITION ERRORS. TRY TO FIX IN THE FUTURE.
+        # THERE SEEMS TO BE AN ERROR ASSOCIATED WITH .REAL, IT SEEMS TO TRANSPOSE ELEMENTS IN A WAY I DON'T
+        # UNDERSTAND
+        cl.enqueue_copy(self.queue, self.u.data, xgrad.real.data)
+        cl.enqueue_copy(self.queue, self.v.data, ygrad.real.data)
+
+        self.u *= -self.vc * (self.delta_t / self.delta_x)
+        self.v *= -self.vc * (self.delta_t / self.delta_x)
+
+        kernel_to_run = self.kernels.add_interaction_force
+        arguments = [
+            self.queue, self.two_d_global_size, self.two_d_local_size,
+            int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
+            self.psi_local_1, self.psi_local_2,
+            self.rho.data, self.Gx.data, self.Gy.data,
+            self.cs, self.cx, self.cy, self.w,
+            self.nx, self.ny,
+            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers
         ]
 
         self.additional_forces.append([kernel_to_run, arguments])
