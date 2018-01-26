@@ -317,6 +317,7 @@ class Simulation_Runner(object):
 
         self.poisson_solver = None # To solve the poisson & screened poisson equation, if necessary.
         self.poisson_force_active = False
+        self.poisson_index = None
 
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
@@ -490,6 +491,7 @@ class Simulation_Runner(object):
 
         self.additional_forces.append([kernel_to_run, arguments])
 
+    ##### Dealing with Poisson Repulsion. ###########
     def add_screened_poisson_force(self, fluid_index, interaction_length):
 
         input_density = self.rho.get()[:, :, fluid_index]
@@ -498,10 +500,11 @@ class Simulation_Runner(object):
         self.poisson_solver.create_grad_fields()
 
         self.poisson_force_active = True
+        self.poisson_index = int_type(fluid_index)
 
-    def screened_poisson_kernel():
+    def screened_poisson_kernel(self):
         # Update the charge field for the poisson solver
-        density_view = self.rho[:, :, fluid_index]
+        density_view = self.rho[:, :, self.poisson_index]
 
         cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
 
@@ -509,13 +512,9 @@ class Simulation_Runner(object):
         xgrad = self.poisson_solver.xgrad.real
         ygrad = self.poisson_solver.ygrad.real
 
-        self.Gx[:, :, fluid_index] += xgrad
-        self.Gy[:, :, fluid_index] += ygrad
-
-    kernel_to_run = screened_poisson_kernel
-    arguments = []
-
-    self.additional_forces.append([kernel_to_run, arguments])
+        self.Gx[:, :, self.poisson_index] += xgrad
+        self.Gy[:, :, self.poisson_index] += ygrad
+    ############################################
 
     def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic', potential='linear',
                               potential_parameters=None):
@@ -749,6 +748,8 @@ class Simulation_Runner(object):
                 kernel = d[0]
                 arguments = d[1]
                 kernel(*arguments).wait()
+            if self.poisson_force_active:
+                self.screened_poisson_kernel()
             if debug:
                 print 'After updating supplementary forces'
                 self.check_fields()
