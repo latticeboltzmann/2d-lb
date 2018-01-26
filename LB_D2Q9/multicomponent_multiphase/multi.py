@@ -447,6 +447,7 @@ class Simulation_Runner(object):
 
         self.additional_collisions.append([kernel_to_run, arguments])
 
+
     def add_growth(self, eater_index, min_rho_cutoff, max_rho_cutoff, eat_rate):
         """
         Grows uniformly everywhere.
