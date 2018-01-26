@@ -552,31 +552,6 @@ add_constant_g_force(
 }
 
 __kernel void
-add_screened_poisson_force(
-    const int field_num,
-    __global double *x_grad,
-    __global double *y_grad,
-    __global double *Gx_global,
-    __global double *Gy_global,
-    __global double *rho_global,
-    const int nx, const int ny
-)
-{
-    //Input should be a 2d workgroup! Loop over the third dimension.
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-
-    if ((x < nx) && (y < ny)){
-        int three_d_index = field_num*nx*ny + y*nx + x;
-
-        // Rembmer, force PER density! In *dimensionless* units.
-        Gx_global[three_d_index] += g_x*rho;
-        Gy_global[three_d_index] += g_y*rho;
-
-    }
-}
-
-__kernel void
 add_radial_g_force(
     const int field_num,
     const int center_x,

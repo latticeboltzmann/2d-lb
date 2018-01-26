@@ -318,6 +318,9 @@ class Simulation_Runner(object):
         self.poisson_solver = None # To solve the poisson & screened poisson equation, if necessary.
         self.poisson_force_active = False
         self.poisson_index = None
+        self.poisson_amp = None
+        self.poisson_xgrad = None
+        self.poisson_ygrad = None
 
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
@@ -492,7 +495,7 @@ class Simulation_Runner(object):
         self.additional_forces.append([kernel_to_run, arguments])
 
     ##### Dealing with Poisson Repulsion. ###########
-    def add_screened_poisson_force(self, fluid_index, interaction_length):
+    def add_screened_poisson_force(self, fluid_index, interaction_length, amplitude):
 
         input_density = self.rho.get()[:, :, fluid_index]
         self.poisson_solver = sp.Screened_Poisson(input_density, cl_context=self.context, cl_queue = self.queue,
@@ -501,6 +504,7 @@ class Simulation_Runner(object):
 
         self.poisson_force_active = True
         self.poisson_index = int_type(fluid_index)
+        self.poisson_amp = amplitude
 
     def screened_poisson_kernel(self):
         # Update the charge field for the poisson solver
@@ -509,11 +513,11 @@ class Simulation_Runner(object):
         cl.enqueue_copy(self.queue, self.poisson_solver.charge.data, density_view.astype(np.complex64).data)
 
         self.poisson_solver.solve_and_update_grad_fields()
-        xgrad = self.poisson_solver.xgrad.real
-        ygrad = self.poisson_solver.ygrad.real
+        self.poisson_xgrad = self.poisson_amp * self.poisson_solver.xgrad.real
+        self.poisson_ygrad = self.poisson_amp * self.poisson_solver.ygrad.real
 
-        self.Gx[:, :, self.poisson_index] += xgrad
-        self.Gy[:, :, self.poisson_index] += ygrad
+        self.Gx[:, :, self.poisson_index] += self.poisson_xgrad
+        self.Gy[:, :, self.poisson_index] += self.poisson_ygrad
     ############################################
 
     def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic', potential='linear',
