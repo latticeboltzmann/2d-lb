@@ -554,8 +554,8 @@ add_constant_g_force(
 __kernel void
 add_screened_poisson_force(
     const int field_num,
-    const double g_x,
-    const double g_y,
+    __global double *x_grad,
+    __global double *y_grad,
     __global double *Gx_global,
     __global double *Gy_global,
     __global double *rho_global,
@@ -568,8 +568,6 @@ add_screened_poisson_force(
 
     if ((x < nx) && (y < ny)){
         int three_d_index = field_num*nx*ny + y*nx + x;
-
-        double rho = rho_global[three_d_index];
 
         // Rembmer, force PER density! In *dimensionless* units.
         Gx_global[three_d_index] += g_x*rho;
