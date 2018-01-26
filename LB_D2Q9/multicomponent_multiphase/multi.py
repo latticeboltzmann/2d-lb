@@ -509,6 +509,8 @@ class Simulation_Runner(object):
         # TODO: THIS SEEMS TO BE THE ONLY WAY TO PREVENT WEIRD TRANSPOSITION ERRORS. TRY TO FIX IN THE FUTURE.
         # THERE SEEMS TO BE AN ERROR ASSOCIATED WITH .REAL, IT SEEMS TO TRANSPOSE ELEMENTS IN A WAY I DON'T
         # UNDERSTAND
+        self.Gx
+
         cl.enqueue_copy(self.queue, self.u.data, xgrad.real.data)
         cl.enqueue_copy(self.queue, self.v.data, ygrad.real.data)
 
