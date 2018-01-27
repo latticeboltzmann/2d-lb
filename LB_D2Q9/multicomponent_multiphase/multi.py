@@ -232,7 +232,8 @@ class Simulation_Runner(object):
                  L_lb=100, T_lb=1.,
                  num_populations=1,
                  two_d_local_size=(32,32), use_interop=False,
-                 check_max_ulb=False, mach_tolerance=0.1):
+                 check_max_ulb=False, mach_tolerance=0.1,
+                 context = None):
 
         self.nx = int_type(nx)
         self.ny = int_type(ny)
@@ -257,7 +258,7 @@ class Simulation_Runner(object):
         print '2d local:' , self.two_d_local_size
 
         # Initialize the opencl environment
-        self.context = None     # The pyOpenCL context
+        self.context = context     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
         self.use_interop = use_interop
@@ -363,34 +364,36 @@ class Simulation_Runner(object):
         """
 
         # Startup script shamelessly taken from CS205 homework
-        platforms = cl.get_platforms()
-        print 'The platforms detected are:'
-        print '---------------------------'
-        for platform in platforms:
-            print platform.name, platform.vendor, 'version:', platform.version
 
-        # List devices in each platform
-        for platform in platforms:
-            print 'The devices detected on platform', platform.name, 'are:'
+        if self.context is None:
+            platforms = cl.get_platforms()
+            print 'The platforms detected are:'
             print '---------------------------'
-            for device in platform.get_devices():
-                print device.name, '[Type:', cl.device_type.to_string(device.type), ']'
-                print 'Maximum clock Frequency:', device.max_clock_frequency, 'MHz'
-                print 'Maximum allocable memory size:', int(device.max_mem_alloc_size / 1e6), 'MB'
-                print 'Maximum work group size', device.max_work_group_size
-                print 'Maximum work item dimensions', device.max_work_item_dimensions
-                print 'Maximum work item size', device.max_work_item_sizes
-                print '---------------------------'
+            for platform in platforms:
+                print platform.name, platform.vendor, 'version:', platform.version
 
-        # Create a context with all the devices
-        devices = platforms[0].get_devices()
-        if not self.use_interop:
-            self.context = cl.Context(devices)
-        else:
-            self.context = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])]
-                                                 + cl.tools.get_gl_sharing_context_properties(),
-                                      devices= devices)
-        print 'This context is associated with ', len(self.context.devices), 'devices'
+            # List devices in each platform
+            for platform in platforms:
+                print 'The devices detected on platform', platform.name, 'are:'
+                print '---------------------------'
+                for device in platform.get_devices():
+                    print device.name, '[Type:', cl.device_type.to_string(device.type), ']'
+                    print 'Maximum clock Frequency:', device.max_clock_frequency, 'MHz'
+                    print 'Maximum allocable memory size:', int(device.max_mem_alloc_size / 1e6), 'MB'
+                    print 'Maximum work group size', device.max_work_group_size
+                    print 'Maximum work item dimensions', device.max_work_item_dimensions
+                    print 'Maximum work item size', device.max_work_item_sizes
+                    print '---------------------------'
+
+            # Create a context with all the devices
+            devices = platforms[0].get_devices()
+            if not self.use_interop:
+                self.context = cl.Context(devices)
+            else:
+                self.context = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])]
+                                                     + cl.tools.get_gl_sharing_context_properties(),
+                                          devices= devices)
+            print 'This context is associated with ', len(self.context.devices), 'devices'
 
         # Create a simple queue
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
