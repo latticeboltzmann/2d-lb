@@ -644,11 +644,11 @@ void get_BC(
         if (*streamed_y < 0) *streamed_y += ny;
     }
     if (BC_SPECIFIER == 1){ // ZERO GRADIENT
-        if (temp_x >= nx) temp_x = nx - 1;
-        if (temp_x < 0) temp_x = 0;
+        if (*streamed_x >= nx) *streamed_x = nx - 1;
+        if (*streamed_x < 0) *streamed_x = 0;
 
-        if (temp_y >= ny) temp_y = ny - 1;
-        if (temp_y < 0) temp_y = 0;
+        if (*streamed_y >= ny) *streamed_y = ny - 1;
+        if (*streamed_y < 0) *streamed_y = 0;
     }
 }
 __kernel void

@@ -514,7 +514,20 @@ class Simulation_Runner(object):
     def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic', potential='linear',
                               potential_parameters=None):
 
-        # Allocate local memory for the clumpiness
+        # We use the D2Q9 stencil for this force
+        w_arr = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
+                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
+        cx_arr = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
+        cy_arr = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
+
+        w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w_arr)
+        cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx_arr)
+        cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy_arr)
+
+        cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
+        num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
+
+        # Allocate local memory
         halo = int_type(1) # As we are doing D2Q9, we have a halo of one
         buf_nx = int_type(self.two_d_local_size[0] + 2 * halo)
         buf_ny = int_type(self.two_d_local_size[1] + 2 * halo)
@@ -529,9 +542,9 @@ class Simulation_Runner(object):
             int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
             psi_local_1, psi_local_2,
             self.rho.data, self.Gx.data, self.Gy.data,
-            self.cs, self.cx, self.cy, self.w,
+            cs, cx, cy, w,
             self.nx, self.ny,
-            buf_nx, buf_ny, halo, self.num_jumpers
+            buf_nx, buf_ny, halo, num_jumpers
         ]
 
         if bc is 'periodic':
