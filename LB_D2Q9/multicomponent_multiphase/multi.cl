@@ -48,13 +48,26 @@ update_feq_fluid(
             double c_dot_u = cx*u + cy*v;
             double u_squared = u*u + v*v;
 
-            double new_feq =
-            w*rho*(
-            1.f
-            + c_dot_u/(cs*cs)
-            + (c_dot_u*c_dot_u)/(2*pow(cs,4))
-            - u_squared/(2*cs*cs)
-            );
+            double new_feq = 0;
+            if (num_jumpers == 9){ //D2Q9
+                new_feq =
+                w*rho*(
+                1.f
+                + c_dot_u/(cs*cs)
+                + (c_dot_u*c_dot_u)/(2*pow(cs,4))
+                - u_squared/(2*cs*cs)
+                );
+            }
+            else if(num_jumpers == 25){ //D2Q25
+                new_feq =
+                w*rho*(
+                1.f
+                + c_dot_u/(cs*cs)
+                + (c_dot_u*c_dot_u)/(2*pow(cs,4))
+                - u_squared/(2*cs*cs)
+                + (c_dot_u * (c_dot_u*c_dot_u - 3*cs*cs*u_squared))/(6*pow(cs,6))
+                );
+            }
 
             feq_global[four_d_index] = new_feq;
         }
