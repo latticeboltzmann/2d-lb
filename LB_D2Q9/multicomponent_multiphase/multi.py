@@ -828,7 +828,7 @@ class Simulation_RunnerD2Q25(Simulation_Runner):
         # Mag 0
         cx_list += [0]
         cy_list += [0]
-        w_list += [t0]
+        w_list += [t0*t0]
 
         # Mag 1
         cx_list += [0, 0, 1, -1]
