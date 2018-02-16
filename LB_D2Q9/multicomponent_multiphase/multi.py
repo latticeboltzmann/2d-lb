@@ -271,13 +271,6 @@ class Simulation_Runner(object):
         self.cs = None
         self.num_jumpers = None
 
-        self.halo = None
-        self.buf_nx = None
-        self.buf_ny = None
-        # For nonlocal computation
-        self.psi_local_1 = None
-        self.psi_local_2 = None
-
         self.allocate_constants()
 
         ## Initialize hydrodynamic variables & Shan-chen variables
@@ -421,14 +414,6 @@ class Simulation_Runner(object):
         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
 
-        # Allocate local memory for the clumpiness
-        self.halo = int_type(1) # As we are doing D2Q9, we have a halo of one
-        self.buf_nx = int_type(self.two_d_local_size[0] + 2 * self.halo)
-        self.buf_ny = int_type(self.two_d_local_size[1] + 2 * self.halo)
-
-        self.psi_local_1 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
-        self.psi_local_2 = cl.LocalMemory(num_size * self.buf_nx * self.buf_ny)
-
     def add_eating_rate(self, eater_index, eatee_index, rate, orderparameter_cutoff):
         """
         Eater eats eatee at a given rate.
@@ -529,15 +514,24 @@ class Simulation_Runner(object):
     def add_interaction_force(self, fluid_1_index, fluid_2_index, G_int, bc='periodic', potential='linear',
                               potential_parameters=None):
 
+        # Allocate local memory for the clumpiness
+        halo = int_type(1) # As we are doing D2Q9, we have a halo of one
+        buf_nx = int_type(self.two_d_local_size[0] + 2 * halo)
+        buf_ny = int_type(self.two_d_local_size[1] + 2 * halo)
+
+
+        psi_local_1 = cl.LocalMemory(num_size * buf_nx * buf_ny)
+        psi_local_2 = cl.LocalMemory(num_size * buf_nx * buf_ny)
+
         kernel_to_run = self.kernels.add_interaction_force
         arguments = [
             self.queue, self.two_d_global_size, self.two_d_local_size,
             int_type(fluid_1_index), int_type(fluid_2_index), num_type(G_int),
-            self.psi_local_1, self.psi_local_2,
+            psi_local_1, psi_local_2,
             self.rho.data, self.Gx.data, self.Gy.data,
             self.cs, self.cx, self.cy, self.w,
             self.nx, self.ny,
-            self.buf_nx, self.buf_ny, self.halo, self.num_jumpers
+            buf_nx, buf_ny, halo, self.num_jumpers
         ]
 
         if bc is 'periodic':
@@ -809,3 +803,61 @@ class Simulation_Runner(object):
         print 'Total feq_sum', np.sum(self.feq.get())
 
         print
+
+
+class Simulation_RunnerD2Q25(Simulation_Runner):
+    def __init__(self, **kwargs):
+        super(Simulation_RunnerD2Q25, self).__init__(**kwargs)
+
+    def allocate_constants(self):
+        """
+        Allocates constants and local memory to be used by OpenCL.
+        """
+
+        ##########################
+        ##### D2Q25 parameters####
+        ##########################
+        t0 = (4./45.)*(4 + np.sqrt(10))
+        t1 = (3./80.)*(8 - np.sqrt(10))
+        t3 = (1./720.)*(16 - 5*np.sqrt(10))
+
+        w_list = []
+        cx_list = []
+        cy_list = []
+
+        # Mag 0
+        cx_list += [0]
+        cy_list += [0]
+        w_list += [t0]
+
+        # Mag 1
+        cx_list += [0, 0, 1, -1]
+        cy_list += [1, -1, 0, 0]
+        w_list += 4*[t0*t1]
+
+        # Mag sqrt(2)
+        cx_list += [1, 1, -1, -1]
+        cy_list += [1, -1, 1, -1]
+        w_list += 4*[t1**2]
+
+        # Mag sqrt(10)
+        cx_list += [1, 1, -1, -1, 3, 3, -3, -3]
+        cy_list += [3, -3, 3, -3, 1, -1, 1, -1]
+        w_list += 8*[t1*t3]
+
+        # Mag sqrt(18)
+        cx_list += [3, 3, -3, -3]
+        cy_list += [3, -3, 3, -3]
+        w_list += 4*[t3**2]
+
+        # Now send everything to disk
+        w = np.array(w_list, order='F', dtype=num_type)  # weights for directions
+        cx = np.array(cx_list, order='F', dtype=int_type)  # direction vector for the x direction
+        cy = np.array(cy_list, order='F', dtype=int_type)  # direction vector for the y direction
+
+        self.cs = num_type(1. - np.sqrt(2./5.))  # Speed of sound on the lattice
+        self.num_jumpers = int_type(w.shape[0])  # Number of jumpers: should be 25
+
+        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
+        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
+        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
