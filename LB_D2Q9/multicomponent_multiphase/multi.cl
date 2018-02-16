@@ -6,7 +6,7 @@
     #error "Double precision floating point not supported by OpenCL implementation."
 #endif
 
-#define ZERO_DENSITY 1e-8
+#define ZERO_DENSITY 1e-12
 
 __kernel void
 update_feq_fluid(

@@ -838,7 +838,7 @@ class Simulation_RunnerD2Q25(Simulation_Runner):
         # Mag sqrt(2)
         cx_list += [1, 1, -1, -1]
         cy_list += [1, -1, 1, -1]
-        w_list += 4*[t1**2]
+        w_list += 4*[t1*t1]
 
         # Mag 3
         cx_list += [3, -3, 0, 0]
@@ -853,7 +853,7 @@ class Simulation_RunnerD2Q25(Simulation_Runner):
         # Mag sqrt(18)
         cx_list += [3, 3, -3, -3]
         cy_list += [3, -3, 3, -3]
-        w_list += 4*[t3**2]
+        w_list += 4*[t3 * t3]
 
         # Now send everything to disk
         w = np.array(w_list, order='F', dtype=num_type)  # weights for directions
