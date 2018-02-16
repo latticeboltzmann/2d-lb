@@ -339,11 +339,12 @@ move_periodic(__global __read_only double *f_global,
             int stream_x = x + cur_cx;
             int stream_y = y + cur_cy;
 
-            if (stream_x == nx) stream_x = 0;
-            if (stream_x < 0) stream_x = nx - 1;
+            // Updated these to work with any velocity...
+            if (stream_x >= nx) stream_x -= nx;
+            if (stream_x < 0) stream_x += nx ;
 
-            if (stream_y == ny) stream_y = 0;
-            if (stream_y < 0) stream_y = ny - 1;
+            if (stream_y >= ny) stream_y -= ny;
+            if (stream_y < 0) stream_y += ny;
 
             int slice = jump_id*num_populations*nx*ny + cur_field*nx*ny;
             int old_4d_index = slice + y*nx + x;
