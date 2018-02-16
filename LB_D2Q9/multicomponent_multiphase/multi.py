@@ -663,7 +663,7 @@ class Simulation_Runner(object):
         cy2_const = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy2)
 
         # Allocate local memory for the clumpiness
-        cur_halo = int_type(2) # As we are doing D2Q9, we have a halo of one
+        cur_halo = int_type(2)
         cur_buf_nx = int_type(self.two_d_local_size[0] + 2 * cur_halo)
         cur_buf_ny = int_type(self.two_d_local_size[1] + 2 * cur_halo)
 
@@ -839,6 +839,11 @@ class Simulation_RunnerD2Q25(Simulation_Runner):
         cx_list += [1, 1, -1, -1]
         cy_list += [1, -1, 1, -1]
         w_list += 4*[t1**2]
+
+        # Mag 3
+        cx_list += [3, -3, 0, 0]
+        cy_list += [0, 0, 3, -3]
+        w_list += 4*[t0*t3]
 
         # Mag sqrt(10)
         cx_list += [1, 1, -1, -1, 3, 3, -3, -3]
