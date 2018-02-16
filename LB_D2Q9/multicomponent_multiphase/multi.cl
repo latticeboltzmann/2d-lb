@@ -629,6 +629,28 @@ void get_psi(
     }
 }
 
+void get_BC(
+    int *streamed_x,
+    int *streamed_y,
+    const int BC_SPECIFIER,
+    const int nx,
+    const int ny)
+{
+    if (BC_SPECIFIER == 0){ //PERIODIC
+        if (*streamed_x >= nx) *streamed_x -= nx;
+        if (*streamed_x < 0) *streamed_x += nx;
+
+        if (*streamed_y >= ny) *streamed_y -= ny;
+        if (*streamed_y < 0) *streamed_y += ny;
+    }
+    if (BC_SPECIFIER == 1){ // ZERO GRADIENT
+        if (temp_x >= nx) temp_x = nx - 1;
+        if (temp_x < 0) temp_x = 0;
+
+        if (temp_y >= ny) temp_y = ny - 1;
+        if (temp_y < 0) temp_y = 0;
+    }
+}
 __kernel void
 add_interaction_force(
     const int fluid_index_1,
@@ -680,20 +702,7 @@ add_interaction_force(
             int temp_y = buf_corner_y + row;
 
             //Painfully deal with BC's...i.e. use periodic BC's.
-            if (BC_SPECIFIER == 0){ //PERIODIC
-                if (temp_x >= nx) temp_x = nx - 1;
-                if (temp_x < 0) temp_x = 0;
-
-                if (temp_y >= ny) temp_y = ny - 1;
-                if (temp_y < 0) temp_y = 0;
-            }
-            if (BC_SPECIFIER == 1){ // ZERO GRADIENT
-                if (temp_x >= nx) temp_x = nx - 1;
-                if (temp_x < 0) temp_x = 0;
-
-                if (temp_y >= ny) temp_y = ny - 1;
-                if (temp_y < 0) temp_y = 0;
-            }
+            get_BC(&temp_x, &temp_y, BC_SPECIFIER, nx, ny);
 
             local_fluid_1[row*buf_nx + idx_1D] = rho_global[fluid_index_1*ny*nx + temp_y*nx + temp_x];
             local_fluid_2[row*buf_nx + idx_1D] = rho_global[fluid_index_2*ny*nx + temp_y*nx + temp_x];
@@ -823,20 +832,7 @@ add_interaction_force_second_belt(
             int temp_y = buf_corner_y + row;
 
             //Painfully deal with BC's...i.e. use periodic BC's.
-            if (BC_SPECIFIER == 0){ //PERIODIC
-                if (temp_x >= nx) temp_x = nx-1;
-                if (temp_x < 0) temp_x = 0;
-
-                if (temp_y >= ny) temp_y = ny - 1;
-                if (temp_y < 0) temp_y = 0;
-            }
-            if (BC_SPECIFIER == 1){ //ZERO GRADIENT
-                if (temp_x >= nx) temp_x = nx - 1;
-                if (temp_x < 0) temp_x = 0;
-
-                if (temp_y >= ny) temp_y = ny - 1;
-                if (temp_y < 0) temp_y = 0;
-            }
+            get_BC(&temp_x, &temp_y, BC_SPECIFIER, nx, ny);
 
             local_fluid_1[row*buf_nx + idx_1D] = rho_global[fluid_index_1*ny*nx + temp_y*nx + temp_x];
             local_fluid_2[row*buf_nx + idx_1D] = rho_global[fluid_index_2*ny*nx + temp_y*nx + temp_x];
