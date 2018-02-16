@@ -860,7 +860,7 @@ class Simulation_RunnerD2Q25(Simulation_Runner):
         cx = np.array(cx_list, order='F', dtype=int_type)  # direction vector for the x direction
         cy = np.array(cy_list, order='F', dtype=int_type)  # direction vector for the y direction
 
-        self.cs = num_type(1. - np.sqrt(2./5.))  # Speed of sound on the lattice
+        self.cs = num_type(np.sqrt(1. - np.sqrt(2./5.)))  # Speed of sound on the lattice
         self.num_jumpers = int_type(w.shape[0])  # Number of jumpers: should be 25
 
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
