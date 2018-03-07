@@ -61,7 +61,8 @@ void main()
 class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def __init__(self, sim, sim_field_to_draw, num_steps_per_draw=1, scaling_factor=1.0, max_magnitude=1.0,
-                 cmap=plt.cm.magma, num_colors=1024, save_images=False, render_dpi=300, render_folder ='./'):
+                 cmap=plt.cm.magma, num_colors=1024, save_images=False, render_dpi=300, render_folder ='./',
+                 run_func = None):
         # Determine the size of the window
         self.sim = sim
         self.sim_field_to_draw = sim_field_to_draw
@@ -70,12 +71,13 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
         self.save_images = save_images
         self.render_dpi = render_dpi
         self.render_folder = render_folder
+        self.run_func = run_func
 
         vp.app.Canvas.__init__(self, keys='interactive', size=((self.W * 5), (self.H * 5)))
 
         # Setup necessary buffers, projections, etc.
         self.I = np.zeros((self.W, self.H), dtype=np.float32, order='F')
-        self.I = self.sim_field_to_draw.get()
+        self.I = self.sim_field_to_draw.get().astype(np.float32)
 
         self.scaling_factor = scaling_factor
         self.max_magnitude = max_magnitude
@@ -143,10 +145,13 @@ class Field_Visualizer_Canvas(vp.app.Canvas):
 
     def on_draw(self, event):
         vp.gloo.clear(color=True, depth=True)
-        self.sim.run(self.num_steps_per_draw)
+        if self.run_func is None:
+            self.sim.run(self.num_steps_per_draw)
+        else:
+            self.run_func(self.num_steps_per_draw)
         self.total_num_steps += self.num_steps_per_draw
 
-        self.I[...] = self.sim_field_to_draw.get()
+        self.I[...] = self.sim_field_to_draw.get().astype(np.float32)
 
         self.texture.set_data(self.I)
         self.program.draw('triangle_strip')
